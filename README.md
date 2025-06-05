@@ -9,14 +9,17 @@
 
 A production-ready lakehouse environment using modern open source tools. Perfect for learning, development, and small-to-medium production workloads. **Now with DuckDB + S3 for powerful multi-file analytics!**
 
-Why build this? Having worked with large scale data for more than a decade I noticed that many teams struggled to get an end-to-end environment up and running. Rather than spend time on learning the tools, people ended up wrestling with the confg and settings. This complexity can be resolved by using commercial products like Databricks or Snowflake, but at some cost. Lakehouse Lab is intented for startup teams, solo data scientists, students, data-focused Homelabbers, and anyone who wants to be able to use a rich open source lakehouse stack. Designed to scale from a robust laptop all the way up to larger servers, Lakehouse Lab should have everything you need to get started with modern data engineering, data science, or analytics.  
-
 ## ⚡ Ultra-Quick Start
 
 **Get your complete data analytics stack running with a single command:**
 
 ```bash
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
+```
+
+**For Windows WSL users:**
+```bash
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh
 ```
 
 That's it! ☕ Grab a coffee while it sets up your entire lakehouse environment.
@@ -46,7 +49,6 @@ Wait 3-5 minutes for initialization, then visit: **http://localhost:9060** (Port
 | **MinIO Console** | Object Storage | http://localhost:9001 | minio/minio123 |
 | **Spark Master** | Distributed Computing | http://localhost:8080 | N/A |
 | **Homer** | Service Links (Optional) | http://localhost:9061 | N/A |
-
 ## 🏗️ Architecture
 
 ```

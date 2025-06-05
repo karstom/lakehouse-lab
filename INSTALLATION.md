@@ -1,21 +1,18 @@
-# 🚀 One-Command Installation
+# 🚀 Lakehouse Lab Installation Guide
 
-## ⚡ Ultra-Quick Start
+Complete installation options for all platforms and use cases.
 
-**Get your complete data analytics stack running with a single command:**
-
-```bash
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
-```
-
-That's it! ☕ Grab a coffee while it sets up your entire lakehouse environment.
-
-## 🎯 Installation Options
+## ⚡ One-Command Installation
 
 ### **Standard Installation (Recommended)**
 ```bash
 # For laptops, workstations, small servers (16GB RAM, 4+ cores)
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
+```
+
+**Windows WSL users:**
+```bash
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh
 ```
 
 ### **High-Performance Installation**
@@ -24,43 +21,37 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --fat-server
 ```
 
+**Windows WSL users:**
+```bash
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh --fat-server
+```
+
+### **Unattended Installation (CI/CD)**
+```bash
+# No prompts, automatic installation
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --unattended
+```
+
 ### **Download Only (Manual Start)**
 ```bash
-# Download and configure, but don't start services automatically
+# Download and configure, but don't start services
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --no-start
 ```
 
-### **Custom Directory**
-```bash
-# Install to a specific directory
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --dir my-lakehouse
-```
+## 🔧 Installation Options
 
-## 🔧 What the Installer Does
+| Option | Description | Example |
+|--------|-------------|---------|
+| `--fat-server` | High-performance config (64GB+ RAM) | `--fat-server` |
+| `--no-start` | Download only, don't start services | `--no-start` |
+| `--unattended` | No prompts, assume yes to all | `--unattended` |
+| `--skip-deps` | Skip dependency installation | `--skip-deps` |
+| `--dir DIR` | Install to custom directory | `--dir my-lakehouse` |
+| `--branch BRANCH` | Use specific git branch | `--branch develop` |
 
-1. **✅ Checks system requirements** (memory, CPU, disk space)
-2. **✅ Installs dependencies** (Docker, git, curl) if missing
-3. **✅ Downloads Lakehouse Lab** from GitHub
-4. **✅ Configures environment** for your hardware
-5. **✅ Starts all services** automatically
-6. **✅ Provides access URLs** and next steps
+## 🖥️ Traditional Installation
 
-## 🎛️ Advanced Options
-
-```bash
-# All available options
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- \
-  --fat-server \     # Use high-performance config
-  --no-start \       # Don't auto-start services
-  --skip-deps \      # Skip dependency installation
-  --dir custom-dir \ # Custom installation directory
-  --branch develop   # Use specific git branch
-```
-
-## 🖥️ Manual Installation (Alternative)
-
-If you prefer the traditional approach:
-
+### **Manual Git Clone**
 ```bash
 git clone https://github.com/karstom/lakehouse-lab.git
 cd lakehouse-lab
@@ -68,20 +59,12 @@ cp .env.default .env  # or .env.fat-server for high-end systems
 docker compose up -d
 ```
 
-## 🛡️ Security Considerations
-
-**The one-liner is safe because:**
-- ✅ Uses HTTPS for secure download
-- ✅ Downloads from official GitHub repository
-- ✅ No elevated privileges required (except for Docker installation)
-- ✅ Open source - you can inspect the script first
-
-**To inspect before running:**
+### **Using the Startup Script**
 ```bash
-# Download and review the script first
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh > install.sh
-less install.sh  # Review the script
-bash install.sh  # Run after review
+git clone https://github.com/karstom/lakehouse-lab.git
+cd lakehouse-lab
+./start-lakehouse.sh         # Standard startup
+./start-lakehouse.sh debug   # Step-by-step startup
 ```
 
 ## 📋 System Requirements
@@ -99,6 +82,22 @@ bash install.sh  # Run after review
 - **Storage**: 500GB+ SSD
 - **Network**: Gigabit connection
 
+## 🛡️ Security Considerations
+
+**The one-liner is safe because:**
+- ✅ Uses HTTPS for secure download
+- ✅ Downloads from official GitHub repository
+- ✅ No elevated privileges required (except for Docker installation)
+- ✅ Open source - you can inspect the script first
+
+**To inspect before running:**
+```bash
+# Download and review the script first
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh > install.sh
+less install.sh  # Review the script
+bash install.sh  # Run after review
+```
+
 ## 🚨 Troubleshooting
 
 ### **Docker Permission Issues**
@@ -106,6 +105,16 @@ bash install.sh  # Run after review
 # If you get permission errors after installation:
 sudo usermod -aG docker $USER
 # Then log out and back in
+```
+
+### **WSL "Failure writing output" Error**
+```bash
+# Use the WSL-friendly method:
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh
+
+# Or download and run manually:
+wget https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh
+bash install.sh
 ```
 
 ### **Port Conflicts**
@@ -152,20 +161,6 @@ cd lakehouse-lab
 3. 📊 Upload your own data to MinIO
 4. 🔬 Create analysis notebooks in Jupyter
 
-## 🌟 Why This Approach?
-
-**For Users:**
-- ⚡ **Zero friction** - just one command
-- 🛡️ **Error handling** - automatically fixes common issues
-- 🎯 **Smart defaults** - optimizes for your hardware
-- 📱 **Works everywhere** - Linux, macOS, Windows (WSL2)
-
-**For the Project:**
-- 📈 **Higher adoption** - removes setup barriers
-- 🐛 **Fewer support issues** - standardized installation
-- 🚀 **Viral potential** - easy to share and demo
-- 🎓 **Educational value** - users see modern DevOps practices
-
 ## 🔄 Updating
 
 To update to the latest version:
@@ -180,5 +175,27 @@ Or reinstall completely:
 ```bash
 ./start-lakehouse.sh reset  # Remove everything
 cd ..
-curl -sSL https://raw.githubusercontent.com/YOUR-USERNAME/lakehouse-lab/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
 ```
+
+## 🌟 Platform-Specific Notes
+
+### **Linux**
+- Works on all major distributions (Ubuntu, CentOS, Debian, etc.)
+- Auto-installs Docker if missing
+- Best performance and compatibility
+
+### **macOS**
+- Requires Homebrew for Docker installation
+- Works with both Intel and Apple Silicon
+- May need to start Docker Desktop manually
+
+### **Windows WSL2**
+- Use the alternative installation commands above
+- Ensure WSL2 is properly configured
+- Docker Desktop integration recommended
+
+### **Cloud Platforms**
+- Works on AWS, Azure, GCP, DigitalOcean
+- Use `--unattended` flag for automated deployments
+- Consider `--fat-server` for cloud instances with high specs

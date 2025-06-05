@@ -11,12 +11,32 @@ cd lakehouse-lab
 docker compose up -d
 ```
 
+**Or use the one-liner:**
+```bash
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
+```
+
+**Windows WSL users:**
+```bash
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh
+```
+
 ### **Fat Server Setup (32+ cores, 64GB+ RAM)**
 ```bash
 git clone https://github.com/karstom/lakehouse-lab.git
 cd lakehouse-lab
 cp .env.fat-server .env
 docker compose up -d
+```
+
+**Or use the one-liner:**
+```bash
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --fat-server
+```
+
+**Windows WSL users:**
+```bash
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh --fat-server
 ```
 
 ### **Alternative: Use the Startup Script**
