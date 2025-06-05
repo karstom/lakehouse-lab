@@ -17,7 +17,7 @@ A production-ready lakehouse environment using modern open source tools. Perfect
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
 ```
 
-**For Windows WSL users:**
+**For Windows WSL or macOS users** (if you get piping issues):
 ```bash
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh
 ```

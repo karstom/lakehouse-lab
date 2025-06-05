@@ -16,7 +16,7 @@ docker compose up -d
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
 ```
 
-**Windows WSL users:**
+**Windows WSL or macOS users:**
 ```bash
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh
 ```
@@ -34,7 +34,7 @@ docker compose up -d
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --fat-server
 ```
 
-**Windows WSL users:**
+**Windows WSL or macOS users:**
 ```bash
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh --fat-server
 ```

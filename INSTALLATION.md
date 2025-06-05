@@ -10,7 +10,7 @@ Complete installation options for all platforms and use cases.
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
 ```
 
-**Windows WSL users:**
+**Windows WSL or macOS users** (if piping fails):
 ```bash
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh
 ```
@@ -21,7 +21,7 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --fat-server
 ```
 
-**Windows WSL users:**
+**Windows WSL or macOS users:**
 ```bash
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh --fat-server
 ```
@@ -107,14 +107,16 @@ sudo usermod -aG docker $USER
 # Then log out and back in
 ```
 
-### **WSL "Failure writing output" Error**
+### **WSL/macOS "Failure writing output" or Silent Failure**
 ```bash
-# Use the WSL-friendly method:
+# Use the download-then-execute method:
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh
 
-# Or download and run manually:
-wget https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh
-bash install.sh
+# Or with wget:
+wget -O /tmp/install.sh https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh && bash /tmp/install.sh
+
+# Or download to current directory:
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o install.sh && bash install.sh
 ```
 
 ### **Port Conflicts**
@@ -189,11 +191,13 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 - Requires Homebrew for Docker installation
 - Works with both Intel and Apple Silicon
 - May need to start Docker Desktop manually
+- **Use download-then-execute method if piping fails**
 
 ### **Windows WSL2**
 - Use the alternative installation commands above
 - Ensure WSL2 is properly configured
 - Docker Desktop integration recommended
+- **Use download-then-execute method for piping issues**
 
 ### **Cloud Platforms**
 - Works on AWS, Azure, GCP, DigitalOcean
