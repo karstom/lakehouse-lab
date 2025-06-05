@@ -1,0 +1,48 @@
+# =============================================================================
+# File: .gitignore
+# =============================================================================
+# Lakehouse Lab - Git Ignore File
+
+# Data directories (contains sensitive data and large files)
+lakehouse-data/
+*.db
+*.sqlite
+
+# Environment files (may contain secrets)
+.env
+.env.local
+.env.production
+
+# Docker volumes and temp files
+docker-compose.override.yml
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+cache/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Node modules (if extending with custom UI)
+node_modules/
+
+# Backup files
+*.bak
+*.backup

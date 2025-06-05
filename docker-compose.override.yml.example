@@ -1,0 +1,268 @@
+# docker-compose.override.yml.example
+# 
+# This file demonstrates how to override default configurations
+# Copy to docker-compose.override.yml and customize as needed
+#
+# Usage: docker compose up -d (will automatically use override file)
+
+version: '3.8'
+
+services:
+  # Example: Enhanced MinIO configuration with SSL
+  minio:
+    volumes:
+      - ./ssl-certs:/certs:ro
+    environment:
+      - MINIO_OPTS=--certs-dir /certs
+    # Add extra environment variables
+    # - MINIO_BROWSER_REDIRECT_URL=https://your-domain.com:9001
+
+  # Example: Custom Spark configuration and dependencies
+  spark-master:
+    environment:
+      # Increase memory for master
+      - SPARK_MASTER_MEMORY=4g
+      - SPARK_MASTER_CORES=4
+    volumes:
+      # Add custom Spark configuration
+      - ./custom-spark-conf:/opt/bitnami/spark/conf/custom:ro
+      # Add custom JAR files
+      - ./custom-spark-jars:/opt/bitnami/spark/jars/custom:ro
+
+  spark-worker:
+    environment:
+      # Custom worker memory and cores
+      - SPARK_WORKER_MEMORY=16g
+      - SPARK_WORKER_CORES=8
+      # Add custom classpath
+      - SPARK_CLASSPATH=/opt/bitnami/spark/jars/custom/*
+    volumes:
+      # Mount custom JAR files (same as master)
+      - ./custom-spark-jars:/opt/bitnami/spark/jars/custom:ro
+      # Mount custom datasets for local processing
+      - ./local-datasets:/opt/datasets:ro
+
+  # Example: Enhanced Jupyter configuration
+  jupyter:
+    environment:
+      # Custom Jupyter token
+      - JUPYTER_TOKEN=my-secure-token
+      # Enable Jupyter extensions
+      - JUPYTER_ENABLE_LAB=yes
+      # Custom Spark settings for Jupyter
+      - SPARK_DRIVER_MEMORY=8g
+      - SPARK_EXECUTOR_MEMORY=8g
+      - SPARK_EXECUTOR_CORES=4
+    volumes:
+      # Mount additional Python packages
+      - ./custom-python-packages:/home/jovyan/custom-packages:ro
+      # Mount external datasets
+      - ./external-data:/home/jovyan/external-data:ro
+    # Expose additional ports if needed
+    # ports:
+    #   - "8889:8888"  # Alternative port
+
+  # Example: Enhanced Airflow configuration
+  airflow-webserver:
+    environment:
+      # Custom webserver settings
+      - AIRFLOW__WEBSERVER__WORKERS=4
+      - AIRFLOW__WEBSERVER__SECRET_KEY=your-custom-secret-key
+      # Enable RBAC and custom auth
+      - AIRFLOW__WEBSERVER__RBAC=True
+    volumes:
+      # Mount custom Airflow plugins
+      - ./custom-airflow-plugins:/opt/airflow/plugins:ro
+      # Mount custom requirements
+      - ./custom-requirements.txt:/opt/airflow/requirements.txt:ro
+
+  airflow-scheduler:
+    environment:
+      # Enhanced scheduler performance
+      - AIRFLOW__SCHEDULER__MAX_THREADS=8
+      - AIRFLOW__CORE__PARALLELISM=64
+      - AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG=32
+    volumes:
+      # Same custom volumes as webserver
+      - ./custom-airflow-plugins:/opt/airflow/plugins:ro
+      - ./custom-requirements.txt:/opt/airflow/requirements.txt:ro
+
+  # Example: Enhanced Superset configuration
+  superset:
+    environment:
+      # Custom secret key (IMPORTANT: Change this!)
+      - SUPERSET_SECRET_KEY=your-very-long-random-secret-key-here
+      # Database connection for metadata (if using external DB)
+      # - SUPERSET_CONFIG_PATH=/app/superset_config.py
+    volumes:
+      # Mount custom Superset configuration
+      - ./custom-superset-config.py:/app/superset_config.py:ro
+      # Mount custom themes/assets
+      - ./custom-superset-assets:/app/superset/static/assets/custom:ro
+    # Add health check override
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Example: Enhanced Postgres configuration
+  postgres:
+    environment:
+      # Custom Postgres settings
+      - POSTGRES_SHARED_BUFFERS=256MB
+      - POSTGRES_EFFECTIVE_CACHE_SIZE=2GB
+      - POSTGRES_MAINTENANCE_WORK_MEM=128MB
+    volumes:
+      # Mount custom postgres configuration
+      - ./custom-postgres.conf:/etc/postgresql/postgresql.conf:ro
+      # Mount initialization scripts
+      - ./postgres-init-scripts:/docker-entrypoint-initdb.d:ro
+    # Custom command to use custom config
+    # command: postgres -c config_file=/etc/postgresql/postgresql.conf
+
+  # Example: Enhanced Portainer configuration
+  portainer:
+    environment:
+      # Hide specific labels from view
+      - PORTAINER_HIDE_LABELS=dev,staging
+    volumes:
+      # Mount custom Portainer data location
+      # - ./portainer-data:/data
+      # Mount additional Docker endpoints
+      # - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  # Example: Add optional Homer service with custom config
+  homer:
+    profiles:
+      - full  # Only start with specific profile
+    volumes:
+      # Mount custom Homer configuration
+      - ./custom-homer-config.yml:/www/assets/config.yml:ro
+      # Mount custom Homer assets
+      - ./custom-homer-assets:/www/assets/custom:ro
+
+# Example: Add custom networks
+networks:
+  lakehouse:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# Example: Add external database for Superset metadata
+  external-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: superset_meta
+      POSTGRES_USER: superset
+      POSTGRES_PASSWORD: secure-password-here
+    volumes:
+      - external-superset-db:/var/lib/postgresql/data
+    networks:
+      - lakehouse
+    # Only start if explicitly requested
+    profiles:
+      - external-db
+
+# Example: Add Redis for Airflow Celery executor (if needed)
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass redis-password
+    volumes:
+      - redis-data:/data
+    networks:
+      - lakehouse
+    profiles:
+      - celery
+
+# Example: Add monitoring with Grafana
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana-dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana-datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - lakehouse
+    profiles:
+      - monitoring
+
+# Example: Add Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus-config.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - lakehouse
+    profiles:
+      - monitoring
+
+volumes:
+  # Example: External volumes for persistent data
+  external-superset-db:
+    driver: local
+  redis-data:
+    driver: local
+  grafana-data:
+    driver: local
+  prometheus-data:
+    driver: local
+
+# Example: Custom volume configurations
+  # Use external storage for MinIO
+  # minio-data:
+  #   driver: local
+  #   driver_opts:
+  #     type: none
+  #     o: bind
+  #     device: /mnt/external-storage/minio
+
+# Example configurations you can uncomment and customize:
+
+# For production SSL termination with nginx:
+#  nginx:
+#    image: nginx:alpine
+#    ports:
+#      - "80:80"
+#      - "443:443"
+#    volumes:
+#      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+#      - ./ssl-certs:/etc/nginx/ssl:ro
+#    depends_on:
+#      - superset
+#      - jupyter
+#      - airflow-webserver
+#    networks:
+#      - lakehouse
+
+# For backup automation:
+#  backup:
+#    image: alpine:latest
+#    command: |
+#      sh -c "
+#        apk add --no-cache rsync &&
+#        while true; do
+#          rsync -av /data/ /backup/lakehouse-$(date +%Y%m%d)/
+#          sleep 86400
+#        done
+#      "
+#    volumes:
+#      - ${LAKEHOUSE_ROOT:-./lakehouse-data}:/data:ro
+#      - ./backups:/backup
+#    profiles:
+#      - backup
