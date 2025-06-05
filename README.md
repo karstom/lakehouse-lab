@@ -49,6 +49,13 @@ Wait 3-5 minutes for initialization, then visit: **http://localhost:9060** (Port
 | **MinIO Console** | Object Storage | http://localhost:9001 | minio/minio123 |
 | **Spark Master** | Distributed Computing | http://localhost:8080 | N/A |
 | **Homer** | Service Links (Optional) | http://localhost:9061 | N/A |
+
+## 📖 Documentation
+
+- [📚 **Installation Guide**](INSTALLATION.md) - Complete installation options
+- [🚀 **Quick Start**](QUICKSTART.md) - Get running in 15 minutes
+- [🤝 **Contributing**](CONTRIBUTING.md) - How to contribute
+
 ## 🏗️ Architecture
 
 ```
