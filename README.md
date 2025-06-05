@@ -119,6 +119,7 @@ graph TB
     class AF,SP,JU processing
     class SU,JD visualization
     class PO management
+```
 
 ### **Component Overview**
 
