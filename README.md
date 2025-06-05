@@ -60,32 +60,65 @@ Wait 3-5 minutes for initialization, then visit: **http://localhost:9060** (Port
 
 ## 🏗️ Architecture
 
-```
-                    ┌─────────────────────────────────────────────────────────┐
-                    │                 Lakehouse Lab                           │
-                    └─────────────────────────────────────────────────────────┘
-
-    Data Sources              Processing                 Storage & Query
-  ┌─────────────┐         ┌─────────────┐            ┌─────────────┐
-  │• CSV Files  │────────▶│• Airflow    │───────────▶│• MinIO (S3) │
-  │• APIs       │         │• Spark Jobs │            │• Multi-     │
-  │• Databases  │         │• Jupyter    │            │  format     │
-  └─────────────┘         └─────────────┘            └─────────────┘
-                                                              │
-    Visualization          Analytics Engine                   │
-  ┌─────────────┐         ┌─────────────┐                    │
-  │• Superset   │◀────────│• DuckDB+S3  │◀───────────────────┘
-  │• Jupyter    │         │• Spark SQL  │
-  │• Dashboards │         │• Multi-file │
-  └─────────────┘         └─────────────┘
-
-                    Container Management & Monitoring
-                         ┌─────────────┐
-                         │• Portainer  │
-                         │• Docker     │
-                         │• Health     │
-                         └─────────────┘
-```
+```mermaid
+graph TB
+    subgraph "Data Sources"
+        DS1[CSV Files]
+        DS2[APIs]
+        DS3[Databases]
+    end
+    
+    subgraph "Processing Layer"
+        AF[Airflow<br/>Orchestration]
+        SP[Spark<br/>Processing]
+        JU[Jupyter<br/>Analysis]
+    end
+    
+    subgraph "Storage Layer"
+        MI[MinIO<br/>S3-Compatible<br/>Object Storage]
+    end
+    
+    subgraph "Query Engine"
+        DU[DuckDB + S3<br/>Fast Analytics]
+        SS[Spark SQL<br/>Distributed Queries]
+    end
+    
+    subgraph "Visualization"
+        SU[Superset<br/>BI Dashboards]
+        JD[Jupyter<br/>Data Science]
+    end
+    
+    subgraph "Management"
+        PO[Portainer<br/>Container Management]
+    end
+    
+    DS1 --> AF
+    DS2 --> AF
+    DS3 --> AF
+    AF --> SP
+    AF --> JU
+    SP --> MI
+    JU --> MI
+    MI --> DU
+    MI --> SS
+    DU --> SU
+    DU --> JD
+    SS --> SU
+    SS --> JD
+    PO -.-> AF
+    PO -.-> SP
+    PO -.-> JU
+    PO -.-> MI
+    
+    classDef storage fill:#e1f5fe
+    classDef processing fill:#f3e5f5
+    classDef visualization fill:#e8f5e8
+    classDef management fill:#fff3e0
+    
+    class MI storage
+    class AF,SP,JU processing
+    class SU,JD visualization
+    class PO management
 
 ### **Component Overview**
 
