@@ -52,29 +52,69 @@ Wait 3-5 minutes for initialization, then visit: **http://localhost:9060** (Port
 
 ## 📖 Documentation
 
-- [📚 **Installation Guide**](INSTALLATION.md) - Complete installation options
 - [🚀 **Quick Start**](QUICKSTART.md) - Get running in 15 minutes
+- [📚 **Installation Guide**](INSTALLATION.md) - Complete installation options
+- [☁️ **Cloud Deployment**](CLOUD_DEPLOYMENT.md) - AWS, GCP, Azure deployment guides
 - [🤝 **Contributing**](CONTRIBUTING.md) - How to contribute
+- [📋 **Changelog**](CHANGELOG.md) - Version history
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Data Sources  │    │   Processing    │    │   Storage       │
-│                 │    │                 │    │                 │
-│ • CSV Files     │───▶│ • Airflow       │───▶│ • MinIO (S3)    │
-│ • APIs          │    │ • Spark Jobs    │    │ • Multi-format  │
-│ • Databases     │    │ • Jupyter       │    │                 │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-                                                        │
-┌─────────────────┐    ┌─────────────────┐              │
-│   Visualization │    │   Query Engine  │              │
-│                 │    │                 │              │
-│ • Superset      │◀───│ • DuckDB + S3   │◀─────────────┘
-│ • Jupyter       │    │ • Spark SQL     │
-│ • Dashboards    │    │ • Multi-file    │
-└─────────────────┘    └─────────────────┘
+                    ┌─────────────────────────────────────────────────────────┐
+                    │                 Lakehouse Lab                           │
+                    └─────────────────────────────────────────────────────────┘
+
+    Data Sources              Processing                 Storage & Query
+  ┌─────────────┐         ┌─────────────┐            ┌─────────────┐
+  │• CSV Files  │────────▶│• Airflow    │───────────▶│• MinIO (S3) │
+  │• APIs       │         │• Spark Jobs │            │• Multi-     │
+  │• Databases  │         │• Jupyter    │            │  format     │
+  └─────────────┘         └─────────────┘            └─────────────┘
+                                                              │
+    Visualization          Analytics Engine                   │
+  ┌─────────────┐         ┌─────────────┐                    │
+  │• Superset   │◀────────│• DuckDB+S3  │◀───────────────────┘
+  │• Jupyter    │         │• Spark SQL  │
+  │• Dashboards │         │• Multi-file │
+  └─────────────┘         └─────────────┘
+
+                    Container Management & Monitoring
+                         ┌─────────────┐
+                         │• Portainer  │
+                         │• Docker     │
+                         │• Health     │
+                         └─────────────┘
 ```
+
+### **Component Overview**
+
+| **Layer** | **Components** | **Purpose** |
+|-----------|----------------|-------------|
+| **Data Sources** | CSV Files, APIs, Databases | Raw data ingestion from various sources |
+| **Processing** | Apache Airflow, Apache Spark, Jupyter | ETL workflows, distributed processing, analysis |
+| **Storage** | MinIO (S3-compatible) | Object storage with multi-format support |
+| **Query Engine** | DuckDB + S3, Spark SQL | Fast analytics directly on S3 data |
+| **Visualization** | Apache Superset, Jupyter | BI dashboards and interactive analysis |
+| **Management** | Portainer, Docker Compose | Container orchestration and monitoring |
+
+### **Data Flow**
+
+1. **Ingest** → Upload data files to MinIO or connect external sources
+2. **Process** → Transform data using Spark jobs orchestrated by Airflow  
+3. **Store** → Save processed data back to MinIO in analytics-ready formats
+4. **Analyze** → Query data directly with DuckDB or Spark SQL
+5. **Visualize** → Create dashboards in Superset or notebooks in Jupyter
+6. **Monitor** → Manage and monitor all services through Portainer
+
+### **Key Architectural Benefits**
+
+- **🚀 S3-Native Analytics**: Query files directly without data movement
+- **📊 Multi-Format Support**: CSV, Parquet, JSON, and more
+- **🔄 Scalable Processing**: Spark scales from single machine to cluster
+- **🎯 Modern Lakehouse**: Combines data lake flexibility with warehouse performance
+- **🐳 Container-Based**: Consistent deployment across environments
+- **📈 Production-Ready**: Health checks, monitoring, and orchestration included
 
 ## 🎛️ Configuration Options
 
