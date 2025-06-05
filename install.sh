@@ -31,6 +31,7 @@ BRANCH="main"
 PROFILE="standard"
 AUTO_START="true"
 SKIP_DEPS="false"
+UNATTENDED="false"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -45,6 +46,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-deps)
             SKIP_DEPS="true"
+            shift
+            ;;
+        --unattended)
+            UNATTENDED="true"
             shift
             ;;
         --dir)
@@ -65,6 +70,7 @@ Options:
     --fat-server    Use high-performance configuration (64GB+ RAM)
     --no-start      Download only, don't start services
     --skip-deps     Skip dependency checks (Docker, git, curl)
+    --unattended    Run without prompts (assumes yes to all)
     --dir DIR       Install to specific directory (default: lakehouse-lab)
     --branch BRANCH Use specific git branch (default: main)
     -h, --help      Show this help message
@@ -75,6 +81,9 @@ Examples:
 
     # Fat server installation
     curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --fat-server
+
+    # Unattended installation (no prompts)
+    curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --unattended
 
     # Download only, manual start
     curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --no-start
@@ -125,23 +134,49 @@ check_command() {
 
 install_docker_ubuntu() {
     print_step "Installing Docker on Ubuntu/Debian..."
-    sudo apt-get update
+    print_warning "This requires sudo access and will add Docker's official GPG key"
+    
+    # Update package index
+    sudo apt-get update -qq
     sudo apt-get install -y ca-certificates curl gnupg lsb-release
     
-    # Add Docker's official GPG key
+    # Add Docker's official GPG key (with better error handling)
+    print_step "Adding Docker's official GPG key..."
     sudo mkdir -p /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
     
-    # Set up repository
+    # Download and add GPG key with better error handling
+    if curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg 2>/dev/null; then
+        print_success "Docker GPG key added successfully"
+    else
+        print_error "Failed to add Docker GPG key. Please check your internet connection."
+        exit 1
+    fi
+    
+    # Set up Docker repository
+    print_step "Setting up Docker repository..."
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
     
     # Install Docker
-    sudo apt-get update
+    print_step "Installing Docker Engine..."
+    sudo apt-get update -qq
     sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    
+    # Start Docker service
+    print_step "Starting Docker service..."
+    sudo systemctl start docker
+    sudo systemctl enable docker
     
     # Add user to docker group
     sudo usermod -aG docker $USER
-    print_warning "You may need to log out and back in for Docker permissions to take effect"
+    
+    # Test Docker installation
+    if sudo docker run --rm hello-world >/dev/null 2>&1; then
+        print_success "Docker installed and working correctly"
+    else
+        print_warning "Docker installed but may need system restart"
+    fi
+    
+    print_warning "Note: You may need to log out and back in for Docker permissions to take effect"
 }
 
 install_docker_centos() {
@@ -172,9 +207,33 @@ detect_and_install_docker() {
         return
     fi
     
-    print_step "Docker not found. Attempting automatic installation..."
+    print_step "Docker not found. Setting up automatic installation..."
     
-    # Detect OS
+    # Show what we're about to do
+    echo ""
+    echo -e "${YELLOW}The installer will now:${NC}"
+    echo -e "  • Install Docker and Docker Compose"
+    echo -e "  • Add Docker's official GPG signing key"
+    echo -e "  • Add you to the docker group for permissions"
+    echo -e "  • This requires sudo access"
+    echo ""
+    
+    # Give user a chance to cancel if running interactively
+    if [[ -t 0 && $UNATTENDED != "true" ]]; then  # Only prompt if interactive and not unattended
+        read -p "Continue with Docker installation? [Y/n]: " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Nn]$ ]]; then
+            echo ""
+            echo -e "${YELLOW}Docker installation cancelled.${NC}"
+            echo -e "${BLUE}To install Docker manually, visit: https://docs.docker.com/engine/install/${NC}"
+            echo -e "${BLUE}Then re-run this installer.${NC}"
+            exit 0
+        fi
+    elif [[ $UNATTENDED == "true" ]]; then
+        echo -e "${GREEN}Unattended mode: proceeding with Docker installation${NC}"
+    fi
+    
+    # Detect OS and install
     if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         if check_command apt-get; then
             install_docker_ubuntu
@@ -182,12 +241,14 @@ detect_and_install_docker() {
             install_docker_centos
         else
             print_error "Unsupported Linux distribution. Please install Docker manually."
+            echo "Visit: https://docs.docker.com/engine/install/"
             exit 1
         fi
     elif [[ "$OSTYPE" == "darwin"* ]]; then
         install_docker_macos
     else
         print_error "Unsupported operating system. Please install Docker manually."
+        echo "Visit: https://docs.docker.com/engine/install/"
         exit 1
     fi
 }
@@ -368,14 +429,28 @@ main() {
     echo -e "  Auto-start: ${YELLOW}$AUTO_START${NC}"
     echo ""
     
+    # Show system info
+    if command -v lsb_release &> /dev/null; then
+        echo -e "${BLUE}Detected system: ${YELLOW}$(lsb_release -d | cut -f2)${NC}"
+    fi
+    
+    # Check if Docker installation will be needed
+    if ! check_command docker || ! check_command "docker compose"; then
+        echo -e "${YELLOW}⚠️  Docker not found - will be installed automatically${NC}"
+        echo -e "${BLUE}   This requires sudo access and adds Docker's GPG key${NC}"
+    fi
+    echo ""
+    
     # Confirm installation
-    if [[ -t 0 ]]; then  # Only prompt if running interactively
+    if [[ -t 0 && $UNATTENDED != "true" ]]; then  # Only prompt if interactive and not unattended
         read -p "Continue with installation? [Y/n]: " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Nn]$ ]]; then
             echo "Installation cancelled."
             exit 0
         fi
+    elif [[ $UNATTENDED == "true" ]]; then
+        echo -e "${GREEN}Running in unattended mode - proceeding automatically${NC}"
     fi
     
     # Run installation steps
