@@ -1,0 +1,18 @@
+# .github/workflows/env-validation.yml
+name: Environment Validation
+on: [push, pull_request]
+jobs:
+  env-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate .env files
+        run: |
+          # Check required variables exist
+          grep -q "LAKEHOUSE_ROOT" .env.default
+          grep -q "POSTGRES_MEMORY_LIMIT" .env.default
+          grep -q "SPARK_WORKER_MEMORY" .env.fat-server
+          
+          # Check no secrets in env files
+          ! grep -i "password.*=" .env.default
+          ! grep -i "secret.*=" .env.default
