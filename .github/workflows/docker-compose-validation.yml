@@ -1,0 +1,12 @@
+# .github/workflows/docker-compose-validation.yml
+name: Docker Compose Validation
+on: [push, pull_request]
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate docker-compose.yml
+        run: |
+          docker compose config --quiet
+          docker compose config --services
