@@ -1,85 +1,81 @@
-# -------------------------------------------------------------------
-# Lakehouse Lab – Full Docker Compose (with MinIO healthcheck + Homer)
-# -------------------------------------------------------------------
-# Environment variable "LAKEHOUSE_ROOT" can override /mnt/zRaid/lakehouse-lab.
-# Set LAKEHOUSE_PROFILE=fat-server for high-resource configurations
-# -------------------------------------------------------------------
+version: '3.8'
+
+x-airflow-common: &airflow-common
+  image: apache/airflow:2.8.1
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: ${AIRFLOW_EXECUTOR:-LocalExecutor}
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:lakehouse@postgres:5432/airflow
+    AIRFLOW__CORE__PARALLELISM: ${AIRFLOW_PARALLELISM:-32}
+    AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG: ${AIRFLOW_MAX_ACTIVE_RUNS:-16}
+    AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: ${AIRFLOW_MAX_ACTIVE_TASKS:-16}
+    AIRFLOW__SCHEDULER__MAX_THREADS: ${AIRFLOW_SCHEDULER_THREADS:-4}
+    AIRFLOW__WEBSERVER__SECRET_KEY: lakehouse
+    AIRFLOW__CORE__FERNET_KEY: 'YXNkZmFzZGZhc2RmYXNkZmFzZGZhc2RmYXNkZmFzZGY='
+    # FIXED: Install DuckDB and dependencies for Issue #2
+    _PIP_ADDITIONAL_REQUIREMENTS: 'duckdb==1.3.0 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==17.0.0 sqlalchemy>=1.4.0'
+  volumes:
+    - ${LAKEHOUSE_ROOT:-./lakehouse-data}/airflow/dags:/opt/airflow/dags
+    - ${LAKEHOUSE_ROOT:-./lakehouse-data}/airflow/logs:/opt/airflow/logs
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on:
+    postgres:
+      condition: service_healthy
 
 networks:
   lakehouse:
     driver: bridge
 
 services:
-  ############################################################
-  # 1) Postgres: Airflow metadata database
-  ############################################################
+  # PostgreSQL Database
   postgres:
     image: postgres:16
     environment:
       POSTGRES_DB: airflow
       POSTGRES_PASSWORD: lakehouse
       POSTGRES_USER: postgres
-      # Fat server optimizations
-      POSTGRES_SHARED_BUFFERS: ${POSTGRES_SHARED_BUFFERS:-128MB}
-      POSTGRES_EFFECTIVE_CACHE_SIZE: ${POSTGRES_EFFECTIVE_CACHE_SIZE:-1GB}
-      POSTGRES_MAINTENANCE_WORK_MEM: ${POSTGRES_MAINTENANCE_WORK_MEM:-64MB}
-      POSTGRES_CHECKPOINT_COMPLETION_TARGET: ${POSTGRES_CHECKPOINT_COMPLETION_TARGET:-0.9}
-      POSTGRES_WAL_BUFFERS: ${POSTGRES_WAL_BUFFERS:-16MB}
-      POSTGRES_DEFAULT_STATISTICS_TARGET: ${POSTGRES_DEFAULT_STATISTICS_TARGET:-100}
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/postgres:/var/lib/postgresql/data
     networks:
       - lakehouse
-    labels:
-      com.lakehouse.service: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     deploy:
       resources:
         limits:
           memory: ${POSTGRES_MEMORY_LIMIT:-2G}
         reservations:
           memory: ${POSTGRES_MEMORY_RESERVATION:-512M}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
-  ############################################################
-  # 2) MinIO: S3-compatible storage (object store + console)
-  ############################################################
+  # MinIO Object Storage
   minio:
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    image: minio/minio:RELEASE.2024-12-18T13-15-44Z
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: minio123
-      # Fat server optimizations
-      MINIO_API_REQUESTS_MAX: ${MINIO_API_REQUESTS_MAX:-10000}
-      MINIO_API_REQUESTS_DEADLINE: ${MINIO_API_REQUESTS_DEADLINE:-10s}
     ports:
-      - "9000:9000"   # S3 API
-      - "9001:9001"   # MinIO console
+      - "9000:9000"
+      - "9001:9001"
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/minio:/data
     networks:
       - lakehouse
-    labels:
-      com.lakehouse.service: minio
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
     deploy:
       resources:
         limits:
           memory: ${MINIO_MEMORY_LIMIT:-4G}
         reservations:
           memory: ${MINIO_MEMORY_RESERVATION:-1G}
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 5s
-      timeout: 2s
-      retries: 5
 
-  ############################################################
-  # 3) lakehouse-init: Initialization container (runs once)
-  ############################################################
+  # Initialization Service
   lakehouse-init:
     image: alpine:3.18
     depends_on:
@@ -98,81 +94,53 @@ services:
       - ./init-all-in-one.sh:/host/init-all-in-one.sh:ro
     networks:
       - lakehouse
-    labels:
-      com.lakehouse.service: init
-    restart: "no"  # Don't restart - run once only
+    restart: "no"
 
-  ############################################################
-  # 4) Alternative: File-based Iceberg (no REST service needed)
-  ############################################################
-  # iceberg-rest service removed - using file-based catalog instead
-
-  ############################################################
-  # 5) Spark: Apache Spark standalone cluster
-  ############################################################
+  # Spark Master
   spark-master:
-    image: bitnami/spark:3.5.5
+    image: bitnami/spark:3.5.0
     depends_on:
       minio:
         condition: service_healthy
     environment:
       SPARK_MODE: master
       SPARK_MASTER_HOST: spark-master
-      # Fat server optimizations
       SPARK_MASTER_MEMORY: ${SPARK_MASTER_MEMORY:-2g}
       SPARK_MASTER_CORES: ${SPARK_MASTER_CORES:-2}
-      SPARK_DAEMON_MEMORY: ${SPARK_DAEMON_MEMORY:-1g}
     ports:
-      - "7077:7077"   # Spark master port
-      - "8080:8080"   # Spark master web UI
+      - "7077:7077"
+      - "8080:8080"
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/spark/jobs:/opt/spark/jobs
     networks:
       - lakehouse
-    labels:
-      com.lakehouse.service: spark-master
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     deploy:
       resources:
         limits:
           memory: ${SPARK_MASTER_MEMORY_LIMIT:-4G}
         reservations:
           memory: ${SPARK_MASTER_MEMORY_RESERVATION:-1G}
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
+  # Spark Worker
   spark-worker:
-    image: bitnami/spark:3.5.5
+    image: bitnami/spark:3.5.0
     depends_on:
       spark-master:
         condition: service_healthy
     environment:
       SPARK_MODE: worker
       SPARK_MASTER_URL: spark://spark-master:7077
-      # Fat server optimizations
       SPARK_WORKER_MEMORY: ${SPARK_WORKER_MEMORY:-8g}
       SPARK_WORKER_CORES: ${SPARK_WORKER_CORES:-4}
-      SPARK_DAEMON_MEMORY: ${SPARK_DAEMON_MEMORY:-1g}
-      # Iceberg configuration for Spark (file-based catalog)
-      SPARK_CONF_spark_sql_extensions: org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
-      SPARK_CONF_spark_sql_catalog_spark_catalog: org.apache.iceberg.spark.SparkSessionCatalog
-      SPARK_CONF_spark_sql_catalog_spark_catalog_type: hive
-      SPARK_CONF_spark_sql_catalog_lakehouse: org.apache.iceberg.spark.SparkCatalog
-      SPARK_CONF_spark_sql_catalog_lakehouse_type: hadoop
-      SPARK_CONF_spark_sql_catalog_lakehouse_warehouse: s3a://lakehouse/warehouse
-      SPARK_CONF_spark_hadoop_fs_s3a_endpoint: http://minio:9000
-      SPARK_CONF_spark_hadoop_fs_s3a_access_key: minio
-      SPARK_CONF_spark_hadoop_fs_s3a_secret_key: minio123
-      SPARK_CONF_spark_hadoop_fs_s3a_path_style_access: true
-      SPARK_CONF_spark_hadoop_fs_s3a_impl: org.apache.hadoop.fs.s3a.S3AFileSystem
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/spark/jobs:/opt/spark/jobs
     networks:
       - lakehouse
-    labels:
-      com.lakehouse.service: spark-worker
     deploy:
       resources:
         limits:
@@ -181,11 +149,8 @@ services:
         reservations:
           memory: ${SPARK_WORKER_MEMORY_RESERVATION:-4G}
           cpus: ${SPARK_WORKER_CPU_RESERVATION:-2}
-    scale: ${SPARK_WORKER_INSTANCES:-1}
 
-  ############################################################
-  # 6) JupyterLab: notebook environment with PySpark & DuckDB
-  ############################################################
+  # JupyterLab
   jupyter:
     image: jupyter/pyspark-notebook:spark-3.5.0
     depends_on:
@@ -194,29 +159,20 @@ services:
       minio:
         condition: service_healthy
     environment:
-      AWS_ACCESS_KEY_ID: minio
-      AWS_SECRET_ACCESS_KEY: minio123
-      AWS_ENDPOINT_URL: http://minio:9000
       JUPYTER_ENABLE_LAB: "yes"
       JUPYTER_TOKEN: lakehouse
       SPARK_MASTER: spark://spark-master:7077
-      # Fat server optimizations
-      SPARK_DRIVER_MEMORY: ${JUPYTER_SPARK_DRIVER_MEMORY:-4g}
-      SPARK_EXECUTOR_MEMORY: ${JUPYTER_SPARK_EXECUTOR_MEMORY:-4g}
-      SPARK_EXECUTOR_CORES: ${JUPYTER_SPARK_EXECUTOR_CORES:-2}
     ports:
-      - "9040:8888"   # Expose JupyterLab on host port 9040
+      - "9040:8888"
     command: >
       bash -c "
-        pip install duckdb duckdb-engine pandas pyiceberg boto3 sqlalchemy trino[sqlalchemy] &&
-        start-notebook.sh
+      pip install duckdb==1.3.0 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==17.0.0 sqlalchemy>=1.4.0 pandas &&
+      start-notebook.sh
       "
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/notebooks:/home/jovyan/notebooks
     networks:
       - lakehouse
-    labels:
-      com.lakehouse.service: jupyter
     deploy:
       resources:
         limits:
@@ -224,11 +180,9 @@ services:
         reservations:
           memory: ${JUPYTER_MEMORY_RESERVATION:-2G}
 
-  ############################################################
-  # 7) Airflow Database Init: One-time database setup
-  ############################################################
+  # Airflow Database Initialization
   airflow-init:
-    image: apache/airflow:2.8.1
+    <<: *airflow-common
     depends_on:
       postgres:
         condition: service_healthy
@@ -236,91 +190,19 @@ services:
         condition: service_completed_successfully
     command: >
       bash -c "
-        pip install apache-airflow-providers-apache-spark apache-airflow-providers-trino &&
-        airflow db init &&
-        airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin || true
+      pip install duckdb==1.3.0 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==17.0.0 sqlalchemy>=1.4.0 &&
+      airflow db init &&
+      airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin || true
       "
-    environment:
-      AIRFLOW__CORE__EXECUTOR: ${AIRFLOW_EXECUTOR:-LocalExecutor}
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:lakehouse@postgres:5432/airflow
-      AIRFLOW__CORE__PARALLELISM: ${AIRFLOW_PARALLELISM:-32}
-      AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG: ${AIRFLOW_MAX_ACTIVE_RUNS:-16}
-      AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: ${AIRFLOW_MAX_ACTIVE_TASKS:-16}
-      AIRFLOW__SCHEDULER__MAX_THREADS: ${AIRFLOW_SCHEDULER_THREADS:-4}
-    volumes:
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/airflow/dags:/opt/airflow/dags
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/airflow/logs:/opt/airflow/logs
-    networks:
-      - lakehouse
-    labels:
-      com.lakehouse.service: airflow-init
-    restart: "no"  # Run once only
+    restart: "no"
 
-  ############################################################
-  # 8) Airflow Webserver: UI for workflows & tasks
-  ############################################################
-  airflow-webserver:
-    image: apache/airflow:2.8.1
-    depends_on:
-      airflow-init:
-        condition: service_completed_successfully
-      airflow-scheduler:
-        condition: service_started
-    command: webserver
-    environment:
-      AIRFLOW__CORE__EXECUTOR: ${AIRFLOW_EXECUTOR:-LocalExecutor}
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:lakehouse@postgres:5432/airflow
-      AIRFLOW__WEBSERVER__SECRET_KEY: lakehouse
-      AIRFLOW__WEBSERVER__WORKERS: ${AIRFLOW_WEBSERVER_WORKERS:-2}
-      AIRFLOW__CORE__PARALLELISM: ${AIRFLOW_PARALLELISM:-32}
-      AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG: ${AIRFLOW_MAX_ACTIVE_RUNS:-16}
-      AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: ${AIRFLOW_MAX_ACTIVE_TASKS:-16}
-      _AIRFLOW_WWW_USER_USERNAME: admin
-      _AIRFLOW_WWW_USER_PASSWORD: admin
-    ports:
-      - "9020:8080"   # Expose Airflow web UI on host port 9020
-    volumes:
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/airflow/dags:/opt/airflow/dags
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/airflow/logs:/opt/airflow/logs
-    networks:
-      - lakehouse
-    labels:
-      com.lakehouse.service: airflow-webserver
-    deploy:
-      resources:
-        limits:
-          memory: ${AIRFLOW_WEBSERVER_MEMORY_LIMIT:-4G}
-        reservations:
-          memory: ${AIRFLOW_WEBSERVER_MEMORY_RESERVATION:-1G}
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  ############################################################
-  # 9) Airflow Scheduler: coordinates DAG runs & tasks
-  ############################################################
+  # Airflow Scheduler
   airflow-scheduler:
-    image: apache/airflow:2.8.1
+    <<: *airflow-common
     depends_on:
       airflow-init:
         condition: service_completed_successfully
     command: scheduler
-    environment:
-      AIRFLOW__CORE__EXECUTOR: ${AIRFLOW_EXECUTOR:-LocalExecutor}
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:lakehouse@postgres:5432/airflow
-      AIRFLOW__CORE__PARALLELISM: ${AIRFLOW_PARALLELISM:-32}
-      AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG: ${AIRFLOW_MAX_ACTIVE_RUNS:-16}
-      AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: ${AIRFLOW_MAX_ACTIVE_TASKS:-16}
-      AIRFLOW__SCHEDULER__MAX_THREADS: ${AIRFLOW_SCHEDULER_THREADS:-4}
-    volumes:
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/airflow/dags:/opt/airflow/dags
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/airflow/logs:/opt/airflow/logs
-    networks:
-      - lakehouse
-    labels:
-      com.lakehouse.service: airflow-scheduler
     deploy:
       resources:
         limits:
@@ -328,9 +210,30 @@ services:
         reservations:
           memory: ${AIRFLOW_SCHEDULER_MEMORY_RESERVATION:-1G}
 
-  ############################################################
-  # 9) Superset: BI dashboard & visualization (simplified, no config file)
-  ############################################################
+  # Airflow Webserver
+  airflow-webserver:
+    <<: *airflow-common
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      airflow-scheduler:
+        condition: service_started
+    command: webserver
+    ports:
+      - "9020:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: ${AIRFLOW_WEBSERVER_MEMORY_LIMIT:-4G}
+        reservations:
+          memory: ${AIRFLOW_WEBSERVER_MEMORY_RESERVATION:-1G}
+
+  # Apache Superset - FIXED for Issue #1
   superset:
     image: apache/superset:latest
     depends_on:
@@ -342,131 +245,67 @@ services:
       - /bin/bash
       - -c
       - |
-        pip install psycopg2-binary pandas duckdb duckdb-engine boto3
+        # FIXED: Install latest DuckDB packages for Issue #1
+        pip install psycopg2-binary duckdb==1.3.0 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==17.0.0 sqlalchemy>=1.4.0
         superset db upgrade
         superset fab create-admin --username admin --firstname Admin --lastname User --email admin@example.com --password admin || true
         superset init
+        
+        # FIXED: Create persistent DuckDB file with S3 config for Issue #1
+        python -c "
+import duckdb
+conn = duckdb.connect('/app/superset_home/lakehouse.duckdb')
+conn.execute('INSTALL httpfs; LOAD httpfs;')
+conn.execute('SET s3_endpoint=\\'minio:9000\\';')
+conn.execute('SET s3_access_key_id=\\'minio\\';')
+conn.execute('SET s3_secret_access_key=\\'minio123\\';')
+conn.execute('SET s3_use_ssl=false;')
+conn.execute('SET s3_url_style=\\'path\\';')
+conn.close()
+print('DuckDB 1.3.0 S3 configuration completed')
+"
+        
         superset run -h 0.0.0.0 -p 8088
     environment:
-      # Use built-in configuration instead of external file
       SUPERSET_SECRET_KEY: changeme_lakehouse
-      # S3 configuration for DuckDB
-      AWS_ACCESS_KEY_ID: minio
-      AWS_SECRET_ACCESS_KEY: minio123
-      AWS_ENDPOINT_URL: http://minio:9000
-      # Fat server optimizations
-      SUPERSET_WEBSERVER_WORKERS: ${SUPERSET_WORKERS:-2}
-      SUPERSET_WEBSERVER_TIMEOUT: ${SUPERSET_TIMEOUT:-60}
+      DATABASE_URL: postgresql://postgres:lakehouse@postgres:5432/airflow
     ports:
-      - "9030:8088"   # Expose Superset on host port 9030
+      - "9030:8088"
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/superset:/app/superset_home
     networks:
       - lakehouse
-    labels:
-      com.lakehouse.service: superset
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
     deploy:
       resources:
         limits:
           memory: ${SUPERSET_MEMORY_LIMIT:-4G}
         reservations:
           memory: ${SUPERSET_MEMORY_RESERVATION:-1G}
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
 
-  # ############################################################
-  # # 10) Trino: distributed SQL query engine (OPTIONAL)
-  # #     Uncomment this section if you want Trino
-  # ############################################################
-  # trino:
-  #   image: trinodb/trino:475
-  #   depends_on:
-  #     minio:
-  #       condition: service_healthy
-  #     spark-master:
-  #       condition: service_healthy
-  #     lakehouse-init:
-  #       condition: service_completed_successfully
-  #   ports:
-  #     - "9010:8080"   # Expose Trino UI on host port 9010
-  #   volumes:
-  #     - ${LAKEHOUSE_ROOT:-./lakehouse-data}/trino-catalog:/etc/trino/catalog
-  #     - ${LAKEHOUSE_ROOT:-./lakehouse-data}/trino-config:/etc/trino
-  #   networks:
-  #     - lakehouse
-  #   labels:
-  #     com.lakehouse.service: trino
-  #   deploy:
-  #     resources:
-  #       limits:
-  #         memory: ${TRINO_MEMORY_LIMIT:-8G}
-  #       reservations:
-  #         memory: ${TRINO_MEMORY_RESERVATION:-2G}
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-f", "http://localhost:8080/v1/info"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 5
-  #   profiles:
-  #     - optional
-
-  ############################################################
-  # 11) Portainer: Docker container management and monitoring
-  ############################################################
+  # Portainer for Container Management
   portainer:
     image: portainer/portainer-ce:latest
     container_name: portainer
     restart: unless-stopped
     ports:
       - "9060:9000"
-    environment:
-      - PORTAINER_HIDE_LABELS=hide
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - portainer_data:/data
     networks:
       - lakehouse
-    labels:
-      com.lakehouse.service: portainer
     deploy:
       resources:
         limits:
           memory: ${PORTAINER_MEMORY_LIMIT:-512M}
         reservations:
           memory: ${PORTAINER_MEMORY_RESERVATION:-128M}
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:9000 || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
-  ############################################################
-  # 12) Homer: Optional lightweight service dashboard
-  #     (Keep as secondary dashboard if desired)
-  ############################################################
-  homer:
-    image: ghcr.io/bastienwirtz/homer:latest
-    container_name: homer
-    restart: unless-stopped
-    environment:
-      - INIT_ASSETS=0     # Disable Homer's default demo‐asset installation
-    ports:
-      - "9061:8080"        # Move Homer to secondary port
-    volumes:
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/homer/assets:/www/assets
-    networks:
-      - lakehouse
-    labels:
-      com.lakehouse.service: homer
-    profiles:
-      - optional          # Only start if explicitly requested
-
-###############################################################################
-# Named Volumes
-###############################################################################
 volumes:
   portainer_data:
     driver: local
