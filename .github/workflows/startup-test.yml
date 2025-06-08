@@ -1,0 +1,19 @@
+# .github/workflows/startup-test.yml
+name: Service Startup Test
+on: [push, pull_request]
+jobs:
+  startup-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test basic service startup
+        run: |
+          # Start core services only
+          docker compose up -d postgres minio
+          sleep 30
+          
+          # Check health endpoints
+          curl -f http://localhost:9000/minio/health/live
+          
+          # Cleanup
+          docker compose down -v
