@@ -365,6 +365,11 @@ services:
             conn.close()
         EOF
         
+        echo "Setting up Superset database connection with S3 configuration..."
+        if [ -f /app/superset_home/add_duckdb_connection.py ]; then
+            python3 /app/superset_home/add_duckdb_connection.py || echo "⚠️ Could not auto-configure database connection"
+        fi
+        
         echo "Starting Superset webserver..."
         superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger
     environment:
