@@ -1174,7 +1174,7 @@ configure_superset_duckdb() {
         return 0
     }
     
-    # Create configuration script for Superset startup
+    # Create enhanced configuration script for Superset startup
     cat > "$LAKEHOUSE_ROOT/superset/setup_duckdb.py" << 'EOF'
 import duckdb
 import os
@@ -1188,12 +1188,27 @@ try:
     conn.execute("INSTALL httpfs")
     conn.execute("LOAD httpfs")
     
-    # Set S3 configuration for MinIO
+    # Set S3 configuration for MinIO - FIXED to use minio:9000 instead of AWS
     conn.execute("SET s3_endpoint='minio:9000'")
     conn.execute("SET s3_access_key_id='minio'")
     conn.execute("SET s3_secret_access_key='minio123'")
     conn.execute("SET s3_use_ssl=false")
     conn.execute("SET s3_url_style='path'")
+    
+    # Create persistent S3 configuration macro for session consistency
+    conn.execute("CREATE SCHEMA IF NOT EXISTS config")
+    conn.execute("""
+        CREATE OR REPLACE MACRO configure_s3() AS (
+            INSTALL httpfs;
+            LOAD httpfs;
+            SET s3_endpoint='minio:9000';
+            SET s3_access_key_id='minio';
+            SET s3_secret_access_key='minio123';
+            SET s3_use_ssl=false;
+            SET s3_url_style='path';
+        )
+    """)
+    print("✅ Created S3 configuration macro for session consistency")
     
     # Test S3 connection and create a view for easy access
     try:
@@ -1205,14 +1220,33 @@ try:
     except Exception as e:
         print(f"ℹ️ Note: Could not create sample_orders view (sample data may not exist yet): {e}")
     
+    # Create utility functions for Superset users
+    try:
+        conn.execute("""
+            CREATE OR REPLACE FUNCTION list_s3_objects(bucket VARCHAR DEFAULT 'lakehouse') 
+            RETURNS TABLE(key VARCHAR, size BIGINT, last_modified TIMESTAMP) AS (
+                SELECT key, size, last_modified 
+                FROM s3_list_objects(bucket)
+            )
+        """)
+        print("✅ Created S3 utility functions")
+    except Exception as e:
+        print(f"ℹ️ Note: Could not create utility functions: {e}")
+    
     # Create other useful views for different data sources
-    conn.execute("""
-        CREATE OR REPLACE VIEW list_s3_files AS 
-        SELECT * FROM glob('s3://lakehouse/**/*')
-    """)
+    try:
+        conn.execute("""
+            CREATE OR REPLACE VIEW list_s3_files AS 
+            SELECT * FROM glob('s3://lakehouse/**/*')
+        """)
+        print("✅ Created S3 file listing view")
+    except Exception as e:
+        print(f"ℹ️ Note: Could not create file listing view: {e}")
     
     conn.commit()
     print("✅ DuckDB 1.3.0 configuration completed successfully for Issue #1 fix")
+    print("📝 Connection URI for Superset: duckdb:////app/superset_home/lakehouse.duckdb")
+    print("💡 To use S3 in queries, run: SELECT configure_s3(); first")
     
 except Exception as e:
     print(f"❌ DuckDB configuration error: {e}")
@@ -1220,7 +1254,7 @@ finally:
     conn.close()
 EOF
     
-    log_success "DuckDB configuration script created for Superset Issue #1 fix"
+    log_success "Enhanced DuckDB configuration script created for Superset Issue #1 fix"
 }
 
 configure_superset_duckdb

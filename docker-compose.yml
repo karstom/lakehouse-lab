@@ -1,7 +1,7 @@
 version: '3.8'
 
 x-airflow-common: &airflow-common
-  image: apache/airflow:2.8.1
+  image: apache/airflow:2.10.4-python3.11
   environment: &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: ${AIRFLOW_EXECUTOR:-LocalExecutor}
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:lakehouse@postgres:5432/airflow
@@ -335,6 +335,24 @@ services:
         conn.execute("SET s3_secret_access_key='minio123';")
         conn.execute("SET s3_use_ssl=false;")
         conn.execute("SET s3_url_style='path';")
+        
+        # Persist S3 settings for session consistency
+        try:
+            conn.execute("CREATE SCHEMA IF NOT EXISTS config;")
+            conn.execute("""
+                CREATE OR REPLACE MACRO configure_s3() AS (
+                    INSTALL httpfs;
+                    LOAD httpfs;
+                    SET s3_endpoint='minio:9000';
+                    SET s3_access_key_id='minio';
+                    SET s3_secret_access_key='minio123';
+                    SET s3_use_ssl=false;
+                    SET s3_url_style='path';
+                )
+            """)
+            print("✅ Created S3 configuration macro")
+        except Exception as e:
+            print(f"⚠️ Macro creation warning: {e}")
         
         # Test the connection
         try:
