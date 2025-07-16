@@ -130,7 +130,7 @@ GROUP BY product_category
 
 1. Visit http://localhost:9040
 2. Enter token: **lakehouse**
-3. DuckDB 1.3.0 and all dependencies are ready to use!
+3. DuckDB 1.3.2 and all dependencies are ready to use!
 
 ### **Step 2: Try Your Analysis**
 Create a new notebook and run:
@@ -171,7 +171,7 @@ plt.tight_layout()
 plt.show()
 
 # Check versions
-print(f"DuckDB version: {duckdb.__version__}")  # Should show 1.3.0
+print(f"DuckDB version: {duckdb.__version__}")  # Should show 1.3.2
 ```
 
 ---
@@ -278,7 +278,7 @@ ORDER BY month;
 ✅ **Issue #1**: Superset S3 configuration now persists  
 ✅ **Issue #2**: Airflow DuckDB import errors resolved  
 ✅ **Dataset Creation**: Single query requirement documented  
-✅ **Latest Packages**: DuckDB 1.3.0 + duckdb-engine 0.17.0  
+✅ **Latest Packages**: DuckDB 1.3.2 + duckdb-engine 0.17.0  
 
 ### **Common Issues:**
 ```bash
@@ -312,7 +312,7 @@ After completing this quickstart with the fixes:
 ✅ **Complete Data Stack** - Storage, processing, analytics, visualization  
 ✅ **Fixed S3 Integration** - Persistent DuckDB S3 configuration  
 ✅ **Working Airflow DAGs** - No more import errors  
-✅ **Latest Technology** - DuckDB 1.3.0 with all modern features  
+✅ **Latest Technology** - DuckDB 1.3.2 with all modern features  
 ✅ **Reliable Datasets** - Single-query dataset creation  
 ✅ **Production Patterns** - Modern lakehouse architecture  
 
@@ -320,7 +320,7 @@ After completing this quickstart with the fixes:
 
 - **Add Your Data**: Upload CSV/Parquet files to MinIO
 - **Build Pipelines**: Create custom Airflow DAGs
-- **Advanced Analytics**: Use DuckDB 1.3.0's latest features
+- **Advanced Analytics**: Use DuckDB 1.3.2's latest features
 - **Scale Up**: Use fat-server configuration for larger workloads
 
 ---

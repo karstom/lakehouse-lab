@@ -44,7 +44,7 @@ SELECT duckdb_version();
 
 Expected results:
 - Query returns sample data
-- DuckDB version shows `v1.3.0`
+- DuckDB version shows `v1.3.2`
 
 ### 3. Create a Dataset (Fixed Process)
 
@@ -148,7 +148,7 @@ Then create datasets from the view:
 SELECT * FROM sales_summary
 ```
 
-## What's Different in DuckDB 1.3.0
+## What's Different in DuckDB 1.3.2
 
 The latest version includes:
 - **Enhanced S3 performance** - Faster data loading
@@ -163,6 +163,6 @@ After following this guide, you should be able to:
 - ✅ Query S3 data directly without setup commands
 - ✅ Create datasets using single SELECT statements
 - ✅ Build charts and dashboards from your data lake
-- ✅ See DuckDB version 1.3.0 in queries
+- ✅ See DuckDB version 1.3.2 in queries
 
 If all these work, your DuckDB integration is successful! 🎉
