@@ -1,0 +1,15 @@
+# .github/workflows/docs-check.yml
+name: Documentation Check
+on: [push, pull_request]
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for broken links
+        uses: gaurav-nelson/github-action-markdown-link-check@v1
+      - name: Validate README structure
+        run: |
+          grep -q "Quick Start" README.md
+          grep -q "Architecture" README.md
+          grep -q "Troubleshooting" README.md
