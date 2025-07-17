@@ -1632,18 +1632,25 @@ services:
         target: "_blank"
 
 links:
-  - name: "Documentation"
-    icon: "fas fa-book"
-    url: "https://github.com/your-repo/lakehouse-lab"
-    target: "_blank"
+  - name: "Local Services"
+    icon: "fas fa-home"
+    url: "http://localhost:9061"
+    target: "_self"
   
-  - name: "Issue Fixes"
-    icon: "fas fa-tools"
-    url: "https://github.com/your-repo/lakehouse-lab/blob/main/SUPERSET_DATABASE_SETUP.md"
-    target: "_blank"
+  - name: "Test Health"
+    icon: "fas fa-heartbeat"
+    url: "#"
+    target: "_self"
 EOF
 
     log_success "Homer dashboard configuration created"
+    
+    # Copy config to correct location for Homer container
+    if cp "$LAKEHOUSE_ROOT/homer/assets/config.yml" "$LAKEHOUSE_ROOT/homer/config.yml"; then
+        log_success "Homer config copied to correct location"
+    else
+        log_warning "Failed to copy Homer config to root location"
+    fi
 }
 
 create_homer_config
