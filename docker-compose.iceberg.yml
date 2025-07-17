@@ -1,0 +1,79 @@
+# Docker Compose Override for Apache Iceberg Support
+# Usage: docker compose -f docker-compose.yml -f docker-compose.iceberg.yml up -d
+
+version: '3.8'
+
+services:
+  # Spark Master with Iceberg support
+  spark-master:
+    environment:
+      # Add Iceberg JAR to Spark classpath
+      - SPARK_CLASSPATH=/opt/bitnami/spark/jars/iceberg-spark-runtime-3.5_2.12-1.4.3.jar
+      # Iceberg-specific Spark configurations
+      - SPARK_CONF_spark_sql_extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+      - SPARK_CONF_spark_sql_catalog_spark__catalog=org.apache.iceberg.spark.SparkSessionCatalog
+      - SPARK_CONF_spark_sql_catalog_spark__catalog_type=hive
+      - SPARK_CONF_spark_sql_catalog_iceberg=org.apache.iceberg.spark.SparkCatalog
+      - SPARK_CONF_spark_sql_catalog_iceberg_type=hadoop
+      - SPARK_CONF_spark_sql_catalog_iceberg_warehouse=s3a://lakehouse/iceberg-warehouse/
+    volumes:
+      # Mount directory containing Iceberg JAR files
+      - ./iceberg-jars:/opt/bitnami/spark/jars/iceberg:ro
+    depends_on:
+      - minio
+
+  # Spark Worker with Iceberg support
+  spark-worker:
+    environment:
+      # Add Iceberg JAR to Spark classpath
+      - SPARK_CLASSPATH=/opt/bitnami/spark/jars/iceberg-spark-runtime-3.5_2.12-1.4.3.jar
+      # Iceberg-specific Spark configurations
+      - SPARK_CONF_spark_sql_extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+      - SPARK_CONF_spark_sql_catalog_spark__catalog=org.apache.iceberg.spark.SparkSessionCatalog
+      - SPARK_CONF_spark_sql_catalog_spark__catalog_type=hive
+      - SPARK_CONF_spark_sql_catalog_iceberg=org.apache.iceberg.spark.SparkCatalog
+      - SPARK_CONF_spark_sql_catalog_iceberg_type=hadoop
+      - SPARK_CONF_spark_sql_catalog_iceberg_warehouse=s3a://lakehouse/iceberg-warehouse/
+    volumes:
+      # Mount directory containing Iceberg JAR files
+      - ./iceberg-jars:/opt/bitnami/spark/jars/iceberg:ro
+    depends_on:
+      - minio
+      - spark-master
+
+  # Jupyter with Iceberg support
+  jupyter:
+    environment:
+      # Add Iceberg configurations for Jupyter Spark sessions
+      - SPARK_OPTS=--jars /home/jovyan/work/iceberg-jars/iceberg-spark-runtime-3.5_2.12-1.4.3.jar
+    volumes:
+      # Mount Iceberg JARs for Jupyter access
+      - ./iceberg-jars:/home/jovyan/work/iceberg-jars:ro
+
+  # Optional: Iceberg REST Catalog (uncomment if needed)
+  # iceberg-rest:
+  #   image: tabulario/iceberg-rest:0.6.0
+  #   container_name: iceberg-rest
+  #   ports:
+  #     - "8181:8181"
+  #   environment:
+  #     - CATALOG_WAREHOUSE=s3a://lakehouse/iceberg-warehouse/
+  #     - CATALOG_S3_ENDPOINT=http://minio:9000
+  #     - CATALOG_S3_ACCESS_KEY_ID=minio
+  #     - CATALOG_S3_SECRET_ACCESS_KEY=minio123
+  #     - CATALOG_S3_PATH_STYLE_ACCESS=true
+  #   networks:
+  #     - lakehouse
+  #   depends_on:
+  #     - minio
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: ${ICEBERG_MEMORY_LIMIT:-4G}
+  #       reservations:
+  #         memory: ${ICEBERG_MEMORY_RESERVATION:-1G}
+
+# Create iceberg-warehouse bucket in MinIO
+volumes:
+  iceberg-warehouse:
+    driver: local

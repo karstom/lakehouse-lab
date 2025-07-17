@@ -266,7 +266,7 @@ create_buckets() {
     fi
     
     # Create directory structure
-    local directories="warehouse raw-data processed-data"
+    local directories="warehouse raw-data processed-data iceberg-warehouse"
     for dir in $directories; do
         if mc mb "local/lakehouse/$dir" >/dev/null 2>&1; then
             log_success "Created directory: lakehouse/$dir"
@@ -278,7 +278,100 @@ create_buckets() {
     return 0
 }
 
+# Download Iceberg JAR files
+download_iceberg_jars() {
+    log_info "Downloading Apache Iceberg JAR files for Spark integration..."
+    
+    # Create iceberg-jars directory on host
+    local iceberg_dir="$LAKEHOUSE_ROOT/../iceberg-jars"
+    if mkdir -p "$iceberg_dir"; then
+        log_success "Created iceberg-jars directory: $iceberg_dir"
+    else
+        log_error "Failed to create iceberg-jars directory"
+        return 1
+    fi
+    
+    # Iceberg JAR files for Spark 3.5.0
+    local iceberg_version="1.4.3"
+    local scala_version="2.12"
+    local spark_version="3.5"
+    
+    local jar_urls=(
+        "https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-${spark_version}_${scala_version}/${iceberg_version}/iceberg-spark-runtime-${spark_version}_${scala_version}-${iceberg_version}.jar"
+    )
+    
+    local jar_files=(
+        "iceberg-spark-runtime-${spark_version}_${scala_version}-${iceberg_version}.jar"
+    )
+    
+    # Download JAR files with retry logic
+    local success=true
+    for i in $(seq 0 $((${#jar_urls[@]} - 1))); do
+        local url="${jar_urls[$i]}"
+        local filename="${jar_files[$i]}"
+        local filepath="$iceberg_dir/$filename"
+        
+        if [ -f "$filepath" ]; then
+            log_info "JAR already exists: $filename"
+            continue
+        fi
+        
+        log_info "Downloading: $filename..."
+        local max_attempts=3
+        local attempt=1
+        local downloaded=false
+        
+        while [ $attempt -le $max_attempts ] && [ "$downloaded" = false ]; do
+            if curl -sSL "$url" -o "$filepath"; then
+                # Verify the download by checking file size
+                local filesize=$(stat -c%s "$filepath" 2>/dev/null || echo "0")
+                if [ "$filesize" -gt 1000000 ]; then  # Should be > 1MB
+                    log_success "Downloaded: $filename (${filesize} bytes)"
+                    downloaded=true
+                else
+                    log_warning "Downloaded file seems too small, retrying..."
+                    rm -f "$filepath"
+                fi
+            else
+                log_warning "Download attempt $attempt failed for $filename"
+            fi
+            
+            if [ "$downloaded" = false ]; then
+                attempt=$((attempt + 1))
+                sleep 2
+            fi
+        done
+        
+        if [ "$downloaded" = false ]; then
+            log_error "Failed to download $filename after $max_attempts attempts"
+            success=false
+        fi
+    done
+    
+    if [ "$success" = true ]; then
+        log_success "All Iceberg JAR files downloaded successfully"
+        
+        # Create a version file for tracking
+        echo "iceberg-spark-runtime-${spark_version}_${scala_version}-${iceberg_version}.jar" > "$iceberg_dir/VERSION"
+        echo "Downloaded on: $(date)" >> "$iceberg_dir/VERSION"
+        echo "Iceberg version: ${iceberg_version}" >> "$iceberg_dir/VERSION"
+        echo "Compatible with: Spark ${spark_version}, Scala ${scala_version}" >> "$iceberg_dir/VERSION"
+        
+        log_info "To enable Iceberg, use: docker compose -f docker-compose.yml -f docker-compose.iceberg.yml up -d"
+        return 0
+    else
+        log_error "Some Iceberg JAR downloads failed"
+        return 1
+    fi
+}
+
 create_buckets || exit 1
+
+# Download Iceberg JAR files
+download_iceberg_jars || {
+    log_warning "Iceberg JAR download failed, but continuing with setup"
+    log_info "Iceberg support can be enabled later by running the download manually"
+}
 
 # Create sample Airflow DAGs - FIXED for Issue #2
 create_airflow_dags() {
@@ -980,7 +1073,398 @@ EOF
 }
 EOF
 
-    log_success "Jupyter notebooks created with DuckDB 1.3.0 examples"
+    # Create Iceberg example notebook
+    cat <<'EOF' > "$LAKEHOUSE_ROOT/notebooks/03_Iceberg_Tables.ipynb"
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Apache Iceberg Tables with Spark 3.5.0\n",
+    "\n",
+    "This notebook demonstrates how to use Apache Iceberg with Spark for lakehouse table management.\n",
+    "\n",
+    "**Requirements:**\n",
+    "- Start with Iceberg enabled: `docker compose -f docker-compose.yml -f docker-compose.iceberg.yml up -d`\n",
+    "- Iceberg JAR files automatically downloaded during setup"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Import libraries\n",
+    "from pyspark.sql import SparkSession\n",
+    "from pyspark.sql.functions import *\n",
+    "from pyspark.sql.types import *\n",
+    "import pandas as pd\n",
+    "\n",
+    "print(\"📦 Iceberg with Spark 3.5.0 Example\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Initialize Spark with Iceberg Support"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Create Spark session with Iceberg configuration\n",
+    "# Note: These configurations should already be set when using docker-compose.iceberg.yml\n",
+    "spark = SparkSession.builder \\\n",
+    "    .appName(\"Iceberg Lakehouse Demo\") \\\n",
+    "    .config(\"spark.sql.extensions\", \"org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions\") \\\n",
+    "    .config(\"spark.sql.catalog.spark_catalog\", \"org.apache.iceberg.spark.SparkSessionCatalog\") \\\n",
+    "    .config(\"spark.sql.catalog.spark_catalog.type\", \"hive\") \\\n",
+    "    .config(\"spark.sql.catalog.iceberg\", \"org.apache.iceberg.spark.SparkCatalog\") \\\n",
+    "    .config(\"spark.sql.catalog.iceberg.type\", \"hadoop\") \\\n",
+    "    .config(\"spark.sql.catalog.iceberg.warehouse\", \"s3a://lakehouse/iceberg-warehouse/\") \\\n",
+    "    .config(\"spark.hadoop.fs.s3a.endpoint\", \"http://minio:9000\") \\\n",
+    "    .config(\"spark.hadoop.fs.s3a.access.key\", \"minio\") \\\n",
+    "    .config(\"spark.hadoop.fs.s3a.secret.key\", \"minio123\") \\\n",
+    "    .config(\"spark.hadoop.fs.s3a.path.style.access\", \"true\") \\\n",
+    "    .config(\"spark.hadoop.fs.s3a.connection.ssl.enabled\", \"false\") \\\n",
+    "    .getOrCreate()\n",
+    "\n",
+    "print(f\"✅ Spark {spark.version} with Iceberg support initialized\")\n",
+    "print(f\"📍 Iceberg warehouse: s3a://lakehouse/iceberg-warehouse/\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Load Sample Data"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Load sample data from MinIO\n",
+    "try:\n",
+    "    df = spark.read \\\n",
+    "        .option(\"header\", \"true\") \\\n",
+    "        .option(\"inferSchema\", \"true\") \\\n",
+    "        .csv(\"s3a://lakehouse/raw-data/sample_orders.csv\")\n",
+    "    \n",
+    "    print(f\"📊 Loaded {df.count()} records from sample_orders.csv\")\n",
+    "    print(\"🔍 Schema:\")\n",
+    "    df.printSchema()\n",
+    "    \n",
+    "    # Show sample data\n",
+    "    print(\"📄 Sample data:\")\n",
+    "    df.show(5)\n",
+    "    \n",
+    "except Exception as e:\n",
+    "    print(f\"⚠️ Could not load sample data: {e}\")\n",
+    "    print(\"Creating sample data for demo...\")\n",
+    "    \n",
+    "    # Create sample data for demo\n",
+    "    sample_data = [\n",
+    "        (\"ORD-0000001\", \"CUST-000001\", \"2024-01-15\", \"Electronics\", \"Laptop\", 2, 999.99, 0.1, 25.00, 1824.99),\n",
+    "        (\"ORD-0000002\", \"CUST-000002\", \"2024-01-16\", \"Clothing\", \"T-Shirt\", 5, 29.99, 0.0, 10.00, 159.95),\n",
+    "        (\"ORD-0000003\", \"CUST-000003\", \"2024-01-17\", \"Books\", \"Data Engineering\", 1, 49.99, 0.05, 5.00, 52.49)\n",
+    "    ]\n",
+    "    \n",
+    "    schema = StructType([\n",
+    "        StructField(\"order_id\", StringType(), True),\n",
+    "        StructField(\"customer_id\", StringType(), True),\n",
+    "        StructField(\"order_date\", StringType(), True),\n",
+    "        StructField(\"product_category\", StringType(), True),\n",
+    "        StructField(\"product_name\", StringType(), True),\n",
+    "        StructField(\"quantity\", IntegerType(), True),\n",
+    "        StructField(\"unit_price\", DoubleType(), True),\n",
+    "        StructField(\"discount\", DoubleType(), True),\n",
+    "        StructField(\"shipping_cost\", DoubleType(), True),\n",
+    "        StructField(\"total_amount\", DoubleType(), True)\n",
+    "    ])\n",
+    "    \n",
+    "    df = spark.createDataFrame(sample_data, schema)\n",
+    "    print(f\"📊 Created sample dataset with {df.count()} records\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Create Iceberg Table"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Create Iceberg table\n",
+    "table_name = \"iceberg.orders\"\n",
+    "\n",
+    "try:\n",
+    "    # Drop table if exists (for demo purposes)\n",
+    "    spark.sql(f\"DROP TABLE IF EXISTS {table_name}\")\n",
+    "    print(f\"🗑️ Dropped existing table {table_name}\")\n",
+    "except:\n",
+    "    pass\n",
+    "\n",
+    "# Create Iceberg table with partitioning\n",
+    "df.writeTo(table_name) \\\n",
+    "    .option(\"write-audit-publish\", \"false\") \\\n",
+    "    .partitionedBy(\"product_category\") \\\n",
+    "    .createOrReplace()\n",
+    "\n",
+    "print(f\"✅ Created Iceberg table: {table_name}\")\n",
+    "print(f\"📂 Partitioned by: product_category\")\n",
+    "\n",
+    "# Verify table creation\n",
+    "iceberg_df = spark.table(table_name)\n",
+    "print(f\"📊 Table has {iceberg_df.count()} records\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Query Iceberg Table"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Query the Iceberg table\n",
+    "print(\"📋 Querying Iceberg table:\")\n",
+    "spark.sql(f\"SELECT * FROM {table_name}\").show()\n",
+    "\n",
+    "# Analytics query with partitioning benefits\n",
+    "print(\"📈 Sales by product category (leveraging partitioning):\")\n",
+    "sales_by_category = spark.sql(f\"\"\"\n",
+    "    SELECT \n",
+    "        product_category,\n",
+    "        COUNT(*) as order_count,\n",
+    "        SUM(total_amount) as total_revenue,\n",
+    "        AVG(total_amount) as avg_order_value\n",
+    "    FROM {table_name}\n",
+    "    GROUP BY product_category\n",
+    "    ORDER BY total_revenue DESC\n",
+    "\"\"\")\n",
+    "\n",
+    "sales_by_category.show()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Iceberg Time Travel and Versioning"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Insert more data to create a new version\n",
+    "new_data = [\n",
+    "    (\"ORD-0000004\", \"CUST-000004\", \"2024-01-18\", \"Electronics\", \"Smartphone\", 1, 799.99, 0.05, 15.00, 774.99),\n",
+    "    (\"ORD-0000005\", \"CUST-000005\", \"2024-01-19\", \"Home\", \"Coffee Maker\", 1, 199.99, 0.0, 20.00, 219.99)\n",
+    "]\n",
+    "\n",
+    "new_df = spark.createDataFrame(new_data, df.schema)\n",
+    "\n",
+    "# Append to Iceberg table\n",
+    "new_df.writeTo(table_name).append()\n",
+    "\n",
+    "print(f\"➕ Added {new_df.count()} more records\")\n",
+    "print(f\"📊 Table now has {spark.table(table_name).count()} total records\")"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Show table history (time travel capability)\n",
+    "print(\"🕒 Table history (Iceberg time travel):\")\n",
+    "try:\n",
+    "    history = spark.sql(f\"SELECT * FROM {table_name}.history\")\n",
+    "    history.show(truncate=False)\n",
+    "except Exception as e:\n",
+    "    print(f\"ℹ️ History metadata: {e}\")\n",
+    "\n",
+    "# Show table snapshots\n",
+    "print(\"📸 Table snapshots:\")\n",
+    "try:\n",
+    "    snapshots = spark.sql(f\"SELECT * FROM {table_name}.snapshots\")\n",
+    "    snapshots.show(truncate=False)\n",
+    "except Exception as e:\n",
+    "    print(f\"ℹ️ Snapshots metadata: {e}\")"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Iceberg Schema Evolution"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Demonstrate schema evolution - add a new column\n",
+    "print(\"🔄 Schema evolution: Adding 'order_priority' column\")\n",
+    "\n",
+    "# Add new column to the table\n",
+    "spark.sql(f\"ALTER TABLE {table_name} ADD COLUMN order_priority string\")\n",
+    "\n",
+    "# Update some records with the new column\n",
+    "spark.sql(f\"\"\"\n",
+    "    UPDATE {table_name}\n",
+    "    SET order_priority = CASE \n",
+    "        WHEN total_amount > 500 THEN 'HIGH'\n",
+    "        WHEN total_amount > 100 THEN 'MEDIUM'\n",
+    "        ELSE 'LOW'\n",
+    "    END\n",
+    "\"\"\")\n",
+    "\n",
+    "print(\"✅ Schema evolved - added order_priority column\")\n",
+    "\n",
+    "# Show updated data\n",
+    "print(\"📋 Updated table with new column:\")\n",
+    "spark.sql(f\"SELECT order_id, product_category, total_amount, order_priority FROM {table_name}\").show()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Data Quality and ACID Transactions"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Demonstrate ACID transactions with merge operations\n",
+    "print(\"⚡ ACID Transactions: MERGE operation\")\n",
+    "\n",
+    "# Create staging data with updates and new records\n",
+    "staging_data = [\n",
+    "    (\"ORD-0000001\", \"CUST-000001\", \"2024-01-15\", \"Electronics\", \"Laptop\", 2, 899.99, 0.15, 25.00, 1554.99, \"HIGH\"),  # Updated price\n",
+    "    (\"ORD-0000006\", \"CUST-000006\", \"2024-01-20\", \"Sports\", \"Running Shoes\", 1, 149.99, 0.0, 12.00, 161.99, \"MEDIUM\")  # New record\n",
+    "]\n",
+    "\n",
+    "staging_schema = df.schema.add(\"order_priority\", StringType())\n",
+    "staging_df = spark.createDataFrame(staging_data, staging_schema)\n",
+    "\n",
+    "# Register as temporary view for MERGE\n",
+    "staging_df.createOrReplaceTempView(\"staging_orders\")\n",
+    "\n",
+    "# Perform MERGE operation (UPSERT)\n",
+    "merge_query = f\"\"\"\n",
+    "MERGE INTO {table_name} target\n",
+    "USING staging_orders source\n",
+    "ON target.order_id = source.order_id\n",
+    "WHEN MATCHED THEN UPDATE SET\n",
+    "    unit_price = source.unit_price,\n",
+    "    total_amount = source.total_amount,\n",
+    "    discount = source.discount,\n",
+    "    order_priority = source.order_priority\n",
+    "WHEN NOT MATCHED THEN INSERT\n",
+    "    (order_id, customer_id, order_date, product_category, product_name, \n",
+    "     quantity, unit_price, discount, shipping_cost, total_amount, order_priority)\n",
+    "VALUES\n",
+    "    (source.order_id, source.customer_id, source.order_date, source.product_category, \n",
+    "     source.product_name, source.quantity, source.unit_price, source.discount, \n",
+    "     source.shipping_cost, source.total_amount, source.order_priority)\n",
+    "\"\"\"\n",
+    "\n",
+    "spark.sql(merge_query)\n",
+    "\n",
+    "print(\"✅ MERGE operation completed\")\n",
+    "print(f\"📊 Table now has {spark.table(table_name).count()} records\")\n",
+    "\n",
+    "# Show final result\n",
+    "print(\"📋 Final table state:\")\n",
+    "spark.sql(f\"SELECT order_id, product_category, unit_price, total_amount, order_priority FROM {table_name} ORDER BY order_id\").show()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Cleanup"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": null,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "# Optional: Drop the demo table\n",
+    "# spark.sql(f\"DROP TABLE IF EXISTS {table_name}\")\n",
+    "# print(f\"🗑️ Dropped table {table_name}\")\n",
+    "\n",
+    "print(\"\\n🎉 Iceberg Demo Complete!\")\n",
+    "print(\"\\n✨ Key Iceberg Features Demonstrated:\")\n",
+    "print(\"   • ✅ Table creation with partitioning\")\n",
+    "print(\"   • ✅ Time travel and versioning\")\n",
+    "print(\"   • ✅ Schema evolution\")\n",
+    "print(\"   • ✅ ACID transactions with MERGE\")\n",
+    "print(\"   • ✅ S3-compatible storage (MinIO)\")\n",
+    "print(\"\\n📚 Next Steps:\")\n",
+    "print(\"   • Explore table metadata and partitioning strategies\")\n",
+    "print(\"   • Set up automated data pipelines with Airflow\")\n",
+    "print(\"   • Create dashboards in Superset using Iceberg tables\")"
+   ]
+  }
+ ],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.8.10"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 4
+}
+EOF
+
+    log_success "Jupyter notebooks created with DuckDB 1.3.0 and Iceberg examples"
 }
 
 create_jupyter_notebooks
@@ -1383,11 +1867,13 @@ echo "   • Superset: No more S3 configuration per session"
 echo "   • Superset: Single-query dataset creation documented"
 echo "   • Airflow: DuckDB packages pre-installed in all containers"
 echo "   • Latest: DuckDB 1.3.0 with UUID v7 and enhanced S3 performance"
+echo "   • NEW: Apache Iceberg JAR files downloaded automatically"
 echo ""
 echo "📚 QUICK START:"
 echo "   1. Visit Superset → SQL Lab → Run: SELECT * FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv') LIMIT 10;"
 echo "   2. Visit Airflow → Enable 'sample_duckdb_pipeline' DAG → Trigger (should work!)"
 echo "   3. Visit JupyterLab → Open '01_Getting_Started.ipynb' → Run cells"
+echo "   4. For Iceberg: docker compose -f docker-compose.yml -f docker-compose.iceberg.yml up -d"
 echo ""
 echo "🐳 CONTAINER MANAGEMENT: Portainer at :9060 provides:"
 echo "   • Real-time container stats (CPU, memory, network)"

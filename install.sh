@@ -32,12 +32,17 @@ PROFILE="standard"
 AUTO_START="true"
 SKIP_DEPS="false"
 UNATTENDED="false"
+ENABLE_ICEBERG="false"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --fat-server)
             PROFILE="fat-server"
+            shift
+            ;;
+        --iceberg)
+            ENABLE_ICEBERG="true"
             shift
             ;;
         --no-start)
@@ -68,6 +73,7 @@ Usage: $0 [OPTIONS]
 
 Options:
     --fat-server    Use high-performance configuration (64GB+ RAM)
+    --iceberg       Enable Apache Iceberg table format support
     --no-start      Download only, don't start services
     --skip-deps     Skip dependency checks (Docker, git, curl)
     --unattended    Run without prompts (assumes yes to all)
@@ -81,6 +87,12 @@ Examples:
 
     # Fat server installation
     curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --fat-server
+
+    # Installation with Iceberg support
+    curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --iceberg
+
+    # Fat server with Iceberg
+    curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --fat-server --iceberg
 
     # Unattended installation (no prompts)
     curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --unattended
@@ -364,17 +376,32 @@ configure_environment() {
 start_services() {
     if [[ $AUTO_START == "false" ]]; then
         print_warning "Auto-start disabled. Use './start-lakehouse.sh' to start services manually."
+        if [[ $ENABLE_ICEBERG == "true" ]]; then
+            print_warning "To start with Iceberg: docker compose -f docker-compose.yml -f docker-compose.iceberg.yml up -d"
+        fi
         return
     fi
     
     print_step "Starting Lakehouse Lab services..."
+    if [[ $ENABLE_ICEBERG == "true" ]]; then
+        print_step "Iceberg support enabled - starting with enhanced Spark configuration..."
+    fi
     print_warning "This may take 5-10 minutes for initial startup..."
     
     # Use the startup script if available, otherwise fall back to docker compose
     if [[ -f "start-lakehouse.sh" ]]; then
+        if [[ $ENABLE_ICEBERG == "true" ]]; then
+            # Set environment variable for the startup script to use Iceberg
+            export ENABLE_ICEBERG_OVERRIDE="true"
+        fi
         ./start-lakehouse.sh
     else
-        docker compose up -d
+        # Direct docker compose startup
+        if [[ $ENABLE_ICEBERG == "true" ]]; then
+            docker compose -f docker-compose.yml -f docker-compose.iceberg.yml up -d
+        else
+            docker compose up -d
+        fi
         sleep 30
         echo ""
         echo -e "${GREEN}🎉 Lakehouse Lab is starting up!${NC}"
@@ -386,6 +413,14 @@ start_services() {
         echo -e "  📓 JupyterLab:        ${GREEN}http://localhost:9040${NC} (token: lakehouse)"
         echo -e "  ☁️  MinIO Console:     ${GREEN}http://localhost:9001${NC} (minio/minio123)"
         echo -e "  ⚡ Spark Master:      ${GREEN}http://localhost:8080${NC}"
+        if [[ $ENABLE_ICEBERG == "true" ]]; then
+            echo ""
+            echo -e "${CYAN}🧊 Iceberg Features:${NC}"
+            echo -e "  • Time travel and versioning"
+            echo -e "  • Schema evolution"
+            echo -e "  • ACID transactions"
+            echo -e "  • Try the '03_Iceberg_Tables.ipynb' notebook!"
+        fi
     fi
 }
 
@@ -415,6 +450,16 @@ show_completion_message() {
     else
         echo -e "${BLUE}💡 Using standard configuration. For high-end servers, try: ${YELLOW}cp .env.fat-server .env && docker compose restart${NC}"
     fi
+    
+    if [[ $ENABLE_ICEBERG == "true" ]]; then
+        echo -e "${CYAN}🧊 Iceberg table format enabled - try the advanced features!${NC}"
+        echo -e "${BLUE}   • Time travel queries and versioning${NC}"
+        echo -e "${BLUE}   • Schema evolution without data migration${NC}"
+        echo -e "${BLUE}   • ACID transactions with MERGE operations${NC}"
+        echo -e "${BLUE}   • See ICEBERG.md for detailed usage guide${NC}"
+    else
+        echo -e "${BLUE}💡 Want Iceberg table format? Restart with: ${YELLOW}docker compose -f docker-compose.yml -f docker-compose.iceberg.yml up -d${NC}"
+    fi
     echo ""
     echo -e "${CYAN}Happy Data Engineering! 🚀📊${NC}"
 }
@@ -427,6 +472,7 @@ main() {
     echo -e "  Profile: ${YELLOW}$PROFILE${NC}"
     echo -e "  Directory: ${YELLOW}$INSTALL_DIR${NC}"
     echo -e "  Auto-start: ${YELLOW}$AUTO_START${NC}"
+    echo -e "  Iceberg: ${YELLOW}$ENABLE_ICEBERG${NC}"
     echo ""
     
     # Show system info
