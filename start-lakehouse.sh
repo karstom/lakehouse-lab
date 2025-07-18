@@ -15,6 +15,8 @@ NC='\033[0m' # No Color
 # Configuration
 LAKEHOUSE_ROOT="${LAKEHOUSE_ROOT:-./lakehouse-data}"
 STARTUP_MODE="${1:-normal}"  # normal, debug, minimal
+MAX_RETRIES=2
+RETRY_COUNT=0
 
 echo -e "${BLUE}🏠 Lakehouse Lab Startup Script${NC}"
 echo -e "${BLUE}================================${NC}"
@@ -26,7 +28,7 @@ if ! command -v docker &> /dev/null; then
     exit 1
 fi
 
-if ! command -v docker compose &> /dev/null; then
+if ! docker compose version &> /dev/null; then
     echo -e "${RED}❌ Docker Compose not found. Please install Docker Compose first.${NC}"
     exit 1
 fi
@@ -72,7 +74,7 @@ ensure_curl() {
 
 # Function to start services with dependency checking
 start_with_dependencies() {
-    echo -e "${BLUE}🚀 Starting Lakehouse Lab ($STARTUP_MODE mode)...${NC}"
+    echo -e "${BLUE}🚀 Starting Lakehouse Lab ($STARTUP_MODE mode, attempt $((RETRY_COUNT + 1))/$((MAX_RETRIES + 1)))...${NC}"
     
     # Ensure curl is available for health checks
     ensure_curl
@@ -139,9 +141,24 @@ start_with_dependencies() {
                 check_service_health "Spark Master" "http://localhost:8080" 15
                 
             else
-                echo -e "${RED}❌ Normal startup failed, trying debug mode...${NC}"
-                start_with_dependencies
-                return
+                echo -e "${RED}❌ Normal startup failed${NC}"
+                
+                # Check retry limits to prevent infinite loops
+                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                    RETRY_COUNT=$((RETRY_COUNT + 1))
+                    echo -e "${YELLOW}⏳ Retrying with debug mode (attempt $((RETRY_COUNT + 1))/$((MAX_RETRIES + 1)))...${NC}"
+                    sleep 5
+                    
+                    # Switch to debug mode for retry
+                    STARTUP_MODE="debug"
+                    start_with_dependencies
+                    return
+                else
+                    echo -e "${RED}❌ Maximum retries ($MAX_RETRIES) exceeded. Startup failed.${NC}"
+                    echo -e "${YELLOW}💡 Try running: ./start-lakehouse.sh debug${NC}"
+                    echo -e "${YELLOW}💡 Or check logs: ./start-lakehouse.sh logs${NC}"
+                    exit 1
+                fi
             fi
             ;;
     esac

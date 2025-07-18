@@ -213,8 +213,17 @@ install_docker_macos() {
     fi
 }
 
+# Function to check Docker Compose functionality
+check_docker_compose() {
+    if docker compose version &> /dev/null; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 detect_and_install_docker() {
-    if check_command docker && check_command "docker compose"; then
+    if check_command docker && check_docker_compose; then
         print_success "Docker and Docker Compose already installed"
         return
     fi
@@ -335,8 +344,17 @@ check_dependencies() {
         fi
     fi
     
-    # Check Docker
-    detect_and_install_docker
+    # Check Docker - but be smarter about detection
+    if check_command docker; then
+        if check_docker_compose; then
+            print_success "Docker and Docker Compose already available"
+        else
+            print_warning "Docker found but Docker Compose not working. Checking installation..."
+            detect_and_install_docker
+        fi
+    else
+        detect_and_install_docker
+    fi
     
     print_success "All dependencies satisfied"
 }
