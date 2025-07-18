@@ -35,6 +35,7 @@ UNATTENDED="false"
 ENABLE_ICEBERG="false"
 UPGRADE_MODE="false"
 REPLACE_MODE="false"
+UPGRADE_CHOICE=""
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -221,20 +222,24 @@ show_upgrade_options() {
     
     if [[ $UNATTENDED == "true" ]]; then
         echo -e "${GREEN}Unattended mode: defaulting to upgrade${NC}"
-        return 1  # Return upgrade choice
+        UPGRADE_CHOICE="upgrade"
+        return 0
     fi
     
     while true; do
-        read -p "Please choose (1/2/3): " choice
+        read -p "Please choose (1/2/3): " choice </dev/tty
         case $choice in
             1|upgrade|Upgrade|UPGRADE)
-                return 1  # Upgrade
+                UPGRADE_CHOICE="upgrade"
+                return 0
                 ;;
             2|replace|Replace|REPLACE)
-                return 2  # Replace
+                UPGRADE_CHOICE="replace"
+                return 0
                 ;;
             3|cancel|Cancel|CANCEL|q|quit)
-                return 3  # Cancel
+                UPGRADE_CHOICE="cancel"
+                return 0
                 ;;
             *)
                 echo -e "${RED}Invalid choice. Please enter 1, 2, or 3.${NC}"
@@ -416,7 +421,7 @@ detect_and_install_docker() {
     
     # Give user a chance to cancel if running interactively
     if [[ -t 0 && $UNATTENDED != "true" ]]; then  # Only prompt if interactive and not unattended
-        read -p "Continue with Docker installation? [Y/n]: " -n 1 -r
+        read -p "Continue with Docker installation? [Y/n]: " -n 1 -r </dev/tty
         echo
         if [[ $REPLY =~ ^[Nn]$ ]]; then
             echo ""
@@ -673,15 +678,14 @@ main() {
     if [[ $UPGRADE_MODE != "true" ]] && [[ $REPLACE_MODE != "true" ]]; then
         if detect_existing_installation; then
             show_upgrade_options
-            local choice=$?
-            case $choice in
-                1)  # Upgrade
+            case $UPGRADE_CHOICE in
+                upgrade)  # Upgrade
                     UPGRADE_MODE="true"
                     ;;
-                2)  # Replace
+                replace)  # Replace
                     REPLACE_MODE="true"
                     ;;
-                3)  # Cancel
+                cancel)  # Cancel
                     echo "Installation cancelled."
                     exit 0
                     ;;
@@ -717,7 +721,7 @@ main() {
     
     # Confirm installation (only if not already chosen via upgrade options)
     if [[ -t 0 && $UNATTENDED != "true" ]] && [[ $UPGRADE_MODE != "true" ]] && [[ $REPLACE_MODE != "true" ]]; then
-        read -p "Continue with installation? [Y/n]: " -n 1 -r
+        read -p "Continue with installation? [Y/n]: " -n 1 -r </dev/tty
         echo
         if [[ $REPLY =~ ^[Nn]$ ]]; then
             echo "Installation cancelled."
