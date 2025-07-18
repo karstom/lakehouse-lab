@@ -18,7 +18,7 @@ services:
       - SPARK_CONF_spark_sql_catalog_iceberg_warehouse=s3a://lakehouse/iceberg-warehouse/
     volumes:
       # Mount directory containing Iceberg JAR files
-      - ./iceberg-jars:/opt/bitnami/spark/jars/iceberg:ro
+      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/iceberg-jars:/opt/bitnami/spark/jars/iceberg:ro
     depends_on:
       - minio
 
@@ -36,7 +36,7 @@ services:
       - SPARK_CONF_spark_sql_catalog_iceberg_warehouse=s3a://lakehouse/iceberg-warehouse/
     volumes:
       # Mount directory containing Iceberg JAR files
-      - ./iceberg-jars:/opt/bitnami/spark/jars/iceberg:ro
+      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/iceberg-jars:/opt/bitnami/spark/jars/iceberg:ro
     depends_on:
       - minio
       - spark-master
@@ -48,7 +48,7 @@ services:
       - SPARK_OPTS=--jars /home/jovyan/work/iceberg-jars/iceberg-spark-runtime-3.5_2.12-1.4.3.jar
     volumes:
       # Mount Iceberg JARs for Jupyter access
-      - ./iceberg-jars:/home/jovyan/work/iceberg-jars:ro
+      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/iceberg-jars:/home/jovyan/work/iceberg-jars:ro
 
   # Optional: Iceberg REST Catalog (uncomment if needed)
   # iceberg-rest:

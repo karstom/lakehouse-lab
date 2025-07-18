@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 
 # ==============================================================================
@@ -69,7 +69,7 @@ log_info "🚀 First-time initialization starting..."
 # Update package manager and install required tools
 log_info "Installing required packages..."
 apk update >/dev/null 2>&1 || log_warning "Failed to update package index"
-apk add --no-cache curl python3 py3-pip jq >/dev/null 2>&1 || {
+apk add --no-cache curl python3 py3-pip jq bash >/dev/null 2>&1 || {
     log_error "Failed to install required packages"
     exit 1
 }
@@ -282,8 +282,8 @@ create_buckets() {
 download_iceberg_jars() {
     log_info "Downloading Apache Iceberg JAR files for Spark integration..."
     
-    # Create iceberg-jars directory on host
-    local iceberg_dir="$LAKEHOUSE_ROOT/../iceberg-jars"
+    # Create iceberg-jars directory inside lakehouse data directory
+    local iceberg_dir="$LAKEHOUSE_ROOT/iceberg-jars"
     if mkdir -p "$iceberg_dir"; then
         log_success "Created iceberg-jars directory: $iceberg_dir"
     else
@@ -296,26 +296,19 @@ download_iceberg_jars() {
     local scala_version="2.12"
     local spark_version="3.5"
     
-    local jar_urls=(
-        "https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-${spark_version}_${scala_version}/${iceberg_version}/iceberg-spark-runtime-${spark_version}_${scala_version}-${iceberg_version}.jar"
-    )
-    
-    local jar_files=(
-        "iceberg-spark-runtime-${spark_version}_${scala_version}-${iceberg_version}.jar"
-    )
+    # Define JAR URLs and files (POSIX compatible)
+    local jar_url="https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-${spark_version}_${scala_version}/${iceberg_version}/iceberg-spark-runtime-${spark_version}_${scala_version}-${iceberg_version}.jar"
+    local jar_file="iceberg-spark-runtime-${spark_version}_${scala_version}-${iceberg_version}.jar"
     
     # Download JAR files with retry logic
     local success=true
-    for i in $(seq 0 $((${#jar_urls[@]} - 1))); do
-        local url="${jar_urls[$i]}"
-        local filename="${jar_files[$i]}"
-        local filepath="$iceberg_dir/$filename"
-        
-        if [ -f "$filepath" ]; then
-            log_info "JAR already exists: $filename"
-            continue
-        fi
-        
+    local url="$jar_url"
+    local filename="$jar_file"
+    local filepath="$iceberg_dir/$filename"
+    
+    if [ -f "$filepath" ]; then
+        log_info "JAR already exists: $filename"
+    else
         log_info "Downloading: $filename..."
         local max_attempts=3
         local attempt=1
@@ -346,7 +339,7 @@ download_iceberg_jars() {
             log_error "Failed to download $filename after $max_attempts attempts"
             success=false
         fi
-    done
+    fi
     
     if [ "$success" = true ]; then
         log_success "All Iceberg JAR files downloaded successfully"
