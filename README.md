@@ -38,6 +38,29 @@ docker compose up -d
 
 Wait 3-5 minutes for initialization, then visit: **http://localhost:9060** (Portainer)
 
+## 🔄 Upgrading Existing Installation
+
+**Already have Lakehouse Lab installed?** The installer automatically detects existing installations and offers smart upgrade options:
+
+```bash
+# Run the same installation command - it will detect and offer options
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
+```
+
+You'll get user-friendly options:
+- **Upgrade** - Updates to latest version while preserving your data and settings
+- **Replace** - Fresh installation with clean slate (removes all data)
+- **Cancel** - Exit without changes
+
+**Or use direct flags:**
+```bash
+# Upgrade preserving data
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --upgrade
+
+# Fresh installation (clean slate)
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --replace
+```
+
 ## 🎯 What You Get
 
 | Service | Purpose | URL | Credentials |
@@ -317,16 +340,43 @@ SELECT * FROM read_csv_auto('s3a://lakehouse/data/year=2024/month=*/day=*/*.csv'
 
 ## 🐛 Troubleshooting
 
+### Installation Issues
+
+**Problem: "lakehouse-init" service fails with exit 2**
+```bash
+# Solution: Use the upgraded installer (automatically fixes this)
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --replace
+```
+
+**Problem: Airflow database not initialized**
+```bash
+# Check if Airflow database tables exist
+docker exec lakehouse-lab-postgres-1 psql -U postgres -d airflow -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public';"
+
+# If no tables, manually run initialization
+docker-compose run --rm airflow-init
+```
+
+**Problem: Previous installation blocking new install**
+```bash
+# The installer now automatically detects and offers upgrade options, or:
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --replace
+```
+
 ### Services Won't Start
 ```bash
 # Check service status
 docker compose ps
 
 # View logs for specific service
-docker compose logs superset
+docker compose logs airflow-webserver
+docker compose logs lakehouse-init
 
 # Restart specific service
 docker compose restart superset
+
+# Full restart of all services
+docker compose restart
 ```
 
 ### DuckDB S3 Connection Issues
