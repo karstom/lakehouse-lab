@@ -38,6 +38,77 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --no-start
 ```
 
+## 🔄 Upgrading Existing Installation
+
+### **Automatic Detection & Smart Upgrade**
+
+The installer automatically detects existing Lakehouse Lab installations and provides user-friendly upgrade options:
+
+```bash
+# Run the installer - it will detect existing installation and offer options
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
+```
+
+**What the installer detects:**
+- Existing installation directory
+- Running Docker services  
+- Data directory with your analytics data
+
+**You'll see options like:**
+```
+🔍 Existing Lakehouse Lab installation detected!
+
+📁 Found installation directory: lakehouse-lab
+🐳 Found running services:
+     lakehouse-lab-airflow-webserver-1	Up 2 hours
+     lakehouse-lab-postgres-1		Up 2 hours (healthy)
+💾 Found data directory with your analytics data
+
+What would you like to do?
+
+1) Upgrade - Update to latest version (keeps your data and settings)
+2) Replace - Fresh installation (⚠️  removes all data and starts over)
+3) Cancel - Exit without making changes
+```
+
+### **Direct Upgrade Commands**
+
+```bash
+# Upgrade preserving all data and settings
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --upgrade
+
+# Fresh installation (clean slate) - useful for fixing issues
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --replace
+
+# Unattended upgrade (defaults to preserve data)
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --upgrade --unattended
+```
+
+### **What Happens During Upgrade**
+
+**Upgrade Mode (--upgrade):**
+1. ✅ Gracefully stops running services
+2. ✅ Creates timestamped backup (`lakehouse-lab_backup_20250718_120500`)
+3. ✅ Downloads latest version
+4. ✅ Restores your data directory and custom settings
+5. ✅ Preserves all dashboards, workflows, and configurations
+
+**Replace Mode (--replace):**
+1. 🧹 Stops and removes all services (`docker compose down -v`)
+2. 🧹 Removes existing directories and data
+3. 🧹 Removes initialization markers (fixes corrupted installations)
+4. ✨ Performs fresh clean installation
+
+### **When to Use Each Mode**
+
+| Use Case | Recommended Mode | Why |
+|----------|------------------|-----|
+| **Regular updates** | Upgrade | Preserves all your work |
+| **Getting new features** | Upgrade | Keeps existing data and settings |
+| **Fixing broken installation** | Replace | Clean slate fixes initialization issues |
+| **Starting fresh** | Replace | Removes all old data |
+| **After failed initial install** | Replace | Cleans up any partial state |
+
 ## 🔧 Installation Options
 
 | Option | Description | Example |
@@ -48,6 +119,8 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 | `--skip-deps` | Skip dependency installation | `--skip-deps` |
 | `--dir DIR` | Install to custom directory | `--dir my-lakehouse` |
 | `--branch BRANCH` | Use specific git branch | `--branch develop` |
+| `--upgrade` | Upgrade existing installation (preserve data) | `--upgrade` |
+| `--replace` | Replace existing installation (clean slate) | `--replace` |
 
 ## 🖥️ Traditional Installation
 
@@ -99,6 +172,38 @@ bash install.sh  # Run after review
 ```
 
 ## 🚨 Troubleshooting
+
+### **Recent Installation Issues (Fixed in v1.1.0)**
+
+**Problem: "lakehouse-init" service fails with exit 2**
+```bash
+# Solution: Use the upgraded installer (automatically fixes this)
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --replace
+```
+
+**Problem: Airflow database not initialized (services keep restarting)**
+```bash
+# Check if Airflow database tables exist
+docker exec lakehouse-lab-postgres-1 psql -U postgres -d airflow -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public';"
+
+# If no tables (returns 0), manually run initialization
+docker-compose run --rm airflow-init
+
+# Then restart the services
+docker-compose restart airflow-scheduler airflow-webserver
+```
+
+**Problem: Previous failed installation blocking new install**
+```bash
+# The installer now automatically detects and offers options, or force replace:
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --replace
+
+# Manual cleanup if needed:
+docker compose down -v
+rm -rf lakehouse-lab
+rm -rf lakehouse-data
+rm -f .lakehouse-initialized
+```
 
 ### **Docker Permission Issues**
 ```bash
@@ -165,7 +270,16 @@ cd lakehouse-lab
 
 ## 🔄 Updating
 
-To update to the latest version:
+### **Smart Upgrade (Recommended)**
+```bash
+# The installer automatically detects existing installations and offers upgrade options
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
+
+# Or force upgrade preserving data
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --upgrade
+```
+
+### **Manual Update**
 ```bash
 cd lakehouse-lab
 git pull origin main
@@ -173,7 +287,7 @@ docker compose pull  # Get latest images
 docker compose up -d  # Restart with updates
 ```
 
-Or reinstall completely:
+### **Fresh Installation (Clean Slate)**
 ```bash
 ./start-lakehouse.sh reset  # Remove everything
 cd ..

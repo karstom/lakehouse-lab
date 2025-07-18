@@ -33,6 +33,8 @@ AUTO_START="true"
 SKIP_DEPS="false"
 UNATTENDED="false"
 ENABLE_ICEBERG="false"
+UPGRADE_MODE="false"
+REPLACE_MODE="false"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -65,6 +67,14 @@ while [[ $# -gt 0 ]]; do
             BRANCH="$2"
             shift 2
             ;;
+        --upgrade)
+            UPGRADE_MODE="true"
+            shift
+            ;;
+        --replace)
+            REPLACE_MODE="true"
+            shift
+            ;;
         -h|--help)
             cat << EOF
 Lakehouse Lab Bootstrap Installer
@@ -79,6 +89,8 @@ Options:
     --unattended    Run without prompts (assumes yes to all)
     --dir DIR       Install to specific directory (default: lakehouse-lab)
     --branch BRANCH Use specific git branch (default: main)
+    --upgrade       Upgrade existing installation (preserve data)
+    --replace       Replace existing installation (clean slate)
     -h, --help      Show this help message
 
 Examples:
@@ -99,6 +111,12 @@ Examples:
 
     # Download only, manual start
     curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --no-start
+
+    # Upgrade existing installation
+    curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --upgrade
+
+    # Fresh installation (replaces existing)
+    curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --replace
 
 EOF
             exit 0
@@ -142,6 +160,163 @@ check_command() {
     else
         return 1
     fi
+}
+
+detect_existing_installation() {
+    local existing_dir=""
+    local has_docker_services=""
+    local data_directory=""
+    
+    # Check for directory
+    if [[ -d "$INSTALL_DIR" ]]; then
+        existing_dir="true"
+    fi
+    
+    # Check for running Docker services
+    if check_command docker; then
+        if docker ps --format "table {{.Names}}" 2>/dev/null | grep -q "lakehouse-lab"; then
+            has_docker_services="true"
+        fi
+    fi
+    
+    # Check for data directory
+    if [[ -d "$INSTALL_DIR/lakehouse-data" ]] || [[ -d "./lakehouse-data" ]]; then
+        data_directory="true"
+    fi
+    
+    # Return detection results
+    if [[ "$existing_dir" == "true" ]] || [[ "$has_docker_services" == "true" ]] || [[ "$data_directory" == "true" ]]; then
+        return 0  # Existing installation found
+    else
+        return 1  # No existing installation
+    fi
+}
+
+show_upgrade_options() {
+    echo ""
+    echo -e "${YELLOW}🔍 Existing Lakehouse Lab installation detected!${NC}"
+    echo ""
+    
+    # Show what we found
+    if [[ -d "$INSTALL_DIR" ]]; then
+        echo -e "${BLUE}📁 Found installation directory: ${CYAN}$INSTALL_DIR${NC}"
+    fi
+    
+    if check_command docker && docker ps --format "table {{.Names}}" 2>/dev/null | grep -q "lakehouse-lab"; then
+        echo -e "${BLUE}🐳 Found running services:${NC}"
+        docker ps --format "table {{.Names}}\t{{.Status}}" | grep "lakehouse-lab" | sed 's/^/     /'
+    fi
+    
+    if [[ -d "$INSTALL_DIR/lakehouse-data" ]] || [[ -d "./lakehouse-data" ]]; then
+        echo -e "${BLUE}💾 Found data directory with your analytics data${NC}"
+    fi
+    
+    echo ""
+    echo -e "${BLUE}${BOLD}What would you like to do?${NC}"
+    echo ""
+    echo -e "${GREEN}1) Upgrade${NC} - Update to latest version (keeps your data and settings)"
+    echo -e "${YELLOW}2) Replace${NC} - Fresh installation (⚠️  removes all data and starts over)"
+    echo -e "${CYAN}3) Cancel${NC} - Exit without making changes"
+    echo ""
+    
+    if [[ $UNATTENDED == "true" ]]; then
+        echo -e "${GREEN}Unattended mode: defaulting to upgrade${NC}"
+        return 1  # Return upgrade choice
+    fi
+    
+    while true; do
+        read -p "Please choose (1/2/3): " choice
+        case $choice in
+            1|upgrade|Upgrade|UPGRADE)
+                return 1  # Upgrade
+                ;;
+            2|replace|Replace|REPLACE)
+                return 2  # Replace
+                ;;
+            3|cancel|Cancel|CANCEL|q|quit)
+                return 3  # Cancel
+                ;;
+            *)
+                echo -e "${RED}Invalid choice. Please enter 1, 2, or 3.${NC}"
+                ;;
+        esac
+    done
+}
+
+perform_upgrade() {
+    print_step "Upgrading existing Lakehouse Lab installation..."
+    
+    # Stop running services gracefully
+    if check_command docker && docker ps --format "table {{.Names}}" 2>/dev/null | grep -q "lakehouse-lab"; then
+        print_step "Stopping running services..."
+        cd "$INSTALL_DIR" 2>/dev/null || true
+        docker compose down || print_warning "Could not stop some services"
+        cd - >/dev/null
+    fi
+    
+    # Backup current installation
+    local backup_dir="${INSTALL_DIR}_backup_$(date +%Y%m%d_%H%M%S)"
+    if [[ -d "$INSTALL_DIR" ]]; then
+        print_step "Creating backup of current installation..."
+        mv "$INSTALL_DIR" "$backup_dir"
+        print_success "Backup created: $backup_dir"
+    fi
+    
+    # Download latest version
+    download_lakehouse_lab
+    
+    # Restore data directory if it exists in backup
+    if [[ -d "$backup_dir/lakehouse-data" ]]; then
+        print_step "Restoring your data and settings..."
+        cp -r "$backup_dir/lakehouse-data" "$INSTALL_DIR/"
+        print_success "Data restored successfully"
+    fi
+    
+    # Restore custom .env if it exists
+    if [[ -f "$backup_dir/.env" ]] && [[ ! "$backup_dir/.env" -ef "$backup_dir/.env.default" ]]; then
+        print_step "Restoring your custom configuration..."
+        cp "$backup_dir/.env" "$INSTALL_DIR/.env"
+        print_success "Configuration restored"
+    else
+        configure_environment
+    fi
+    
+    print_success "Upgrade completed successfully!"
+    print_warning "Backup available at: $backup_dir"
+}
+
+perform_replace() {
+    print_step "Performing fresh installation (replacing existing)..."
+    
+    # Stop and remove all services
+    if check_command docker && docker ps --format "table {{.Names}}" 2>/dev/null | grep -q "lakehouse-lab"; then
+        print_step "Stopping and removing all services..."
+        cd "$INSTALL_DIR" 2>/dev/null || true
+        docker compose down -v || print_warning "Could not stop some services"
+        cd - >/dev/null
+    fi
+    
+    # Remove existing directory
+    if [[ -d "$INSTALL_DIR" ]]; then
+        print_step "Removing existing installation..."
+        rm -rf "$INSTALL_DIR"
+        print_success "Existing installation removed"
+    fi
+    
+    # Remove any lakehouse-data directories
+    if [[ -d "./lakehouse-data" ]]; then
+        print_warning "Removing existing data directory..."
+        rm -rf "./lakehouse-data"
+    fi
+    
+    # Remove any partial initialization markers
+    rm -f "./.lakehouse-initialized" 2>/dev/null || true
+    
+    # Proceed with fresh installation
+    download_lakehouse_lab
+    configure_environment
+    
+    print_success "Fresh installation ready!"
 }
 
 install_docker_ubuntu() {
@@ -362,8 +537,8 @@ check_dependencies() {
 download_lakehouse_lab() {
     print_step "Downloading Lakehouse Lab..."
     
-    # Remove existing directory if it exists
-    if [[ -d "$INSTALL_DIR" ]]; then
+    # Only remove directory if not in upgrade/replace mode (those handle it)
+    if [[ -d "$INSTALL_DIR" ]] && [[ $UPGRADE_MODE != "true" ]] && [[ $REPLACE_MODE != "true" ]]; then
         print_warning "Directory $INSTALL_DIR already exists. Removing..."
         rm -rf "$INSTALL_DIR"
     fi
@@ -444,7 +619,15 @@ start_services() {
 
 show_completion_message() {
     echo ""
-    echo -e "${GREEN}${BOLD}🎉 Installation Complete!${NC}"
+    if [[ $UPGRADE_MODE == "true" ]]; then
+        echo -e "${GREEN}${BOLD}🎉 Upgrade Complete!${NC}"
+        echo -e "${BLUE}Your data and settings have been preserved${NC}"
+    elif [[ $REPLACE_MODE == "true" ]]; then
+        echo -e "${GREEN}${BOLD}🎉 Fresh Installation Complete!${NC}"
+        echo -e "${BLUE}Starting with a clean slate${NC}"
+    else
+        echo -e "${GREEN}${BOLD}🎉 Installation Complete!${NC}"
+    fi
     echo ""
     echo -e "${BLUE}${BOLD}What's Next:${NC}"
     echo -e "  1. ${CYAN}Wait 3-5 minutes${NC} for all services to initialize"
@@ -486,11 +669,38 @@ show_completion_message() {
 main() {
     print_header
     
+    # Check for existing installation first (unless explicitly told to upgrade/replace)
+    if [[ $UPGRADE_MODE != "true" ]] && [[ $REPLACE_MODE != "true" ]]; then
+        if detect_existing_installation; then
+            show_upgrade_options
+            local choice=$?
+            case $choice in
+                1)  # Upgrade
+                    UPGRADE_MODE="true"
+                    ;;
+                2)  # Replace
+                    REPLACE_MODE="true"
+                    ;;
+                3)  # Cancel
+                    echo "Installation cancelled."
+                    exit 0
+                    ;;
+            esac
+        fi
+    fi
+    
     echo -e "${BLUE}Installing Lakehouse Lab with the following settings:${NC}"
     echo -e "  Profile: ${YELLOW}$PROFILE${NC}"
     echo -e "  Directory: ${YELLOW}$INSTALL_DIR${NC}"
     echo -e "  Auto-start: ${YELLOW}$AUTO_START${NC}"
     echo -e "  Iceberg: ${YELLOW}$ENABLE_ICEBERG${NC}"
+    if [[ $UPGRADE_MODE == "true" ]]; then
+        echo -e "  Mode: ${GREEN}Upgrade (preserving data)${NC}"
+    elif [[ $REPLACE_MODE == "true" ]]; then
+        echo -e "  Mode: ${YELLOW}Replace (fresh install)${NC}"
+    else
+        echo -e "  Mode: ${CYAN}Fresh installation${NC}"
+    fi
     echo ""
     
     # Show system info
@@ -505,8 +715,8 @@ main() {
     fi
     echo ""
     
-    # Confirm installation
-    if [[ -t 0 && $UNATTENDED != "true" ]]; then  # Only prompt if interactive and not unattended
+    # Confirm installation (only if not already chosen via upgrade options)
+    if [[ -t 0 && $UNATTENDED != "true" ]] && [[ $UPGRADE_MODE != "true" ]] && [[ $REPLACE_MODE != "true" ]]; then
         read -p "Continue with installation? [Y/n]: " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Nn]$ ]]; then
@@ -517,11 +727,19 @@ main() {
         echo -e "${GREEN}Running in unattended mode - proceeding automatically${NC}"
     fi
     
-    # Run installation steps
+    # Run installation steps based on mode
     check_system_resources
     check_dependencies
-    download_lakehouse_lab
-    configure_environment
+    
+    if [[ $UPGRADE_MODE == "true" ]]; then
+        perform_upgrade
+    elif [[ $REPLACE_MODE == "true" ]]; then
+        perform_replace
+    else
+        download_lakehouse_lab
+        configure_environment
+    fi
+    
     start_services
     show_completion_message
 }
