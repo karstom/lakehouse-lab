@@ -174,7 +174,7 @@ setup_venv() {
     
     print_status "Installing test dependencies..."
     pip install --upgrade pip
-    pip install -r "$TEST_DIR/requirements.txt"
+    pip install -r "$TEST_DIR/tests/requirements.txt"
     
     print_success "Virtual environment ready"
 }
