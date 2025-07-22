@@ -230,8 +230,8 @@ services:
         echo 'Starting Jupyter...'
         chown -R jovyan:users /home/jovyan 2>/dev/null || echo 'Permission setup skipped'
         
-        # Use the proper Jupyter startup command with python3 explicitly
-        exec sudo -u jovyan python3 /usr/local/bin/start-notebook.py --NotebookApp.token='lakehouse' --NotebookApp.password='' --NotebookApp.allow_origin='*' --NotebookApp.disable_check_xsrf=True
+        # Use the proper Jupyter startup command with conda environment
+        exec sudo -u jovyan /opt/conda/bin/jupyter lab --NotebookApp.token='lakehouse' --NotebookApp.password='' --NotebookApp.allow_origin='*' --NotebookApp.disable_check_xsrf=True
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/notebooks:/home/jovyan/notebooks
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/jupyter-config:/home/jovyan/.jupyter
