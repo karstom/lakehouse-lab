@@ -216,8 +216,8 @@ services:
       SPARK_EXECUTOR_MEMORY: ${JUPYTER_SPARK_EXECUTOR_MEMORY:-2g}
       SPARK_EXECUTOR_CORES: ${JUPYTER_SPARK_EXECUTOR_CORES:-2}
       # PySpark environment variables
-      SPARK_HOME: /usr/local/spark
-      PYTHONPATH: /usr/local/spark/python:/usr/local/spark/python/lib/py4j-0.10.9.7-src.zip
+      SPARK_HOME: ${SPARK_HOME:-/usr/local/spark}
+      PYTHONPATH: ${PYTHONPATH:-/usr/local/spark/python:/usr/local/spark/python/lib/py4j-0.10.9.7-src.zip}
       PYSPARK_PYTHON: /opt/conda/bin/python
       PYSPARK_DRIVER_PYTHON: /opt/conda/bin/python
     ports:
