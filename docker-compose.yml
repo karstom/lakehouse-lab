@@ -326,8 +326,14 @@ services:
       - |
         set -e
         echo "Installing DuckDB and dependencies..."
-        mkdir -p /app/superset_home/.local && chmod 755 /app/superset_home/.local
-        pip install --no-cache-dir psycopg2-binary duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 'sqlalchemy>=1.4.0'
+        
+        # Ensure proper permissions for superset_home directory
+        mkdir -p /app/superset_home/.local /app/superset_home/.cache
+        chown -R superset:superset /app/superset_home || chown -R $(id -u):$(id -g) /app/superset_home
+        chmod -R 755 /app/superset_home
+        
+        # Install packages with user flag to avoid permission issues
+        pip install --user --no-cache-dir psycopg2-binary duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 'sqlalchemy>=1.4.0'
         
         echo "Initializing Superset database..."
         superset db upgrade
@@ -391,6 +397,8 @@ services:
       DATABASE_URL: postgresql://postgres:lakehouse@postgres:5432/airflow
       SUPERSET_WORKERS: ${SUPERSET_WORKERS:-4}
       SUPERSET_TIMEOUT: ${SUPERSET_TIMEOUT:-60}
+      # Ensure Python finds user-installed packages
+      PYTHONPATH: "${PYTHONPATH}:/app/superset_home/.local/lib/python3.9/site-packages:/app/superset_home/.local/lib/python3.10/site-packages:/app/superset_home/.local/lib/python3.11/site-packages"
     ports:
       - "9030:8088"
     volumes:
