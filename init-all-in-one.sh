@@ -203,6 +203,36 @@ wait_for_service() {
 # Wait for MinIO
 wait_for_service "MinIO" "http://minio:9000/minio/health/live" 20 3 || exit 1
 
+# Configure MinIO client first (needed for readiness verification)
+configure_minio() {
+    log_info "Configuring MinIO client..."
+    
+    # Set up mc alias with retry
+    local max_attempts=5
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        if mc alias set local http://minio:9000 minio minio123 >/dev/null 2>&1; then
+            log_success "MinIO client configured successfully"
+            break
+        else
+            log_warning "MinIO client configuration attempt $attempt failed, retrying..."
+            sleep 2
+            attempt=$((attempt + 1))
+        fi
+    done
+    
+    if [ $attempt -gt $max_attempts ]; then
+        log_error "Failed to configure MinIO client after $max_attempts attempts"
+        return 1
+    fi
+    
+    return 0
+}
+
+# Configure MinIO client before readiness verification
+configure_minio || exit 1
+
 # Enhanced MinIO readiness verification
 wait_for_minio_api() {
     local timeout=${MINIO_READY_TIMEOUT:-20}
@@ -247,6 +277,15 @@ wait_for_minio_api() {
                 return 0
             else
                 log_warning "  ❌ MinIO admin API not ready: $admin_output"
+                
+                # Additional debugging for common issues
+                if echo "$admin_output" | grep -i "connection refused" >/dev/null; then
+                    log_info "  🔍 Diagnosis: MinIO server not accepting connections yet"
+                elif echo "$admin_output" | grep -i "timeout" >/dev/null; then
+                    log_info "  🔍 Diagnosis: MinIO server responding slowly"
+                elif echo "$admin_output" | grep -i "unauthorized\|access denied" >/dev/null; then
+                    log_warning "  🔍 Diagnosis: Authentication issue - check MinIO credentials"
+                fi
             fi
         fi
         
@@ -264,8 +303,18 @@ wait_for_minio_api() {
     log_error "  • Resource constraints (CPU/memory/disk)"
     log_error "  • Network connectivity issues between containers"
     log_error "  • MinIO configuration problems"
-    log_info "To skip this check, set SKIP_MINIO_READY_CHECK=true"
-    return 1
+    
+    # Try a basic operation as fallback
+    log_info "Attempting fallback: testing basic MinIO operations..."
+    if mc ls local >/dev/null 2>&1; then
+        log_warning "Basic MinIO operations work despite admin API issues"
+        log_warning "Proceeding with initialization (bucket creation may still work)"
+        return 0
+    else
+        log_error "Both admin API and basic operations failed"
+        log_info "To skip this check entirely, set SKIP_MINIO_READY_CHECK=true"
+        return 1
+    fi
 }
 
 # Perform MinIO readiness verification
@@ -277,34 +326,7 @@ wait_for_service "Spark Master" "http://spark-master:8080" 10 5 || {
     log_warning "Services may start without full coordination"
 }
 
-# Configure MinIO client
-configure_minio() {
-    log_info "Configuring MinIO client..."
-    
-    # Set up mc alias with retry
-    local max_attempts=5
-    local attempt=1
-    
-    while [ $attempt -le $max_attempts ]; do
-        if mc alias set local http://minio:9000 minio minio123 >/dev/null 2>&1; then
-            log_success "MinIO client configured successfully"
-            break
-        else
-            log_warning "MinIO client configuration attempt $attempt failed, retrying..."
-            sleep 2
-            attempt=$((attempt + 1))
-        fi
-    done
-    
-    if [ $attempt -gt $max_attempts ]; then
-        log_error "Failed to configure MinIO client after $max_attempts attempts"
-        return 1
-    fi
-    
-    return 0
-}
-
-configure_minio || exit 1
+# MinIO client already configured above
 
 # Create and verify buckets with enhanced reliability
 create_buckets() {
