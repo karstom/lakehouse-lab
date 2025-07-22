@@ -203,6 +203,74 @@ wait_for_service() {
 # Wait for MinIO
 wait_for_service "MinIO" "http://minio:9000/minio/health/live" 20 3 || exit 1
 
+# Enhanced MinIO readiness verification
+wait_for_minio_api() {
+    local timeout=${MINIO_READY_TIMEOUT:-20}
+    local interval=${MINIO_READY_INTERVAL:-3}
+    local skip_check=${SKIP_MINIO_READY_CHECK:-false}
+    
+    if [ "$skip_check" = "true" ]; then
+        log_info "MinIO readiness check skipped (SKIP_MINIO_READY_CHECK=true)"
+        return 0
+    fi
+    
+    log_info "Performing comprehensive MinIO readiness verification..."
+    log_info "Timeout: ${timeout} attempts × ${interval}s = $((timeout * interval))s maximum"
+    
+    local attempt=1
+    while [ $attempt -le $timeout ]; do
+        log_info "MinIO API readiness check: attempt $attempt/$timeout"
+        
+        # Test 1: Basic connectivity test
+        if ! curl -sf "http://minio:9000/minio/health/live" >/dev/null 2>&1; then
+            log_warning "  ❌ MinIO health endpoint not responding"
+        else
+            log_info "  ✅ MinIO health endpoint responding"
+            
+            # Test 2: MinIO client configuration
+            if ! mc alias list local >/dev/null 2>&1; then
+                log_warning "  ❌ MinIO client alias not configured, attempting reconfiguration..."
+                if mc alias set local http://minio:9000 minio minio123 >/dev/null 2>&1; then
+                    log_info "  ✅ MinIO client reconfigured successfully"
+                else
+                    log_warning "  ❌ MinIO client reconfiguration failed"
+                fi
+            else
+                log_info "  ✅ MinIO client alias configured"
+            fi
+            
+            # Test 3: Admin API functionality (the real readiness test)
+            local admin_output
+            if admin_output=$(mc admin info local 2>&1); then
+                log_success "MinIO API is fully operational and ready for bucket operations"
+                log_info "MinIO server info: $(echo "$admin_output" | head -1)"
+                return 0
+            else
+                log_warning "  ❌ MinIO admin API not ready: $admin_output"
+            fi
+        fi
+        
+        if [ $attempt -lt $timeout ]; then
+            log_info "  ⏳ Waiting ${interval}s before next attempt..."
+            sleep $interval
+        fi
+        
+        attempt=$((attempt + 1))
+    done
+    
+    log_error "MinIO API failed to become ready after $((timeout * interval))s"
+    log_error "This usually indicates:"
+    log_error "  • MinIO is still initializing (try increasing MINIO_READY_TIMEOUT)"
+    log_error "  • Resource constraints (CPU/memory/disk)"
+    log_error "  • Network connectivity issues between containers"
+    log_error "  • MinIO configuration problems"
+    log_info "To skip this check, set SKIP_MINIO_READY_CHECK=true"
+    return 1
+}
+
+# Perform MinIO readiness verification
+wait_for_minio_api || exit 1
+
 # Wait for Spark (with more lenient timeout)
 wait_for_service "Spark Master" "http://spark-master:8080" 10 5 || {
     log_warning "Spark Master not ready after 50s, continuing anyway..."
@@ -238,42 +306,94 @@ configure_minio() {
 
 configure_minio || exit 1
 
-# Create and verify buckets
+# Create and verify buckets with enhanced reliability
 create_buckets() {
     log_info "Creating MinIO buckets and directory structure..."
     
-    # Create main bucket
-    local max_attempts=5
+    # Since MinIO API is now verified as ready, bucket creation should be more reliable
+    local max_attempts=${BUCKET_CREATE_RETRIES:-8}
     local attempt=1
+    local bucket_created=false
     
-    while [ $attempt -le $max_attempts ]; do
+    while [ $attempt -le $max_attempts ] && [ "$bucket_created" = false ]; do
+        log_info "Bucket creation attempt $attempt/$max_attempts..."
+        
+        # Check if bucket already exists first
         if mc ls local/lakehouse >/dev/null 2>&1; then
             log_info "'lakehouse' bucket already exists"
+            bucket_created=true
             break
-        elif mc mb local/lakehouse >/dev/null 2>&1; then
-            log_success "'lakehouse' bucket created"
+        fi
+        
+        # Try to create the bucket with detailed error output
+        local create_output
+        local create_exit_code
+        create_output=$(mc mb local/lakehouse 2>&1)
+        create_exit_code=$?
+        
+        if [ $create_exit_code -eq 0 ]; then
+            log_success "'lakehouse' bucket created successfully"
+            bucket_created=true
             break
         else
-            log_warning "Bucket creation attempt $attempt failed, retrying..."
-            sleep 2
-            attempt=$((attempt + 1))
+            log_warning "Bucket creation attempt $attempt failed with exit code $create_exit_code"
+            log_warning "Error details: $create_output"
+            
+            # Since we've verified MinIO is ready, shorter retry intervals should work
+            if [ $attempt -lt $max_attempts ]; then
+                local wait_time=2
+                log_info "Retrying in ${wait_time}s..."
+                sleep $wait_time
+            fi
         fi
+        
+        attempt=$((attempt + 1))
     done
     
-    if [ $attempt -gt $max_attempts ]; then
+    if [ "$bucket_created" = false ]; then
         log_error "Failed to create 'lakehouse' bucket after $max_attempts attempts"
+        log_error "This is unexpected since MinIO API was verified as ready."
+        log_error "Please check the error details above and consider:"
+        log_error "  • Disk space on MinIO storage volume"
+        log_error "  • MinIO server configuration"
+        log_error "  • Container resource limits"
         return 1
     fi
     
-    # Create directory structure
+    # Verify bucket was created successfully
+    if mc ls local/lakehouse >/dev/null 2>&1; then
+        log_success "Bucket 'lakehouse' verification successful"
+    else
+        log_error "Bucket verification failed - bucket may not be accessible"
+        return 1
+    fi
+    
+    # Create directory structure within the bucket using .keep files
+    log_info "Creating directory structure within bucket..."
     local directories="warehouse raw-data processed-data iceberg-warehouse"
+    local dir_success=0
+    local dir_total=0
+    
     for dir in $directories; do
-        if mc mb "local/lakehouse/$dir" >/dev/null 2>&1; then
-            log_success "Created directory: lakehouse/$dir"
+        dir_total=$((dir_total + 1))
+        # Create directories by putting empty .keep objects
+        if echo "# This file ensures the directory exists in MinIO" | mc pipe "local/lakehouse/$dir/.keep" >/dev/null 2>&1; then
+            log_success "Created directory: lakehouse/$dir/"
+            dir_success=$((dir_success + 1))
         else
-            log_info "Directory lakehouse/$dir may already exist"
+            log_warning "Could not create directory lakehouse/$dir/ (may not be critical)"
         fi
     done
+    
+    log_info "Directory structure: $dir_success/$dir_total directories created successfully"
+    
+    # Final verification - list the bucket contents
+    log_info "Bucket contents verification:"
+    if mc ls --recursive local/lakehouse/ 2>/dev/null; then
+        log_success "Bucket structure created and verified successfully"
+    else
+        log_warning "Could not list all bucket contents, but core structure should be ready"
+    fi
     
     return 0
 }

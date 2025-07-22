@@ -116,6 +116,11 @@ services:
     environment:
       INSTALL_SAMPLES: "true"
       LAKEHOUSE_ROOT: /mnt/lakehouse
+      # MinIO readiness configuration (adjust for slower systems)
+      MINIO_READY_TIMEOUT: ${MINIO_READY_TIMEOUT:-20}          # attempts (default: 60s total)
+      MINIO_READY_INTERVAL: ${MINIO_READY_INTERVAL:-3}         # seconds between attempts
+      BUCKET_CREATE_RETRIES: ${BUCKET_CREATE_RETRIES:-8}       # bucket creation retry attempts
+      SKIP_MINIO_READY_CHECK: ${SKIP_MINIO_READY_CHECK:-false} # set to 'true' to skip readiness check
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}:/mnt/lakehouse
       - ./init-all-in-one.sh:/host/init-all-in-one.sh:ro
