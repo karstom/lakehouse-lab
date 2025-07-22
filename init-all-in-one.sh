@@ -1039,10 +1039,10 @@ create_jupyter_notebooks() {
    "source": [
     "## Next Steps\n",
     "\n",
-    "1. **Explore Superset**: Open http://localhost:9030 to create dashboards\n",
-    "2. **Check Airflow**: Visit http://localhost:9020 to see workflow orchestration\n",
-    "3. **Monitor with Portainer**: Use http://localhost:9060 for container management\n",
-    "4. **Access MinIO Console**: Visit http://localhost:9001 for file management\n",
+    "1. **Explore Superset**: Open http://${server_ip}:9030 to create dashboards\n",
+    "2. **Check Airflow**: Visit http://${server_ip}:9020 to see workflow orchestration\n",
+    "3. **Monitor with Portainer**: Use http://${server_ip}:9060 for container management\n",
+    "4. **Access MinIO Console**: Visit http://${server_ip}:9001 for file management\n",
     "\n",
     "## Issues Fixed\n",
     "\n",
@@ -1686,7 +1686,32 @@ create_sample_data
 create_homer_config() {
     log_info "Creating Homer dashboard configuration..."
     
-    cat > "$LAKEHOUSE_ROOT/homer/assets/config.yml" << 'EOF'
+    # Detect server IP address
+    local server_ip
+    # Try multiple methods to get the correct IP
+    if command -v hostname >/dev/null 2>&1; then
+        server_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    fi
+    
+    # Fallback methods if hostname -I doesn't work
+    if [ -z "$server_ip" ] || [ "$server_ip" = "127.0.0.1" ]; then
+        server_ip=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7}' | head -1)
+    fi
+    
+    # Another fallback
+    if [ -z "$server_ip" ] || [ "$server_ip" = "127.0.0.1" ]; then
+        server_ip=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d'/' -f1)
+    fi
+    
+    # Final fallback to localhost if we can't detect IP
+    if [ -z "$server_ip" ]; then
+        server_ip="localhost"
+        log_warning "Could not detect server IP, using localhost"
+    else
+        log_info "Detected server IP: $server_ip"
+    fi
+    
+    cat > "$LAKEHOUSE_ROOT/homer/assets/config.yml" << EOF
 title: "Lakehouse Lab Dashboard"
 subtitle: "Open Source Data Analytics Stack - Issues #1 & #2 Fixed!"
 logo: "/logo.png"
@@ -1722,14 +1747,14 @@ services:
         icon: "fas fa-chart-bar"
         subtitle: "BI & Visualization - S3 config now persistent!"
         tag: "fixed"
-        url: "http://localhost:9030"
+        url: "http://${server_ip}:9030"
         target: "_blank"
 
       - name: "JupyterLab (DuckDB 1.3.0)"
         icon: "fas fa-book"
         subtitle: "Data Science - Latest DuckDB packages installed"
         tag: "updated"
-        url: "http://localhost:9040"
+        url: "http://${server_ip}:9040"
         target: "_blank"
 
   - name: "Orchestration - ✅ Fixed"
@@ -1739,7 +1764,7 @@ services:
         icon: "fas fa-tachometer-alt"
         subtitle: "Workflow Orchestration - DuckDB imports working!"
         tag: "fixed"
-        url: "http://localhost:9020"
+        url: "http://${server_ip}:9020"
         target: "_blank"
 
   - name: "Storage & Infrastructure"
@@ -1749,27 +1774,27 @@ services:
         icon: "fas fa-cloud"
         subtitle: "S3-Compatible Object Storage"
         tag: "storage"
-        url: "http://localhost:9001"
+        url: "http://${server_ip}:9001"
         target: "_blank"
 
       - name: "Spark Master"
         icon: "fas fa-fire"
         subtitle: "Distributed Data Processing Engine"
         tag: "compute"
-        url: "http://localhost:8080"
+        url: "http://${server_ip}:8080"
         target: "_blank"
 
       - name: "Portainer"
         icon: "fas fa-docker"
         subtitle: "Container Management & Monitoring"
         tag: "monitoring"
-        url: "http://localhost:9060"
+        url: "http://${server_ip}:9060"
         target: "_blank"
 
 links:
   - name: "Local Services"
     icon: "fas fa-home"
-    url: "http://localhost:9061"
+    url: "http://${server_ip}:9061"
     target: "_self"
   
   - name: "Test Health"
@@ -1996,13 +2021,31 @@ echo "🚀 UPDATED: DuckDB 1.3.0 + duckdb-engine 0.17.0 (latest stable)"
 echo ""
 echo "Your lakehouse environment is ready! Access points:"
 echo ""
-echo "🐳 Portainer:         http://localhost:9060 (container management)"
-echo "📈 Superset BI:       http://localhost:9030 (admin/admin) - S3 FIXED!"
-echo "📋 Airflow:           http://localhost:9020 (admin/admin) - IMPORTS FIXED!"
-echo "📓 JupyterLab:        http://localhost:9040 (token: lakehouse)"
-echo "☁️  MinIO Console:     http://localhost:9001 (minio/minio123)"
-echo "⚡ Spark Master:      http://localhost:8080"
-echo "🏠 Service Links:     http://localhost:9061 (Homer dashboard)"
+# Get server IP for completion message (same logic as Homer config)
+COMPLETION_SERVER_IP=""
+if command -v hostname >/dev/null 2>&1; then
+    COMPLETION_SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+fi
+
+if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
+    COMPLETION_SERVER_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7}' | head -1)
+fi
+
+if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
+    COMPLETION_SERVER_IP=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d'/' -f1)
+fi
+
+if [ -z "$COMPLETION_SERVER_IP" ]; then
+    COMPLETION_SERVER_IP="localhost"
+fi
+
+echo "🐳 Portainer:         http://${COMPLETION_SERVER_IP}:9060 (container management)"
+echo "📈 Superset BI:       http://${COMPLETION_SERVER_IP}:9030 (admin/admin) - S3 FIXED!"
+echo "📋 Airflow:           http://${COMPLETION_SERVER_IP}:9020 (admin/admin) - IMPORTS FIXED!"
+echo "📓 JupyterLab:        http://${COMPLETION_SERVER_IP}:9040 (token: lakehouse)"
+echo "☁️  MinIO Console:     http://${COMPLETION_SERVER_IP}:9001 (minio/minio123)"
+echo "⚡ Spark Master:      http://${COMPLETION_SERVER_IP}:8080"
+echo "🏠 Service Links:     http://${COMPLETION_SERVER_IP}:9061 (Homer dashboard)"
 echo ""
 echo "🔧 WHAT'S FIXED:"
 echo "   • Superset: No more S3 configuration per session"
