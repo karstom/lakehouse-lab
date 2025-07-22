@@ -258,6 +258,8 @@ services:
       
       echo 'Initializing Airflow database...'
       airflow db init
+      echo 'Upgrading database schema...'
+      airflow db upgrade
       
       echo 'Creating admin user...'
       airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin || true
@@ -299,8 +301,6 @@ services:
         condition: service_started
     command: >
       bash -c "
-      echo 'Verifying database connection before starting webserver...';
-      airflow db check-migrations;
       echo 'Starting Airflow webserver...';
       exec airflow webserver
       "
