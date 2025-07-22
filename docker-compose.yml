@@ -218,16 +218,16 @@ services:
     user: root
     command: >
       bash -c "
-      set -e
-      echo 'Installing additional packages...'
-      pip install --no-cache-dir duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 'sqlalchemy>=1.4.0' pandas matplotlib seaborn plotly
+      set -e;
+      echo 'Installing additional packages...';
+      pip install --no-cache-dir duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 'sqlalchemy>=1.4.0' pandas matplotlib seaborn plotly;
       
-      echo 'Setting up Jupyter configuration...'
-      mkdir -p /home/jovyan/.jupyter
+      echo 'Setting up Jupyter configuration...';
+      mkdir -p /home/jovyan/.jupyter;
       
-      echo 'Starting Jupyter...'
-      chown -R jovyan:users /home/jovyan
-      sudo -u jovyan start-notebook.sh --NotebookApp.token='lakehouse' --NotebookApp.password='' --NotebookApp.allow_origin='*' --NotebookApp.disable_check_xsrf=True
+      echo 'Starting Jupyter...';
+      chown -R jovyan:users /home/jovyan 2>/dev/null || echo 'Permission setup skipped';
+      exec sudo -u jovyan start-notebook.sh --NotebookApp.token='lakehouse' --NotebookApp.password='' --NotebookApp.allow_origin='*' --NotebookApp.disable_check_xsrf=True
       "
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/notebooks:/home/jovyan/notebooks
@@ -336,17 +336,17 @@ services:
         echo "Installing DuckDB and dependencies..."
         
         # Ensure proper permissions for superset_home directory
-        mkdir -p /app/superset_home/.local /app/superset_home/.cache
-        chown -R superset:superset /app/superset_home || chown -R $(id -u):$(id -g) /app/superset_home
-        chmod -R 755 /app/superset_home
+        mkdir -p /app/superset_home/.local /app/superset_home/.cache;
+        chown -R superset:superset /app/superset_home 2>/dev/null || chown -R $(id -u):$(id -g) /app/superset_home 2>/dev/null || echo 'Permission setup skipped';
+        chmod -R 755 /app/superset_home 2>/dev/null || echo 'Chmod skipped';
         
         # Install packages with user flag to avoid permission issues
-        pip install --user --no-cache-dir psycopg2-binary duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 'sqlalchemy>=1.4.0'
+        pip install --user --no-cache-dir psycopg2-binary duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 'sqlalchemy>=1.4.0';
         
-        echo "Initializing Superset database..."
-        superset db upgrade
-        superset fab create-admin --username admin --firstname Admin --lastname User --email admin@example.com --password admin || true
-        superset init
+        echo "Initializing Superset database...";
+        superset db upgrade;
+        superset fab create-admin --username admin --firstname Admin --lastname User --email admin@example.com --password admin || true;
+        superset init;
         
         echo "Configuring DuckDB with S3 settings..."
         python3 << 'EOF'
