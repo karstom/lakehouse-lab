@@ -1686,29 +1686,35 @@ create_sample_data
 create_homer_config() {
     log_info "Creating Homer dashboard configuration..."
     
-    # Detect server IP address
-    local server_ip
-    # Try multiple methods to get the correct IP
-    if command -v hostname >/dev/null 2>&1; then
-        server_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
-    fi
+    # Get server IP address - prefer HOST_IP environment variable from host
+    local server_ip="$HOST_IP"
     
-    # Fallback methods if hostname -I doesn't work
-    if [ -z "$server_ip" ] || [ "$server_ip" = "127.0.0.1" ]; then
-        server_ip=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7}' | head -1)
-    fi
-    
-    # Another fallback
-    if [ -z "$server_ip" ] || [ "$server_ip" = "127.0.0.1" ]; then
-        server_ip=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d'/' -f1)
-    fi
-    
-    # Final fallback to localhost if we can't detect IP
-    if [ -z "$server_ip" ]; then
-        server_ip="localhost"
-        log_warning "Could not detect server IP, using localhost"
+    if [ -n "$server_ip" ] && [ "$server_ip" != "localhost" ] && [ "$server_ip" != "127.0.0.1" ]; then
+        log_info "Using HOST_IP from environment: $server_ip"
     else
-        log_info "Detected server IP: $server_ip"
+        log_info "HOST_IP not set or invalid, detecting server IP..."
+        # Try multiple methods to get the correct IP from host perspective
+        if command -v hostname >/dev/null 2>&1; then
+            server_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+        fi
+        
+        # Fallback methods if hostname -I doesn't work
+        if [ -z "$server_ip" ] || [ "$server_ip" = "127.0.0.1" ]; then
+            server_ip=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7}' | head -1)
+        fi
+        
+        # Another fallback
+        if [ -z "$server_ip" ] || [ "$server_ip" = "127.0.0.1" ]; then
+            server_ip=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d'/' -f1)
+        fi
+        
+        # Final fallback to localhost if we can't detect IP
+        if [ -z "$server_ip" ]; then
+            server_ip="localhost"
+            log_warning "Could not detect server IP, using localhost"
+        else
+            log_info "Detected server IP from container: $server_ip (may be Docker internal)"
+        fi
     fi
     
     cat > "$LAKEHOUSE_ROOT/homer/assets/config.yml" << EOF
@@ -2021,22 +2027,25 @@ echo "🚀 UPDATED: DuckDB 1.3.0 + duckdb-engine 0.17.0 (latest stable)"
 echo ""
 echo "Your lakehouse environment is ready! Access points:"
 echo ""
-# Get server IP for completion message (same logic as Homer config)
-COMPLETION_SERVER_IP=""
-if command -v hostname >/dev/null 2>&1; then
-    COMPLETION_SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-fi
+# Get server IP for completion message - prefer HOST_IP from environment
+COMPLETION_SERVER_IP="$HOST_IP"
 
-if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
-    COMPLETION_SERVER_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7}' | head -1)
-fi
+if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "localhost" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
+    if command -v hostname >/dev/null 2>&1; then
+        COMPLETION_SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    fi
 
-if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
-    COMPLETION_SERVER_IP=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d'/' -f1)
-fi
+    if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
+        COMPLETION_SERVER_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7}' | head -1)
+    fi
 
-if [ -z "$COMPLETION_SERVER_IP" ]; then
-    COMPLETION_SERVER_IP="localhost"
+    if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
+        COMPLETION_SERVER_IP=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d'/' -f1)
+    fi
+
+    if [ -z "$COMPLETION_SERVER_IP" ]; then
+        COMPLETION_SERVER_IP="localhost"
+    fi
 fi
 
 echo "🐳 Portainer:         http://${COMPLETION_SERVER_IP}:9060 (container management)"

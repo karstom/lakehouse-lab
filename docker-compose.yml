@@ -121,6 +121,8 @@ services:
       MINIO_READY_INTERVAL: ${MINIO_READY_INTERVAL:-3}         # seconds between attempts
       BUCKET_CREATE_RETRIES: ${BUCKET_CREATE_RETRIES:-8}       # bucket creation retry attempts
       SKIP_MINIO_READY_CHECK: ${SKIP_MINIO_READY_CHECK:-false} # set to 'true' to skip readiness check
+      # Host IP for Homer dashboard (detected from host system)
+      HOST_IP: ${HOST_IP:-}
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}:/mnt/lakehouse
       - ./init-all-in-one.sh:/host/init-all-in-one.sh:ro
