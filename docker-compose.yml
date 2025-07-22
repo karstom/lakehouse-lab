@@ -250,22 +250,24 @@ services:
         condition: service_healthy
       lakehouse-init:
         condition: service_completed_successfully
-    command: >
-      bash -c "
-      set -e
-      echo 'Installing additional packages...'
-      pip install --no-cache-dir duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 'sqlalchemy>=1.4.0'
-      
-      echo 'Initializing Airflow database...';
-      airflow db init;
-      echo 'Upgrading database schema...';
-      airflow db upgrade;
-      
-      echo 'Creating admin user...';
-      airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin || true
-      
-      echo 'Airflow initialization completed successfully'
-      "
+    command:
+      - bash
+      - -c
+      - |
+        set -e
+        echo 'Installing additional packages...'
+        pip install --no-cache-dir duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 'sqlalchemy>=1.4.0'
+        
+        echo 'Initializing Airflow database...'
+        airflow db init
+        
+        echo 'Upgrading database schema...'
+        airflow db upgrade
+        
+        echo 'Creating admin user...'
+        airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin || true
+        
+        echo 'Airflow initialization completed successfully'
     restart: "no"
 
   # Airflow Scheduler
