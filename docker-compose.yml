@@ -227,7 +227,7 @@ services:
       
       echo 'Starting Jupyter...';
       chown -R jovyan:users /home/jovyan 2>/dev/null || echo 'Permission setup skipped';
-      exec sudo -u jovyan start-notebook.sh --NotebookApp.token='lakehouse' --NotebookApp.password='' --NotebookApp.allow_origin='*' --NotebookApp.disable_check_xsrf=True
+      exec sudo -u jovyan start-notebook.py --NotebookApp.token='lakehouse' --NotebookApp.password='' --NotebookApp.allow_origin='*' --NotebookApp.disable_check_xsrf=True
       "
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/notebooks:/home/jovyan/notebooks
