@@ -299,9 +299,9 @@ services:
         condition: service_started
     command: >
       bash -c "
-      echo 'Verifying database connection before starting webserver...'
-      airflow db check-migrations
-      echo 'Starting Airflow webserver...'
+      echo 'Verifying database connection before starting webserver...';
+      airflow db check-migrations;
+      echo 'Starting Airflow webserver...';
       exec airflow webserver
       "
     ports:
