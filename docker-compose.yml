@@ -291,11 +291,19 @@ services:
   airflow-webserver:
     <<: *airflow-common
     depends_on:
+      postgres:
+        condition: service_healthy
       airflow-init:
         condition: service_completed_successfully
       airflow-scheduler:
         condition: service_started
-    command: webserver
+    command: >
+      bash -c "
+      echo 'Verifying database connection before starting webserver...'
+      airflow db check-migrations
+      echo 'Starting Airflow webserver...'
+      exec airflow webserver
+      "
     ports:
       - "9020:8080"
     healthcheck:
