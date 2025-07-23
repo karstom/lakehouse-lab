@@ -660,6 +660,7 @@ show_completion_message() {
     echo -e "${BLUE}${BOLD}What's Next:${NC}"
     echo -e "  1. ${CYAN}Wait 3-5 minutes${NC} for all services to initialize"
     echo -e "  2. ${CYAN}Visit Portainer${NC} at http://localhost:9060 for container management"
+    echo -e "     ${YELLOW}⚠️  IMPORTANT: Set up Portainer admin account within 5 minutes or you'll be locked out!${NC}"
     echo -e "  3. ${CYAN}Check the QUICKSTART.md${NC} guide for step-by-step tutorials"
     echo -e "  4. ${CYAN}Start with Superset${NC} at http://localhost:9030 for instant analytics"
     echo ""

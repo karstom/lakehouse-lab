@@ -2,7 +2,7 @@ x-airflow-common: &airflow-common
   image: apache/airflow:2.10.3-python3.11
   environment: &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: ${AIRFLOW_EXECUTOR:-LocalExecutor}
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-lakehouse}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-lakehouse}
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-lakehouse}
     AIRFLOW__CORE__PARALLELISM: ${AIRFLOW_PARALLELISM:-32}
     AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG: ${AIRFLOW_MAX_ACTIVE_RUNS:-16}
     AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: ${AIRFLOW_MAX_ACTIVE_TASKS:-16}
@@ -34,7 +34,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-lakehouse}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_USER: ${POSTGRES_USER:-lakehouse}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
       # Performance tuning
       POSTGRES_SHARED_BUFFERS: ${POSTGRES_SHARED_BUFFERS:-256MB}
       POSTGRES_EFFECTIVE_CACHE_SIZE: ${POSTGRES_EFFECTIVE_CACHE_SIZE:-1GB}
@@ -428,7 +428,7 @@ services:
         superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger
     environment:
       SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-lakehouse}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-lakehouse}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-lakehouse}
       SUPERSET_WORKERS: ${SUPERSET_WORKERS:-4}
       SUPERSET_TIMEOUT: ${SUPERSET_TIMEOUT:-60}
       # Ensure Python finds user-installed packages

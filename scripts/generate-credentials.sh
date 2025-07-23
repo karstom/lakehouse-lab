@@ -134,7 +134,7 @@ generate_all_credentials() {
     MINIO_ROOT_USER="admin"
     
     # Database credentials
-    POSTGRES_USER="lakehouse"
+    POSTGRES_USER="postgres"  # PostgreSQL superuser
     POSTGRES_DB="lakehouse"
     
     # Write to environment file

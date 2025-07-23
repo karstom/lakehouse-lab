@@ -180,6 +180,7 @@ start_with_dependencies() {
     echo -e "  🏠 Service Links:     ${GREEN}http://localhost:9061${NC} (optional Homer)"
     echo ""
     echo -e "${YELLOW}💡 Tip: Use Portainer (localhost:9060) for container management and monitoring${NC}"
+    echo -e "${YELLOW}⚠️  IMPORTANT: Set up Portainer admin account within 5 minutes or you'll be locked out!${NC}"
     echo -e "${YELLOW}📖 Check QUICKSTART.md for step-by-step usage instructions${NC}"
     echo ""
 }
