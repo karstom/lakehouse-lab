@@ -26,7 +26,7 @@ This guide explains how to configure the Superset DuckDB S3 and how to verify ev
 2. **Get credentials**: Run `./scripts/show-credentials.sh` to see your Superset login
 3. Login with your generated credentials (format: admin / memorable-passphrase)
 3. Go to **Settings** → **Database Connections**
-4. You should see "DuckDB Lakehouse" connection
+4. You should see "DuckDB-S3" connection
 5. Click **Edit** to verify:
    - **SQLAlchemy URI**: `duckdb:////app/superset_home/lakehouse.duckdb`
    - **Test Connection** should work immediately
@@ -50,7 +50,7 @@ Expected results:
 ### 3. Create a Dataset (Fixed Process)
 
 1. Go to **Data** → **Datasets** → **+ Dataset**
-2. Choose **DuckDB Lakehouse** database
+2. Choose **DuckDB-S3** database
 3. **Dataset Type**: Virtual
 4. **SQL**: Use ONLY a single SELECT statement:
 

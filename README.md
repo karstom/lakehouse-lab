@@ -306,9 +306,10 @@ print(f"Total records: {result[0]}")
 ### 5. **Build Dashboards**
 1. Go to Superset: http://localhost:9030
 2. **Get credentials**: Run `./scripts/show-credentials.sh` to see your Superset login  
-3. Add DuckDB database: `duckdb:///:memory:`
-4. Enable DDL operations in database settings
-5. Create charts from your S3 data
+3. Use the pre-configured **"DuckDB-S3"** database connection (includes S3 access + DML/DDL permissions)
+4. If not visible, refresh the page or see [Superset Database Setup Guide](SUPERSET_DATABASE_SETUP.md)
+5. Create charts from your S3 data using queries like `SELECT * FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv')`
+6. **Bonus**: CREATE TABLE, INSERT, UPDATE, DELETE operations are pre-enabled!
 
 ### 6. **Orchestrate with Airflow**
 1. Visit http://localhost:9020

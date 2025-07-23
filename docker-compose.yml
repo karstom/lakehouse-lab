@@ -387,6 +387,9 @@ services:
         superset fab create-admin --username ${SUPERSET_ADMIN_USER:-admin} --firstname Admin --lastname User --email admin@example.com --password ${SUPERSET_ADMIN_PASSWORD} || true;
         superset init;
         
+        # Small delay to ensure database is fully initialized
+        sleep 2
+        
         echo "Configuring DuckDB with S3 settings..."
         python3 << 'EOF'
         import duckdb
@@ -432,10 +435,109 @@ services:
             conn.close()
         EOF
         
+        # Wait a moment for DuckDB file to be fully written
+        sleep 1
+        
         echo "Setting up Superset database connection with S3 configuration..."
-        if [ -f /app/superset_home/add_duckdb_connection.py ]; then
-            python3 /app/superset_home/add_duckdb_connection.py || echo "⚠️ Could not auto-configure database connection"
-        fi
+        python3 << 'DBSETUP'
+import os
+import sys
+import time
+
+print("🔧 Starting Superset database connection setup...")
+
+sys.path.append('/app/superset')
+os.environ.setdefault('SUPERSET_CONFIG_PATH', '/app/superset/superset_config.py')
+
+# Import required modules with error handling
+try:
+    from superset import create_app
+    from superset import db
+    from superset.models.core import Database
+    import json
+    print("✅ Successfully imported Superset modules")
+except ImportError as e:
+    print(f"❌ Failed to import Superset modules: {e}")
+    sys.exit(1)
+
+try:
+    # Create application context
+    print("🔧 Creating Superset application context...")
+    app = create_app()
+    print("✅ Application created successfully")
+    
+    with app.app_context():
+        print("🔧 Setting up database connection in app context...")
+        # Database connection configuration with S3 settings and DML/DDL enabled
+        database_config = {
+            "database_name": "DuckDB-S3",
+            "sqlalchemy_uri": "duckdb:////app/superset_home/lakehouse.duckdb",
+            "allow_dml": True,  # Enable Data Manipulation Language (INSERT, UPDATE, DELETE)
+            "allow_file_upload": True,  # Enable CSV file uploads
+            "allow_ctas": True,  # Enable CREATE TABLE AS SELECT
+            "allow_cvas": True,  # Enable CREATE VIEW AS SELECT  
+            "allow_run_async": True,  # Enable async query execution
+            "extra": json.dumps({
+                "allows_virtual_table_explore": True,  # Enable dataset exploration
+                "disable_data_preview": False,  # Enable data preview
+                "engine_params": {
+                    "connect_args": {
+                        "preload_extensions": ["httpfs"],
+                        "config": {
+                            "s3_endpoint": "minio:9000",
+                            "s3_access_key_id": os.environ.get('MINIO_ROOT_USER', 'admin'), 
+                            "s3_secret_access_key": os.environ.get('MINIO_ROOT_PASSWORD', 'UPDATE_YOUR_PASSWORD'),
+                            "s3_url_style": "path",
+                            "s3_use_ssl": "false"
+                        }
+                    }
+                }
+            })
+        }
+        
+        # Check if database connection already exists
+        existing_db = db.session.query(Database).filter_by(database_name=database_config["database_name"]).first()
+        
+        if existing_db:
+            # Update existing connection with all permissions
+            existing_db.sqlalchemy_uri = database_config["sqlalchemy_uri"] 
+            existing_db.extra = database_config["extra"]
+            existing_db.allow_dml = database_config["allow_dml"]
+            existing_db.allow_file_upload = database_config["allow_file_upload"] 
+            existing_db.allow_ctas = database_config["allow_ctas"]
+            existing_db.allow_cvas = database_config["allow_cvas"]
+            existing_db.allow_run_async = database_config["allow_run_async"]
+            db.session.commit()
+            print(f"✅ Updated existing database connection with DML/DDL permissions: {database_config['database_name']}")
+        else:
+            # Create new database connection with all permissions
+            new_db = Database(
+                database_name=database_config["database_name"],
+                sqlalchemy_uri=database_config["sqlalchemy_uri"],
+                extra=database_config["extra"],
+                allow_dml=database_config["allow_dml"],
+                allow_file_upload=database_config["allow_file_upload"],
+                allow_ctas=database_config["allow_ctas"], 
+                allow_cvas=database_config["allow_cvas"],
+                allow_run_async=database_config["allow_run_async"]
+            )
+            db.session.add(new_db)
+            db.session.commit()
+            print(f"✅ Created new database connection with DML/DDL permissions: {database_config['database_name']}")
+        
+        print("✅ Superset database connection configured with S3 settings and full permissions")
+        print("📝 Connection name: DuckDB-S3")
+        print("🔗 S3 queries can now be run without manual configuration")
+        print("✨ DML/DDL enabled: CREATE TABLE, INSERT, UPDATE, DELETE operations allowed")
+        print("📁 File uploads enabled for CSV import")
+        print("⚡ Async queries enabled for better performance")
+        
+except Exception as e:
+    print(f"❌ Failed to configure Superset database connection: {e}")
+    print("ℹ️ Manual setup may be required - check Superset UI")
+    import traceback
+    traceback.print_exc()
+DBSETUP
         
         echo "Starting Superset webserver..."
         superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger
