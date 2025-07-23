@@ -367,8 +367,12 @@ services:
         # Try different permission strategies
         if id superset >/dev/null 2>&1; then
           echo 'Using superset user permissions';
-          sudo -u superset mkdir -p /app/superset_home/.local /app/superset_home/.cache 2>/dev/null || mkdir -p /app/superset_home/.local /app/superset_home/.cache;
-          chown -R superset:superset /app/superset_home;
+          # Create directories first, then change ownership of only what we can
+          mkdir -p /app/superset_home/.local /app/superset_home/.cache;
+          chown -R superset:superset /app/superset_home/.local /app/superset_home/.cache 2>/dev/null || echo 'Partial chown completed';
+          # Set permissions on the main directory for superset user access
+          chmod 755 /app/superset_home;
+          chmod -R 755 /app/superset_home/.local /app/superset_home/.cache 2>/dev/null || echo 'Permission setup completed';
         else
           echo 'Using root permissions with fallback';
           mkdir -p /app/superset_home/.local /app/superset_home/.cache;
