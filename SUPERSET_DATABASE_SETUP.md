@@ -2,7 +2,7 @@
 
 ## ✅ Superset S3 Configuration
 
-This guide explainshow to configure the Superset DuckDB S3 and how to verify everything is working correctly.
+This guide explains how to configure the Superset DuckDB S3 and how to verify everything is working correctly.
 
 ## What Was Fixed
 
@@ -84,11 +84,12 @@ Check if the S3 configuration was properly applied:
 
 ```sql
 -- Run this to reconfigure S3 (shouldn't be needed):
+-- 🔐 Get your credentials first: Run './scripts/show-credentials.sh'
 INSTALL httpfs;
 LOAD httpfs;
 SET s3_endpoint='minio:9000';
-SET s3_access_key_id='minio';
-SET s3_secret_access_key='minio123';
+SET s3_access_key_id='admin';  -- Replace with your MinIO username
+SET s3_secret_access_key='YOUR_MINIO_PASSWORD';  -- Replace with your generated password
 SET s3_use_ssl=false;
 SET s3_url_style='path';
 

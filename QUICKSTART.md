@@ -6,14 +6,14 @@ Get your complete data analytics environment running in 15 minutes!
 
 ### **Standard Setup (Laptops/Small Servers)**
 ```bash
-git clone <your-repo>
+git clone https://github.com/karstom/lakehouse-lab.git
 cd lakehouse-lab
 docker compose up -d
 ```
 
 ### **Fat Server Setup (32+ cores, 64GB+ RAM)**
 ```bash
-git clone <your-repo>
+git clone https://github.com/karstom/lakehouse-lab.git
 cd lakehouse-lab
 cp .env.fat-server .env
 docker compose up -d
@@ -160,8 +160,8 @@ conn = duckdb.connect()
 conn.execute("""
     INSTALL httpfs; LOAD httpfs;
     SET s3_endpoint='minio:9000';
-    SET s3_access_key_id='minio';
-    SET s3_secret_access_key='minio123';
+    SET s3_access_key_id='admin';  -- Replace with your MinIO username
+    SET s3_secret_access_key='YOUR_MINIO_PASSWORD';  -- Get from ./scripts/show-credentials.sh
     SET s3_use_ssl=false;
     SET s3_url_style='path';
 """)

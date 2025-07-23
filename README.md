@@ -249,10 +249,11 @@ Sample datasets and notebooks are automatically created:
 **In Superset** (http://localhost:9030):
 ```sql
 -- Configure S3 access (run once per session)
+-- 🔐 First, get your credentials: Run './scripts/show-credentials.sh' to see your MinIO login
 INSTALL httpfs; LOAD httpfs;
 SET s3_endpoint='minio:9000';
-SET s3_access_key_id='minio';
-SET s3_secret_access_key='minio123';
+SET s3_access_key_id='admin';  -- Replace with your actual MinIO username
+SET s3_secret_access_key='YOUR_MINIO_PASSWORD';  -- Replace with your generated password
 SET s3_use_ssl=false;
 SET s3_url_style='path';
 
@@ -280,8 +281,8 @@ import duckdb
 spark = SparkSession.builder \
     .appName("My First Pipeline") \
     .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000") \
-    .config("spark.hadoop.fs.s3a.access.key", "minio") \
-    .config("spark.hadoop.fs.s3a.secret.key", "minio123") \
+    .config("spark.hadoop.fs.s3a.access.key", "admin") \
+    .config("spark.hadoop.fs.s3a.secret.key", "YOUR_MINIO_PASSWORD") \
     .getOrCreate()
 
 # Use DuckDB for fast analytics
@@ -289,8 +290,8 @@ conn = duckdb.connect()
 conn.execute("""
     INSTALL httpfs; LOAD httpfs;
     SET s3_endpoint='minio:9000';
-    SET s3_access_key_id='minio';
-    SET s3_secret_access_key='minio123';
+    SET s3_access_key_id='admin';  -- Replace with your actual credentials
+    SET s3_secret_access_key='YOUR_MINIO_PASSWORD';  -- Get from ./scripts/show-credentials.sh
     SET s3_use_ssl=false;
     SET s3_url_style='path';
 """)
@@ -304,7 +305,7 @@ print(f"Total records: {result[0]}")
 
 ### 5. **Build Dashboards**
 1. Go to Superset: http://localhost:9030
-2. Login with admin/admin  
+2. **Get credentials**: Run `./scripts/show-credentials.sh` to see your Superset login  
 3. Add DuckDB database: `duckdb:///:memory:`
 4. Enable DDL operations in database settings
 5. Create charts from your S3 data
