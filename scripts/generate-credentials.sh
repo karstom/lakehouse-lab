@@ -125,6 +125,16 @@ generate_all_credentials() {
     POSTGRES_PASSWORD=$(generate_db_safe_password 20)  # Database-safe for connection strings
     MINIO_ROOT_PASSWORD=$(generate_strong_password 20)
     
+    # Validate generated passwords are not empty
+    if [[ -z "$POSTGRES_PASSWORD" ]]; then
+        log_error "Failed to generate POSTGRES_PASSWORD"
+        exit 1
+    fi
+    if [[ -z "$MINIO_ROOT_PASSWORD" ]]; then
+        log_error "Failed to generate MINIO_ROOT_PASSWORD"
+        exit 1
+    fi
+    
     # Secret keys and tokens
     AIRFLOW_SECRET_KEY=$(generate_token "base64")
     AIRFLOW_FERNET_KEY=$(generate_fernet_key)
