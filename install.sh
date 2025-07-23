@@ -556,19 +556,42 @@ download_lakehouse_lab() {
 }
 
 configure_environment() {
-    print_step "Configuring environment for $PROFILE profile..."
+    print_step "Configuring secure environment for $PROFILE profile..."
     
-    if [[ $PROFILE == "fat-server" ]]; then
-        cp .env.fat-server .env
-        print_success "Fat server configuration applied"
-    else
-        cp .env.default .env
-        print_success "Standard configuration applied"
-    fi
-    
-    # Make scripts executable
+    # Make scripts executable first
     chmod +x init-all-in-one.sh
     chmod +x start-lakehouse.sh
+    chmod +x scripts/*.sh 2>/dev/null || true
+    
+    # Step 1: Generate secure credentials
+    print_step "🔐 Generating secure credentials..."
+    if [[ -f "scripts/generate-credentials.sh" ]]; then
+        ./scripts/generate-credentials.sh
+    else
+        print_warning "Credential generator not found, creating basic .env"
+        cp .env.example .env 2>/dev/null || touch .env
+    fi
+    
+    # Step 2: Apply profile-specific resource configurations  
+    print_step "⚙️  Applying $PROFILE profile resource settings..."
+    
+    # Create backup of generated credentials
+    cp .env .env.credentials.backup
+    
+    if [[ $PROFILE == "fat-server" && -f ".env.fat-server" ]]; then
+        # Extract resource settings from profile file (skip credential lines)
+        grep -E '^(SPARK_|POSTGRES_|JUPYTER_|AIRFLOW_|SUPERSET_|MINIO_).*_(MEMORY|CORES|INSTANCES|WORKERS|PARALLELISM|THREADS)' .env.fat-server >> .env 2>/dev/null || true
+        print_success "Fat server resource configuration merged"
+    elif [[ -f ".env.default" ]]; then
+        # Extract resource settings from default profile  
+        grep -E '^(SPARK_|POSTGRES_|JUPYTER_|AIRFLOW_|SUPERSET_|MINIO_).*_(MEMORY|CORES|INSTANCES|WORKERS|PARALLELISM|THREADS)' .env.default >> .env 2>/dev/null || true
+        print_success "Standard resource configuration merged"
+    fi
+    
+    # Clean up backup 
+    rm -f .env.credentials.backup
+    
+    print_success "Environment configured: secure credentials + $PROFILE profile resources"
 }
 
 start_services() {
@@ -606,10 +629,10 @@ start_services() {
         echo ""
         echo -e "${BLUE}Access points:${NC}"
         echo -e "  🐳 Portainer:         ${GREEN}http://localhost:9060${NC} (container management)"
-        echo -e "  📈 Superset BI:       ${GREEN}http://localhost:9030${NC} (admin/admin)"
-        echo -e "  📋 Airflow:           ${GREEN}http://localhost:9020${NC} (admin/admin)"
-        echo -e "  📓 JupyterLab:        ${GREEN}http://localhost:9040${NC} (token: lakehouse)"
-        echo -e "  ☁️  MinIO Console:     ${GREEN}http://localhost:9001${NC} (minio/minio123)"
+        echo -e "  📈 Superset BI:       ${GREEN}http://localhost:9030${NC} (use ./scripts/show-credentials.sh for login)"
+        echo -e "  📋 Airflow:           ${GREEN}http://localhost:9020${NC} (use ./scripts/show-credentials.sh for login)"
+        echo -e "  📓 JupyterLab:        ${GREEN}http://localhost:9040${NC} (use ./scripts/show-credentials.sh for token)"
+        echo -e "  ☁️  MinIO Console:     ${GREEN}http://localhost:9001${NC} (use ./scripts/show-credentials.sh for login)"
         echo -e "  ⚡ Spark Master:      ${GREEN}http://localhost:8080${NC}"
         if [[ $ENABLE_ICEBERG == "true" ]]; then
             echo ""
@@ -637,6 +660,7 @@ show_completion_message() {
     echo -e "${BLUE}${BOLD}What's Next:${NC}"
     echo -e "  1. ${CYAN}Wait 3-5 minutes${NC} for all services to initialize"
     echo -e "  2. ${CYAN}Visit Portainer${NC} at http://localhost:9060 for container management"
+    echo -e "     ${YELLOW}⚠️  IMPORTANT: Set up Portainer admin account within 5 minutes or you'll be locked out!${NC}"
     echo -e "  3. ${CYAN}Check the QUICKSTART.md${NC} guide for step-by-step tutorials"
     echo -e "  4. ${CYAN}Start with Superset${NC} at http://localhost:9030 for instant analytics"
     echo ""

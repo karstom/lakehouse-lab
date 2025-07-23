@@ -203,13 +203,7 @@ wait_for_service() {
 # Wait for MinIO
 wait_for_service "MinIO" "http://minio:9000/minio/health/live" 20 3 || exit 1
 
-# Wait for Spark (with more lenient timeout)
-wait_for_service "Spark Master" "http://spark-master:8080" 10 5 || {
-    log_warning "Spark Master not ready after 50s, continuing anyway..."
-    log_warning "Services may start without full coordination"
-}
-
-# Configure MinIO client
+# Configure MinIO client first (needed for readiness verification)
 configure_minio() {
     log_info "Configuring MinIO client..."
     
@@ -218,7 +212,7 @@ configure_minio() {
     local attempt=1
     
     while [ $attempt -le $max_attempts ]; do
-        if mc alias set local http://minio:9000 minio minio123 >/dev/null 2>&1; then
+        if mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null 2>&1; then
             log_success "MinIO client configured successfully"
             break
         else
@@ -236,44 +230,192 @@ configure_minio() {
     return 0
 }
 
+# Configure MinIO client before readiness verification
 configure_minio || exit 1
 
-# Create and verify buckets
+# Enhanced MinIO readiness verification
+wait_for_minio_api() {
+    local timeout=${MINIO_READY_TIMEOUT:-20}
+    local interval=${MINIO_READY_INTERVAL:-3}
+    local skip_check=${SKIP_MINIO_READY_CHECK:-false}
+    
+    if [ "$skip_check" = "true" ]; then
+        log_info "MinIO readiness check skipped (SKIP_MINIO_READY_CHECK=true)"
+        return 0
+    fi
+    
+    log_info "Performing comprehensive MinIO readiness verification..."
+    log_info "Timeout: ${timeout} attempts × ${interval}s = $((timeout * interval))s maximum"
+    
+    local attempt=1
+    while [ $attempt -le $timeout ]; do
+        log_info "MinIO API readiness check: attempt $attempt/$timeout"
+        
+        # Test 1: Basic connectivity test
+        if ! curl -sf "http://minio:9000/minio/health/live" >/dev/null 2>&1; then
+            log_warning "  ❌ MinIO health endpoint not responding"
+        else
+            log_info "  ✅ MinIO health endpoint responding"
+            
+            # Test 2: MinIO client configuration
+            if ! mc alias list local >/dev/null 2>&1; then
+                log_warning "  ❌ MinIO client alias not configured, attempting reconfiguration..."
+                if mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null 2>&1; then
+                    log_info "  ✅ MinIO client reconfigured successfully"
+                else
+                    log_warning "  ❌ MinIO client reconfiguration failed"
+                fi
+            else
+                log_info "  ✅ MinIO client alias configured"
+            fi
+            
+            # Test 3: Admin API functionality (the real readiness test)
+            local admin_output
+            if admin_output=$(mc admin info local 2>&1); then
+                log_success "MinIO API is fully operational and ready for bucket operations"
+                log_info "MinIO server info: $(echo "$admin_output" | head -1)"
+                return 0
+            else
+                log_warning "  ❌ MinIO admin API not ready: $admin_output"
+                
+                # Additional debugging for common issues
+                if echo "$admin_output" | grep -i "connection refused" >/dev/null; then
+                    log_info "  🔍 Diagnosis: MinIO server not accepting connections yet"
+                elif echo "$admin_output" | grep -i "timeout" >/dev/null; then
+                    log_info "  🔍 Diagnosis: MinIO server responding slowly"
+                elif echo "$admin_output" | grep -i "unauthorized\|access denied" >/dev/null; then
+                    log_warning "  🔍 Diagnosis: Authentication issue - check MinIO credentials"
+                fi
+            fi
+        fi
+        
+        if [ $attempt -lt $timeout ]; then
+            log_info "  ⏳ Waiting ${interval}s before next attempt..."
+            sleep $interval
+        fi
+        
+        attempt=$((attempt + 1))
+    done
+    
+    log_error "MinIO API failed to become ready after $((timeout * interval))s"
+    log_error "This usually indicates:"
+    log_error "  • MinIO is still initializing (try increasing MINIO_READY_TIMEOUT)"
+    log_error "  • Resource constraints (CPU/memory/disk)"
+    log_error "  • Network connectivity issues between containers"
+    log_error "  • MinIO configuration problems"
+    
+    # Try a basic operation as fallback
+    log_info "Attempting fallback: testing basic MinIO operations..."
+    if mc ls local >/dev/null 2>&1; then
+        log_warning "Basic MinIO operations work despite admin API issues"
+        log_warning "Proceeding with initialization (bucket creation may still work)"
+        return 0
+    else
+        log_error "Both admin API and basic operations failed"
+        log_info "To skip this check entirely, set SKIP_MINIO_READY_CHECK=true"
+        return 1
+    fi
+}
+
+# Perform MinIO readiness verification
+wait_for_minio_api || exit 1
+
+# Wait for Spark (with more lenient timeout)
+wait_for_service "Spark Master" "http://spark-master:8080" 10 5 || {
+    log_warning "Spark Master not ready after 50s, continuing anyway..."
+    log_warning "Services may start without full coordination"
+}
+
+# MinIO client already configured above
+
+# Create and verify buckets with enhanced reliability
 create_buckets() {
     log_info "Creating MinIO buckets and directory structure..."
     
-    # Create main bucket
-    local max_attempts=5
+    # Since MinIO API is now verified as ready, bucket creation should be more reliable
+    local max_attempts=${BUCKET_CREATE_RETRIES:-8}
     local attempt=1
+    local bucket_created=false
     
-    while [ $attempt -le $max_attempts ]; do
+    while [ $attempt -le $max_attempts ] && [ "$bucket_created" = false ]; do
+        log_info "Bucket creation attempt $attempt/$max_attempts..."
+        
+        # Check if bucket already exists first
         if mc ls local/lakehouse >/dev/null 2>&1; then
             log_info "'lakehouse' bucket already exists"
+            bucket_created=true
             break
-        elif mc mb local/lakehouse >/dev/null 2>&1; then
-            log_success "'lakehouse' bucket created"
+        fi
+        
+        # Try to create the bucket with detailed error output
+        local create_output
+        local create_exit_code
+        create_output=$(mc mb local/lakehouse 2>&1)
+        create_exit_code=$?
+        
+        if [ $create_exit_code -eq 0 ]; then
+            log_success "'lakehouse' bucket created successfully"
+            bucket_created=true
             break
         else
-            log_warning "Bucket creation attempt $attempt failed, retrying..."
-            sleep 2
-            attempt=$((attempt + 1))
+            log_warning "Bucket creation attempt $attempt failed with exit code $create_exit_code"
+            log_warning "Error details: $create_output"
+            
+            # Since we've verified MinIO is ready, shorter retry intervals should work
+            if [ $attempt -lt $max_attempts ]; then
+                local wait_time=2
+                log_info "Retrying in ${wait_time}s..."
+                sleep $wait_time
+            fi
         fi
+        
+        attempt=$((attempt + 1))
     done
     
-    if [ $attempt -gt $max_attempts ]; then
+    if [ "$bucket_created" = false ]; then
         log_error "Failed to create 'lakehouse' bucket after $max_attempts attempts"
+        log_error "This is unexpected since MinIO API was verified as ready."
+        log_error "Please check the error details above and consider:"
+        log_error "  • Disk space on MinIO storage volume"
+        log_error "  • MinIO server configuration"
+        log_error "  • Container resource limits"
         return 1
     fi
     
-    # Create directory structure
+    # Verify bucket was created successfully
+    if mc ls local/lakehouse >/dev/null 2>&1; then
+        log_success "Bucket 'lakehouse' verification successful"
+    else
+        log_error "Bucket verification failed - bucket may not be accessible"
+        return 1
+    fi
+    
+    # Create directory structure within the bucket using .keep files
+    log_info "Creating directory structure within bucket..."
     local directories="warehouse raw-data processed-data iceberg-warehouse"
+    local dir_success=0
+    local dir_total=0
+    
     for dir in $directories; do
-        if mc mb "local/lakehouse/$dir" >/dev/null 2>&1; then
-            log_success "Created directory: lakehouse/$dir"
+        dir_total=$((dir_total + 1))
+        # Create directories by putting empty .keep objects
+        if echo "# This file ensures the directory exists in MinIO" | mc pipe "local/lakehouse/$dir/.keep" >/dev/null 2>&1; then
+            log_success "Created directory: lakehouse/$dir/"
+            dir_success=$((dir_success + 1))
         else
-            log_info "Directory lakehouse/$dir may already exist"
+            log_warning "Could not create directory lakehouse/$dir/ (may not be critical)"
         fi
     done
+    
+    log_info "Directory structure: $dir_success/$dir_total directories created successfully"
+    
+    # Final verification - list the bucket contents
+    log_info "Bucket contents verification:"
+    if mc ls --recursive local/lakehouse/ 2>/dev/null; then
+        log_success "Bucket structure created and verified successfully"
+    else
+        log_warning "Could not list all bucket contents, but core structure should be ready"
+    fi
     
     return 0
 }
@@ -377,6 +519,7 @@ from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
 from airflow.operators.bash_operator import BashOperator
 import logging
+import os
 
 default_args = {
     'owner': 'lakehouse-lab',
@@ -432,8 +575,8 @@ def configure_duckdb_s3(**context):
         
         # Set S3 configuration for MinIO
         conn.execute("SET s3_endpoint='minio:9000'")
-        conn.execute("SET s3_access_key_id='minio'")
-        conn.execute("SET s3_secret_access_key='minio123'")
+        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'admin')}'")
+        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'UPDATE_YOUR_PASSWORD')}'")
         conn.execute("SET s3_use_ssl=false")
         conn.execute("SET s3_url_style='path'")
         
@@ -456,8 +599,8 @@ def extract_data(**context):
         conn.execute("INSTALL httpfs")
         conn.execute("LOAD httpfs")
         conn.execute("SET s3_endpoint='minio:9000'")
-        conn.execute("SET s3_access_key_id='minio'")
-        conn.execute("SET s3_secret_access_key='minio123'")
+        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'admin')}'")
+        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'UPDATE_YOUR_PASSWORD')}'")
         conn.execute("SET s3_use_ssl=false")
         conn.execute("SET s3_url_style='path'")
         
@@ -495,8 +638,8 @@ def transform_data(**context):
         conn.execute("INSTALL httpfs")
         conn.execute("LOAD httpfs")
         conn.execute("SET s3_endpoint='minio:9000'")
-        conn.execute("SET s3_access_key_id='minio'")
-        conn.execute("SET s3_secret_access_key='minio123'")
+        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'admin')}'")
+        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'UPDATE_YOUR_PASSWORD')}'")
         conn.execute("SET s3_use_ssl=false")
         conn.execute("SET s3_url_style='path'")
         
@@ -544,8 +687,8 @@ def data_quality_check(**context):
         conn.execute("INSTALL httpfs")
         conn.execute("LOAD httpfs")
         conn.execute("SET s3_endpoint='minio:9000'")
-        conn.execute("SET s3_access_key_id='minio'")
-        conn.execute("SET s3_secret_access_key='minio123'")
+        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'admin')}'")
+        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'UPDATE_YOUR_PASSWORD')}'")
         conn.execute("SET s3_use_ssl=false")
         conn.execute("SET s3_url_style='path'")
         
@@ -617,6 +760,7 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
 import logging
+import os
 
 default_args = {
     'owner': 'lakehouse-lab',
@@ -648,8 +792,8 @@ def run_comprehensive_quality_checks(**context):
         conn.execute("INSTALL httpfs")
         conn.execute("LOAD httpfs")
         conn.execute("SET s3_endpoint='minio:9000'")
-        conn.execute("SET s3_access_key_id='minio'")
-        conn.execute("SET s3_secret_access_key='minio123'")
+        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'admin')}'")
+        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'UPDATE_YOUR_PASSWORD')}'")
         conn.execute("SET s3_use_ssl=false")
         conn.execute("SET s3_url_style='path'")
         
@@ -753,12 +897,46 @@ create_jupyter_notebooks() {
     "import pandas as pd\n",
     "import duckdb\n",
     "import boto3\n",
-    "from pyspark.sql import SparkSession\n",
     "import os\n",
+    "import sys\n",
     "\n",
     "print(\"✅ Lakehouse Lab Environment Ready!\")\n",
     "print(f\"📊 DuckDB version: {duckdb.__version__}\")  # Should show 1.3.0\n",
-    "print(f\"🐍 Python version: {os.sys.version}\")"
+    "print(f\"🐍 Python version: {sys.version}\")\n",
+    "print(f\"📁 Python path: {sys.path[:3]}...\")  # First few paths\n",
+    "\n",
+    "# Check PySpark installation\n",
+    "try:\n",
+    "    import pyspark\n",
+    "    print(f\"⚡ PySpark version: {pyspark.__version__}\")\n",
+    "    from pyspark.sql import SparkSession\n",
+    "    print(\"✅ PySpark SparkSession import successful!\")\n",
+    "except ImportError as e:\n",
+    "    print(f\"❌ PySpark import error: {e}\")\n",
+    "    print(\"🔍 Diagnostic information:\")\n",
+    "    import subprocess, os\n",
+    "    \n",
+    "    # Check if pyspark is installed\n",
+    "    result = subprocess.run([sys.executable, '-m', 'pip', 'show', 'pyspark'], \n",
+    "                          capture_output=True, text=True)\n",
+    "    if result.returncode == 0:\n",
+    "        print(f\"📦 PySpark package info: {result.stdout.split('Version:')[1].split()[0] if 'Version:' in result.stdout else 'Found'}\")\n",
+    "    else:\n",
+    "        print(\"📦 PySpark not found via pip\")\n",
+    "    \n",
+    "    # Check environment variables\n",
+    "    print(f\"🏠 SPARK_HOME: {os.environ.get('SPARK_HOME', 'Not set')}\")\n",
+    "    print(f\"🐍 PYTHONPATH: {os.environ.get('PYTHONPATH', 'Not set')[:100]}...\")\n",
+    "    print(f\"🐍 PYSPARK_PYTHON: {os.environ.get('PYSPARK_PYTHON', 'Not set')}\")\n",
+    "    \n",
+    "    # Try alternative installation check\n",
+    "    try:\n",
+    "        import py4j\n",
+    "        print(\"✅ py4j available (PySpark dependency)\")\n",
+    "    except ImportError:\n",
+    "        print(\"❌ py4j not available (required for PySpark)\")\n",
+    "    \n",
+    "    print(\"💡 Try restarting Jupyter container: docker restart lakehouse-lab-jupyter-1\")"
    ]
   },
   {
@@ -778,8 +956,8 @@ create_jupyter_notebooks() {
     "s3_client = boto3.client(\n",
     "    's3',\n",
     "    endpoint_url='http://minio:9000',\n",
-    "    aws_access_key_id='minio',\n",
-    "    aws_secret_access_key='minio123'\n",
+    "    aws_access_key_id='${MINIO_ROOT_USER}',\n",
+    "    aws_secret_access_key='${MINIO_ROOT_PASSWORD}'\n",
     ")\n",
     "\n",
     "# List buckets\n",
@@ -810,8 +988,8 @@ create_jupyter_notebooks() {
     "    INSTALL httpfs;\n",
     "    LOAD httpfs;\n",
     "    SET s3_endpoint='minio:9000';\n",
-    "    SET s3_access_key_id='minio';\n",
-    "    SET s3_secret_access_key='minio123';\n",
+    "    SET s3_access_key_id='${MINIO_ROOT_USER}';\n",
+    "    SET s3_secret_access_key='${MINIO_ROOT_PASSWORD}';\n",
     "    SET s3_use_ssl=false;\n",
     "    SET s3_url_style='path';\n",
     "\"\"\")\n",
@@ -878,11 +1056,12 @@ create_jupyter_notebooks() {
    "outputs": [],
    "source": [
     "# Create Spark session\n",
+    "# 🔐 Get your MinIO password: Run './scripts/show-credentials.sh' in the lakehouse-lab directory\n",
     "spark = SparkSession.builder \\\n",
     "    .appName(\"Lakehouse Lab\") \\\n",
     "    .config(\"spark.hadoop.fs.s3a.endpoint\", \"http://minio:9000\") \\\n",
-    "    .config(\"spark.hadoop.fs.s3a.access.key\", \"minio\") \\\n",
-    "    .config(\"spark.hadoop.fs.s3a.secret.key\", \"minio123\") \\\n",
+    "    .config(\"spark.hadoop.fs.s3a.access.key\", \"admin\") \\\n",
+    "    .config(\"spark.hadoop.fs.s3a.secret.key\", \"YOUR_MINIO_PASSWORD\") \\\n",
     "    .config(\"spark.hadoop.fs.s3a.path.style.access\", \"true\") \\\n",
     "    .config(\"spark.hadoop.fs.s3a.connection.ssl.enabled\", \"false\") \\\n",
     "    .getOrCreate()\n",
@@ -897,10 +1076,10 @@ create_jupyter_notebooks() {
    "source": [
     "## Next Steps\n",
     "\n",
-    "1. **Explore Superset**: Open http://localhost:9030 to create dashboards\n",
-    "2. **Check Airflow**: Visit http://localhost:9020 to see workflow orchestration\n",
-    "3. **Monitor with Portainer**: Use http://localhost:9060 for container management\n",
-    "4. **Access MinIO Console**: Visit http://localhost:9001 for file management\n",
+    "1. **Explore Superset**: Open http://${server_ip}:9030 to create dashboards\n",
+    "2. **Check Airflow**: Visit http://${server_ip}:9020 to see workflow orchestration\n",
+    "3. **Monitor with Portainer**: Use http://${server_ip}:9060 for container management\n",
+    "4. **Access MinIO Console**: Visit http://${server_ip}:9001 for file management\n",
     "\n",
     "## Issues Fixed\n",
     "\n",
@@ -958,8 +1137,17 @@ EOF
     "import pandas as pd\n",
     "import matplotlib.pyplot as plt\n",
     "import seaborn as sns\n",
-    "from pyspark.sql import SparkSession\n",
-    "from pyspark.sql.functions import *\n",
+    "\n",
+    "# Import PySpark with error handling\n",
+    "try:\n",
+    "    from pyspark.sql import SparkSession\n",
+    "    from pyspark.sql.functions import *\n",
+    "    pyspark_available = True\n",
+    "    print(\"✅ PySpark imported successfully\")\n",
+    "except ImportError as e:\n",
+    "    print(f\"⚠️ PySpark not available: {e}\")\n",
+    "    print(\"This notebook will work with DuckDB only\")\n",
+    "    pyspark_available = False\n",
     "\n",
     "# Configure plotting\n",
     "plt.style.use('seaborn-v0_8')\n",
@@ -987,8 +1175,8 @@ EOF
     "    INSTALL httpfs;\n",
     "    LOAD httpfs;\n",
     "    SET s3_endpoint='minio:9000';\n",
-    "    SET s3_access_key_id='minio';\n",
-    "    SET s3_secret_access_key='minio123';\n",
+    "    SET s3_access_key_id='${MINIO_ROOT_USER}';\n",
+    "    SET s3_secret_access_key='${MINIO_ROOT_PASSWORD}';\n",
     "    SET s3_use_ssl=false;\n",
     "    SET s3_url_style='path';\n",
     "\"\"\")\n",
@@ -1089,13 +1277,21 @@ EOF
    "metadata": {},
    "outputs": [],
    "source": [
-    "# Import libraries\n",
-    "from pyspark.sql import SparkSession\n",
-    "from pyspark.sql.functions import *\n",
-    "from pyspark.sql.types import *\n",
-    "import pandas as pd\n",
+    "# Import libraries with error handling\n",
+    "try:\n",
+    "    from pyspark.sql import SparkSession\n",
+    "    from pyspark.sql.functions import *\n",
+    "    from pyspark.sql.types import *\n",
+    "    pyspark_available = True\n",
+    "    print(\"📦 Iceberg with Spark 3.5.0 Example\")\n",
+    "    print(\"✅ PySpark imported successfully\")\n",
+    "except ImportError as e:\n",
+    "    print(f\"📦 Iceberg Example (DuckDB mode - PySpark not available)\")\n",
+    "    print(f\"⚠️ PySpark import error: {e}\")\n",
+    "    print(\"💡 This cell requires PySpark. Try restarting the Jupyter container.\")\n",
+    "    pyspark_available = False\n",
     "\n",
-    "print(\"📦 Iceberg with Spark 3.5.0 Example\")"
+    "import pandas as pd"
    ]
   },
   {
@@ -1113,6 +1309,7 @@ EOF
    "source": [
     "# Create Spark session with Iceberg configuration\n",
     "# Note: These configurations should already be set when using docker-compose.iceberg.yml\n",
+    "# 🔐 Get your MinIO password: Run './scripts/show-credentials.sh' in the lakehouse-lab directory\n",
     "spark = SparkSession.builder \\\n",
     "    .appName(\"Iceberg Lakehouse Demo\") \\\n",
     "    .config(\"spark.sql.extensions\", \"org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions\") \\\n",
@@ -1122,8 +1319,8 @@ EOF
     "    .config(\"spark.sql.catalog.iceberg.type\", \"hadoop\") \\\n",
     "    .config(\"spark.sql.catalog.iceberg.warehouse\", \"s3a://lakehouse/iceberg-warehouse/\") \\\n",
     "    .config(\"spark.hadoop.fs.s3a.endpoint\", \"http://minio:9000\") \\\n",
-    "    .config(\"spark.hadoop.fs.s3a.access.key\", \"minio\") \\\n",
-    "    .config(\"spark.hadoop.fs.s3a.secret.key\", \"minio123\") \\\n",
+    "    .config(\"spark.hadoop.fs.s3a.access.key\", \"admin\") \\\n",
+    "    .config(\"spark.hadoop.fs.s3a.secret.key\", \"YOUR_MINIO_PASSWORD\") \\\n",
     "    .config(\"spark.hadoop.fs.s3a.path.style.access\", \"true\") \\\n",
     "    .config(\"spark.hadoop.fs.s3a.connection.ssl.enabled\", \"false\") \\\n",
     "    .getOrCreate()\n",
@@ -1544,7 +1741,38 @@ create_sample_data
 create_homer_config() {
     log_info "Creating Homer dashboard configuration..."
     
-    cat > "$LAKEHOUSE_ROOT/homer/assets/config.yml" << 'EOF'
+    # Get server IP address - prefer HOST_IP environment variable from host
+    local server_ip="$HOST_IP"
+    
+    if [ -n "$server_ip" ] && [ "$server_ip" != "localhost" ] && [ "$server_ip" != "127.0.0.1" ]; then
+        log_info "Using HOST_IP from environment: $server_ip"
+    else
+        log_info "HOST_IP not set or invalid, detecting server IP..."
+        # Try multiple methods to get the correct IP from host perspective
+        if command -v hostname >/dev/null 2>&1; then
+            server_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+        fi
+        
+        # Fallback methods if hostname -I doesn't work
+        if [ -z "$server_ip" ] || [ "$server_ip" = "127.0.0.1" ]; then
+            server_ip=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7}' | head -1)
+        fi
+        
+        # Another fallback
+        if [ -z "$server_ip" ] || [ "$server_ip" = "127.0.0.1" ]; then
+            server_ip=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d'/' -f1)
+        fi
+        
+        # Final fallback to localhost if we can't detect IP
+        if [ -z "$server_ip" ]; then
+            server_ip="localhost"
+            log_warning "Could not detect server IP, using localhost"
+        else
+            log_info "Detected server IP from container: $server_ip (may be Docker internal)"
+        fi
+    fi
+    
+    cat > "$LAKEHOUSE_ROOT/homer/assets/config.yml" << EOF
 title: "Lakehouse Lab Dashboard"
 subtitle: "Open Source Data Analytics Stack - Issues #1 & #2 Fixed!"
 logo: "/logo.png"
@@ -1580,14 +1808,14 @@ services:
         icon: "fas fa-chart-bar"
         subtitle: "BI & Visualization - S3 config now persistent!"
         tag: "fixed"
-        url: "http://localhost:9030"
+        url: "http://${server_ip}:9030"
         target: "_blank"
 
       - name: "JupyterLab (DuckDB 1.3.0)"
         icon: "fas fa-book"
         subtitle: "Data Science - Latest DuckDB packages installed"
         tag: "updated"
-        url: "http://localhost:9040"
+        url: "http://${server_ip}:9040"
         target: "_blank"
 
   - name: "Orchestration - ✅ Fixed"
@@ -1597,7 +1825,7 @@ services:
         icon: "fas fa-tachometer-alt"
         subtitle: "Workflow Orchestration - DuckDB imports working!"
         tag: "fixed"
-        url: "http://localhost:9020"
+        url: "http://${server_ip}:9020"
         target: "_blank"
 
   - name: "Storage & Infrastructure"
@@ -1607,27 +1835,27 @@ services:
         icon: "fas fa-cloud"
         subtitle: "S3-Compatible Object Storage"
         tag: "storage"
-        url: "http://localhost:9001"
+        url: "http://${server_ip}:9001"
         target: "_blank"
 
       - name: "Spark Master"
         icon: "fas fa-fire"
         subtitle: "Distributed Data Processing Engine"
         tag: "compute"
-        url: "http://localhost:8080"
+        url: "http://${server_ip}:8080"
         target: "_blank"
 
       - name: "Portainer"
         icon: "fas fa-docker"
         subtitle: "Container Management & Monitoring"
         tag: "monitoring"
-        url: "http://localhost:9060"
+        url: "http://${server_ip}:9060"
         target: "_blank"
 
 links:
   - name: "Local Services"
     icon: "fas fa-home"
-    url: "http://localhost:9061"
+    url: "http://${server_ip}:9061"
     target: "_self"
   
   - name: "Test Health"
@@ -1674,8 +1902,8 @@ try:
     
     # Set S3 configuration for MinIO - FIXED to use minio:9000 instead of AWS
     conn.execute("SET s3_endpoint='minio:9000'")
-    conn.execute("SET s3_access_key_id='minio'")
-    conn.execute("SET s3_secret_access_key='minio123'")
+    conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'admin')}'")
+    conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'UPDATE_YOUR_PASSWORD')}')")
     conn.execute("SET s3_use_ssl=false")
     conn.execute("SET s3_url_style='path'")
     
@@ -1686,8 +1914,8 @@ try:
             INSTALL httpfs;
             LOAD httpfs;
             SET s3_endpoint='minio:9000';
-            SET s3_access_key_id='minio';
-            SET s3_secret_access_key='minio123';
+            SET s3_access_key_id='\${MINIO_ROOT_USER:-admin}';
+            SET s3_secret_access_key='\${MINIO_ROOT_PASSWORD:-UPDATE_YOUR_PASSWORD}';
             SET s3_use_ssl=false;
             SET s3_url_style='path';
         )
@@ -1764,8 +1992,8 @@ try:
                     "preload_extensions": ["httpfs"],
                     "config": {
                         "s3_endpoint": "minio:9000",
-                        "s3_access_key_id": "minio", 
-                        "s3_secret_access_key": "minio123",
+                        "s3_access_key_id": "$MINIO_ROOT_USER", 
+                        "s3_secret_access_key": "$MINIO_ROOT_PASSWORD",
                         "s3_url_style": "path",
                         "s3_use_ssl": "false"
                     }
@@ -1854,13 +2082,34 @@ echo "🚀 UPDATED: DuckDB 1.3.0 + duckdb-engine 0.17.0 (latest stable)"
 echo ""
 echo "Your lakehouse environment is ready! Access points:"
 echo ""
-echo "🐳 Portainer:         http://localhost:9060 (container management)"
-echo "📈 Superset BI:       http://localhost:9030 (admin/admin) - S3 FIXED!"
-echo "📋 Airflow:           http://localhost:9020 (admin/admin) - IMPORTS FIXED!"
-echo "📓 JupyterLab:        http://localhost:9040 (token: lakehouse)"
-echo "☁️  MinIO Console:     http://localhost:9001 (minio/minio123)"
-echo "⚡ Spark Master:      http://localhost:8080"
-echo "🏠 Service Links:     http://localhost:9061 (Homer dashboard)"
+# Get server IP for completion message - prefer HOST_IP from environment
+COMPLETION_SERVER_IP="$HOST_IP"
+
+if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "localhost" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
+    if command -v hostname >/dev/null 2>&1; then
+        COMPLETION_SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+    fi
+
+    if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
+        COMPLETION_SERVER_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7}' | head -1)
+    fi
+
+    if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
+        COMPLETION_SERVER_IP=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d'/' -f1)
+    fi
+
+    if [ -z "$COMPLETION_SERVER_IP" ]; then
+        COMPLETION_SERVER_IP="localhost"
+    fi
+fi
+
+echo "🐳 Portainer:         http://${COMPLETION_SERVER_IP}:9060 (container management)"
+echo "📈 Superset BI:       http://${COMPLETION_SERVER_IP}:9030 (use ./scripts/show-credentials.sh) - S3 FIXED!"
+echo "📋 Airflow:           http://${COMPLETION_SERVER_IP}:9020 (use ./scripts/show-credentials.sh) - IMPORTS FIXED!"
+echo "📓 JupyterLab:        http://${COMPLETION_SERVER_IP}:9040 (use ./scripts/show-credentials.sh)"
+echo "☁️  MinIO Console:     http://${COMPLETION_SERVER_IP}:9001 (use ./scripts/show-credentials.sh)"
+echo "⚡ Spark Master:      http://${COMPLETION_SERVER_IP}:8080"
+echo "🏠 Service Links:     http://${COMPLETION_SERVER_IP}:9061 (Homer dashboard)"
 echo ""
 echo "🔧 WHAT'S FIXED:"
 echo "   • Superset: No more S3 configuration per session"
