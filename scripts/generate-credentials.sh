@@ -147,6 +147,12 @@ generate_all_credentials() {
     POSTGRES_USER="postgres"  # PostgreSQL superuser
     POSTGRES_DB="lakehouse"
     
+    # Debug: Show generated values
+    log_info "Generated credentials summary:"
+    log_info "  POSTGRES_PASSWORD length: ${#POSTGRES_PASSWORD}"
+    log_info "  MINIO_ROOT_PASSWORD length: ${#MINIO_ROOT_PASSWORD}"
+    log_info "  AIRFLOW_SECRET_KEY length: ${#AIRFLOW_SECRET_KEY}"
+    
     # Write to environment file
     cat > "$env_file" << EOF
 # Lakehouse Lab - Generated Credentials
@@ -164,37 +170,37 @@ generate_all_credentials() {
 
 # Airflow Web UI (http://localhost:9020)
 AIRFLOW_ADMIN_USER=admin
-AIRFLOW_ADMIN_PASSWORD=${AIRFLOW_ADMIN_PASSWORD}
+AIRFLOW_ADMIN_PASSWORD="$AIRFLOW_ADMIN_PASSWORD"
 
 # Superset BI (http://localhost:9030) 
 SUPERSET_ADMIN_USER=admin
-SUPERSET_ADMIN_PASSWORD=${SUPERSET_ADMIN_PASSWORD}
+SUPERSET_ADMIN_PASSWORD="$SUPERSET_ADMIN_PASSWORD"
 
 # JupyterLab (http://localhost:9040)
-JUPYTER_TOKEN=${JUPYTER_TOKEN}
+JUPYTER_TOKEN="$JUPYTER_TOKEN"
 
 # ===========================================
 # OBJECT STORAGE CREDENTIALS
 # ===========================================
 # MinIO S3-compatible storage (http://localhost:9001)
-MINIO_ROOT_USER=${MINIO_ROOT_USER}
-MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+MINIO_ROOT_USER="$MINIO_ROOT_USER"
+MINIO_ROOT_PASSWORD="$MINIO_ROOT_PASSWORD"
 
 # ===========================================
 # DATABASE CREDENTIALS  
 # ===========================================
 # PostgreSQL database (internal access only)
-POSTGRES_USER=${POSTGRES_USER}
-POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-POSTGRES_DB=${POSTGRES_DB}
+POSTGRES_USER="$POSTGRES_USER"
+POSTGRES_PASSWORD="$POSTGRES_PASSWORD"
+POSTGRES_DB="$POSTGRES_DB"
 
 # ===========================================
 # SERVICE SECRET KEYS
 # ===========================================
 # Internal service security (do not share)
-AIRFLOW_SECRET_KEY=${AIRFLOW_SECRET_KEY}
-AIRFLOW_FERNET_KEY=${AIRFLOW_FERNET_KEY}
-SUPERSET_SECRET_KEY=${SUPERSET_SECRET_KEY}
+AIRFLOW_SECRET_KEY="$AIRFLOW_SECRET_KEY"
+AIRFLOW_FERNET_KEY="$AIRFLOW_FERNET_KEY"
+SUPERSET_SECRET_KEY="$SUPERSET_SECRET_KEY"
 
 # ===========================================
 # PERFORMANCE & RESOURCE LIMITS
