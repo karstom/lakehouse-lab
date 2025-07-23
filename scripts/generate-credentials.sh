@@ -68,6 +68,20 @@ generate_strong_password() {
     echo "$password"
 }
 
+# Generate database-safe password (no URL-breaking characters)
+generate_db_safe_password() {
+    local length=${1:-20}
+    # Only alphanumeric and safe symbols (no @, =, :, /, ?, #)
+    local chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789-_$%^&*+'
+    local password=""
+    
+    for i in $(seq 1 $length); do
+        password+="${chars:$((RANDOM % ${#chars})):1}"
+    done
+    
+    echo "$password"
+}
+
 # Generate UUID-style token
 generate_token() {
     local format=${1:-"uuid"}
@@ -108,7 +122,7 @@ generate_all_credentials() {
     JUPYTER_TOKEN=$(generate_passphrase)
     
     # Service-to-service credentials (strong passwords)
-    POSTGRES_PASSWORD=$(generate_strong_password 20)
+    POSTGRES_PASSWORD=$(generate_db_safe_password 20)  # Database-safe for connection strings
     MINIO_ROOT_PASSWORD=$(generate_strong_password 20)
     
     # Secret keys and tokens
