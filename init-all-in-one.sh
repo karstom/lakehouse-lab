@@ -2100,10 +2100,10 @@ if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "localhost" ] |
 fi
 
 echo "🐳 Portainer:         http://${COMPLETION_SERVER_IP}:9060 (container management)"
-echo "📈 Superset BI:       http://${COMPLETION_SERVER_IP}:9030 (admin/admin) - S3 FIXED!"
-echo "📋 Airflow:           http://${COMPLETION_SERVER_IP}:9020 (admin/admin) - IMPORTS FIXED!"
-echo "📓 JupyterLab:        http://${COMPLETION_SERVER_IP}:9040 (token: lakehouse)"
-echo "☁️  MinIO Console:     http://${COMPLETION_SERVER_IP}:9001 (minio/minio123)"
+echo "📈 Superset BI:       http://${COMPLETION_SERVER_IP}:9030 (use ./scripts/show-credentials.sh) - S3 FIXED!"
+echo "📋 Airflow:           http://${COMPLETION_SERVER_IP}:9020 (use ./scripts/show-credentials.sh) - IMPORTS FIXED!"
+echo "📓 JupyterLab:        http://${COMPLETION_SERVER_IP}:9040 (use ./scripts/show-credentials.sh)"
+echo "☁️  MinIO Console:     http://${COMPLETION_SERVER_IP}:9001 (use ./scripts/show-credentials.sh)"
 echo "⚡ Spark Master:      http://${COMPLETION_SERVER_IP}:8080"
 echo "🏠 Service Links:     http://${COMPLETION_SERVER_IP}:9061 (Homer dashboard)"
 echo ""
