@@ -23,7 +23,8 @@ This guide explainshow to configure the Superset DuckDB S3 and how to verify eve
 ### 1. Check Database Connection
 
 1. Open Superset: http://localhost:9030
-2. Login: `admin` / `admin`
+2. **Get credentials**: Run `./scripts/show-credentials.sh` to see your Superset login
+3. Login with your generated credentials (format: admin / memorable-passphrase)
 3. Go to **Settings** → **Database Connections**
 4. You should see "DuckDB Lakehouse" connection
 5. Click **Edit** to verify:

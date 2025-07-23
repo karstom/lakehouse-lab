@@ -1,5 +1,80 @@
 # Changelog
 
+## [1.2.0] - 2025-07-23
+
+### 🔒 Major Security Overhaul
+- **🎯 Unique Credential Generation**: Every installation now gets unique, secure credentials automatically
+- **🚫 Eliminated Default Passwords**: Removed all hardcoded credentials (admin/admin, minio/minio123, token: lakehouse)
+- **🎪 Memorable Passphrases**: User-friendly formats like `swift-river-bright-847` for easy typing
+- **🔐 Strong Backend Passwords**: Cryptographically secure passwords for databases and internal services
+- **🛡️ Environment Variable Security**: All secrets now stored in .env file (automatically git-ignored)
+
+### 🆕 New Credential Management System
+- **`./scripts/generate-credentials.sh`** - Automatic secure credential generation during installation
+- **`./scripts/show-credentials.sh`** - User-friendly credential display with copy-paste ready format
+- **`./scripts/rotate-credentials.sh`** - Safe credential rotation with automatic backups
+- **`.env.example`** - Comprehensive configuration template with security documentation
+- **Enhanced .gitignore** - Prevents accidental credential commits
+
+### 🔧 Critical Bug Fixes
+- **Fixed shell variable expansion errors** - Resolved "unbound variable" errors in credential scripts
+- **Fixed Superset permission issues** - Resolved directory creation and package installation failures
+- **Fixed PySpark integration** - Resolved module import conflicts in Jupyter notebooks
+- **Fixed PostgreSQL role errors** - Corrected database user creation for proper startup
+- **Fixed MinIO initialization** - Updated credential handling in bucket creation scripts
+- **Fixed Airflow database connections** - Dynamic credential integration for all database operations
+- **Fixed Docker Compose warnings** - Resolved environment variable and attribute warnings
+
+### ✨ Enhancements
+- **PIL/Pillow support in Superset** - Enables dashboard screenshots and PDF export functionality
+- **Enhanced PySpark error handling** - Better diagnostic messages for Jupyter notebook issues
+- **Improved installation validation** - Password generation validation and error recovery
+- **Enhanced debugging output** - Better diagnostic information during setup and troubleshooting
+
+### 📚 Documentation Updates
+- **README.md** - Complete security section with credential management documentation
+- **QUICKSTART.md** - Updated all login instructions to use credential scripts
+- **INSTALLATION.md** - Comprehensive security and credential management guide
+- **Technical documentation** - Replaced all hardcoded credential references with secure alternatives
+
+### 🔄 Migration & Compatibility
+- **Preserves existing installations** - Upgrade detection with smart migration options
+- **Maintains profile compatibility** - Works with existing .env.fat-server configurations
+- **Backward compatible** - Existing workflows continue to function with enhanced security
+- **Safe credential rotation** - Non-disruptive password updates with service restart handling
+
+### 🐛 Infrastructure Fixes
+- **Jupyter notebook JSON generation** - Fixed f-string syntax errors in notebook creation
+- **Docker Compose modernization** - Removed obsolete version attributes and warnings
+- **Service initialization order** - Improved dependency handling and startup reliability
+- **Container permission handling** - Enhanced file system permission management across services
+
+### 📊 Service-Specific Improvements
+
+#### Superset
+- Fixed package installation permission errors
+- Added PIL support for dashboard export features
+- Updated MinIO credential integration for S3 connections
+- Enhanced database connection string generation
+
+#### Jupyter
+- Resolved PySpark module availability issues
+- Fixed conda environment path configuration
+- Enhanced notebook generation with proper JSON syntax
+- Improved Spark connection configuration
+
+#### Airflow
+- Fixed database initialization and migration issues
+- Updated connection string generation with dynamic credentials
+- Enhanced webserver startup reliability
+- Improved scheduler database connectivity
+
+#### MinIO
+- Fixed bucket creation with dynamic credentials
+- Enhanced readiness check reliability
+- Updated initialization scripts for credential integration
+- Improved error diagnostics for storage operations
+
 ## [1.1.0] - 2025-07-18
 
 ### Added

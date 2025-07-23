@@ -66,12 +66,41 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 | Service | Purpose | URL | Credentials |
 |---------|---------|-----|-------------|
 | **Portainer** | Container Management | http://localhost:9060 | Create admin user |
-| **Superset** | BI & Visualization | http://localhost:9030 | admin/admin |
-| **JupyterLab** | Data Science Notebooks | http://localhost:9040 | token: lakehouse |
-| **Airflow** | Workflow Orchestration | http://localhost:9020 | admin/admin |
-| **MinIO Console** | Object Storage | http://localhost:9001 | minio/minio123 |
+| **Superset** | BI & Visualization | http://localhost:9030 | 🔐 Generated securely |
+| **JupyterLab** | Data Science Notebooks | http://localhost:9040 | 🔐 Generated securely |
+| **Airflow** | Workflow Orchestration | http://localhost:9020 | 🔐 Generated securely |
+| **MinIO Console** | Object Storage | http://localhost:9001 | 🔐 Generated securely |
 | **Spark Master** | Distributed Computing | http://localhost:8080 | N/A |
 | **Homer** | Service Links (Optional) | http://localhost:9061 | N/A |
+
+## 🔒 Secure Credential Management
+
+**No more default passwords!** Lakehouse Lab now generates unique, secure credentials for each installation:
+
+### View Your Credentials
+```bash
+./scripts/show-credentials.sh
+```
+
+### Credential Features
+- 🎯 **Memorable Passphrases**: Easy-to-type formats like `swift-river-bright-847`
+- 🔐 **Strong Database Passwords**: Cryptographically secure for backend services
+- 🔄 **Unique Per Installation**: Every deployment gets different credentials
+- 🛡️ **Environment Variables**: Secure configuration without hardcoded secrets
+
+### Credential Management Scripts
+```bash
+# Generate new credentials (done automatically during installation)
+./scripts/generate-credentials.sh
+
+# View current credentials in a friendly format
+./scripts/show-credentials.sh
+
+# Rotate all credentials (generates new ones)
+./scripts/rotate-credentials.sh
+```
+
+**⚠️ Important**: Your credentials are stored in the `.env` file. Back it up securely and never commit it to version control.
 
 ## 📖 Documentation
 

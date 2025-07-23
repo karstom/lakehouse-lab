@@ -122,6 +122,45 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 | `--upgrade` | Upgrade existing installation (preserve data) | `--upgrade` |
 | `--replace` | Replace existing installation (clean slate) | `--replace` |
 
+## 🔒 Security & Credentials
+
+### **Automatic Secure Credential Generation**
+
+**No more default passwords!** Lakehouse Lab automatically generates unique, secure credentials for every installation:
+
+- 🎯 **Memorable Passphrases**: Easy-to-type formats like `swift-river-bright-847`
+- 🔐 **Strong Database Passwords**: Cryptographically secure for backend services  
+- 🔄 **Unique Per Installation**: Every deployment gets different credentials
+- 🛡️ **Environment Variables**: Secure configuration without hardcoded secrets
+
+### **Credential Management**
+
+```bash
+# View all your service credentials
+./scripts/show-credentials.sh
+
+# Generate new credentials (overwrites existing)
+./scripts/generate-credentials.sh
+
+# Rotate all credentials (backup old ones)
+./scripts/rotate-credentials.sh
+```
+
+### **Security Best Practices**
+
+- ✅ Credentials are stored in `.env` file (automatically git-ignored)
+- ✅ Back up your `.env` file in a secure location
+- ✅ Never commit `.env` to version control
+- ✅ Use `./scripts/show-credentials.sh` to access credentials securely
+- ✅ Rotate credentials periodically with `./scripts/rotate-credentials.sh`
+
+### **Credential Storage**
+
+Your credentials are stored in:
+- **Main file**: `.env` (environment variables)
+- **Summary**: `.credentials-summary.txt` (human-readable format)
+- **Backups**: `.env.backup.YYYYMMDD_HHMMSS` (created during rotation)
+
 ## 🖥️ Traditional Installation
 
 ### **Manual Git Clone**
