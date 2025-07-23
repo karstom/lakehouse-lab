@@ -212,7 +212,7 @@ configure_minio() {
     local attempt=1
     
     while [ $attempt -le $max_attempts ]; do
-        if mc alias set local http://minio:9000 minio minio123 >/dev/null 2>&1; then
+        if mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null 2>&1; then
             log_success "MinIO client configured successfully"
             break
         else
@@ -260,7 +260,7 @@ wait_for_minio_api() {
             # Test 2: MinIO client configuration
             if ! mc alias list local >/dev/null 2>&1; then
                 log_warning "  ❌ MinIO client alias not configured, attempting reconfiguration..."
-                if mc alias set local http://minio:9000 minio minio123 >/dev/null 2>&1; then
+                if mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" >/dev/null 2>&1; then
                     log_info "  ✅ MinIO client reconfigured successfully"
                 else
                     log_warning "  ❌ MinIO client reconfiguration failed"
@@ -574,8 +574,8 @@ def configure_duckdb_s3(**context):
         
         # Set S3 configuration for MinIO
         conn.execute("SET s3_endpoint='minio:9000'")
-        conn.execute("SET s3_access_key_id='minio'")
-        conn.execute("SET s3_secret_access_key='minio123'")
+        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'minio')}'")
+        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'minio123')}'")
         conn.execute("SET s3_use_ssl=false")
         conn.execute("SET s3_url_style='path'")
         
@@ -598,8 +598,8 @@ def extract_data(**context):
         conn.execute("INSTALL httpfs")
         conn.execute("LOAD httpfs")
         conn.execute("SET s3_endpoint='minio:9000'")
-        conn.execute("SET s3_access_key_id='minio'")
-        conn.execute("SET s3_secret_access_key='minio123'")
+        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'minio')}'")
+        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'minio123')}'")
         conn.execute("SET s3_use_ssl=false")
         conn.execute("SET s3_url_style='path'")
         
@@ -637,8 +637,8 @@ def transform_data(**context):
         conn.execute("INSTALL httpfs")
         conn.execute("LOAD httpfs")
         conn.execute("SET s3_endpoint='minio:9000'")
-        conn.execute("SET s3_access_key_id='minio'")
-        conn.execute("SET s3_secret_access_key='minio123'")
+        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'minio')}'")
+        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'minio123')}'")
         conn.execute("SET s3_use_ssl=false")
         conn.execute("SET s3_url_style='path'")
         
@@ -686,8 +686,8 @@ def data_quality_check(**context):
         conn.execute("INSTALL httpfs")
         conn.execute("LOAD httpfs")
         conn.execute("SET s3_endpoint='minio:9000'")
-        conn.execute("SET s3_access_key_id='minio'")
-        conn.execute("SET s3_secret_access_key='minio123'")
+        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'minio')}'")
+        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'minio123')}'")
         conn.execute("SET s3_use_ssl=false")
         conn.execute("SET s3_url_style='path'")
         
@@ -790,8 +790,8 @@ def run_comprehensive_quality_checks(**context):
         conn.execute("INSTALL httpfs")
         conn.execute("LOAD httpfs")
         conn.execute("SET s3_endpoint='minio:9000'")
-        conn.execute("SET s3_access_key_id='minio'")
-        conn.execute("SET s3_secret_access_key='minio123'")
+        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'minio')}'")
+        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'minio123')}'")
         conn.execute("SET s3_use_ssl=false")
         conn.execute("SET s3_url_style='path'")
         
@@ -954,8 +954,8 @@ create_jupyter_notebooks() {
     "s3_client = boto3.client(\n",
     "    's3',\n",
     "    endpoint_url='http://minio:9000',\n",
-    "    aws_access_key_id='minio',\n",
-    "    aws_secret_access_key='minio123'\n",
+    f"    aws_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'minio')}',\n",
+    f"    aws_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'minio123')}'\n",
     ")\n",
     "\n",
     "# List buckets\n",
@@ -986,8 +986,8 @@ create_jupyter_notebooks() {
     "    INSTALL httpfs;\n",
     "    LOAD httpfs;\n",
     "    SET s3_endpoint='minio:9000';\n",
-    "    SET s3_access_key_id='minio';\n",
-    "    SET s3_secret_access_key='minio123';\n",
+    f"    SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'minio')}';\n",
+    f"    SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'minio123')}';\n",
     "    SET s3_use_ssl=false;\n",
     "    SET s3_url_style='path';\n",
     "\"\"\")\n",
@@ -1172,8 +1172,8 @@ EOF
     "    INSTALL httpfs;\n",
     "    LOAD httpfs;\n",
     "    SET s3_endpoint='minio:9000';\n",
-    "    SET s3_access_key_id='minio';\n",
-    "    SET s3_secret_access_key='minio123';\n",
+    f"    SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'minio')}';\n",
+    f"    SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'minio123')}';\n",
     "    SET s3_use_ssl=false;\n",
     "    SET s3_url_style='path';\n",
     "\"\"\")\n",

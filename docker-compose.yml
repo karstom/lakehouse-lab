@@ -116,6 +116,9 @@ services:
     environment:
       INSTALL_SAMPLES: "true"
       LAKEHOUSE_ROOT: /mnt/lakehouse
+      # MinIO credentials for initialization
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       # MinIO readiness configuration (adjust for slower systems)
       MINIO_READY_TIMEOUT: ${MINIO_READY_TIMEOUT:-20}          # attempts (default: 60s total)
       MINIO_READY_INTERVAL: ${MINIO_READY_INTERVAL:-3}         # seconds between attempts
