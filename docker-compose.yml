@@ -361,13 +361,22 @@ services:
         set -e
         echo "Installing DuckDB and dependencies..."
         
-        # Ensure proper permissions for superset_home directory
-        mkdir -p /app/superset_home/.local /app/superset_home/.cache;
-        chown -R superset:superset /app/superset_home 2>/dev/null || chown -R $(id -u):$(id -g) /app/superset_home 2>/dev/null || echo 'Permission setup skipped';
-        chmod -R 755 /app/superset_home 2>/dev/null || echo 'Chmod skipped';
+        # Ensure proper permissions for superset_home directory with fallback
+        mkdir -p /app/superset_home || echo 'Main directory exists';
         
-        # Install packages with user flag to avoid permission issues
-        pip install --user --no-cache-dir psycopg2-binary duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 'sqlalchemy>=1.4.0';
+        # Try different permission strategies
+        if id superset >/dev/null 2>&1; then
+          echo 'Using superset user permissions';
+          sudo -u superset mkdir -p /app/superset_home/.local /app/superset_home/.cache 2>/dev/null || mkdir -p /app/superset_home/.local /app/superset_home/.cache;
+          chown -R superset:superset /app/superset_home;
+        else
+          echo 'Using root permissions with fallback';
+          mkdir -p /app/superset_home/.local /app/superset_home/.cache;
+          chmod -R 777 /app/superset_home;
+        fi
+        
+        # Install packages system-wide since we're running as root initially
+        pip install --no-cache-dir psycopg2-binary duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 'sqlalchemy>=1.4.0';
         
         echo "Initializing Superset database...";
         superset db upgrade;
@@ -386,8 +395,8 @@ services:
         conn = duckdb.connect('/app/superset_home/lakehouse.duckdb')
         conn.execute('INSTALL httpfs; LOAD httpfs;')
         conn.execute("SET s3_endpoint='minio:9000';")
-        conn.execute("SET s3_access_key_id='minio';") 
-        conn.execute("SET s3_secret_access_key='minio123';")
+        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'minio')}';"  )
+        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'minio123')}';")
         conn.execute("SET s3_use_ssl=false;")
         conn.execute("SET s3_url_style='path';")
         
@@ -399,8 +408,8 @@ services:
                     INSTALL httpfs;
                     LOAD httpfs;
                     SET s3_endpoint='minio:9000';
-                    SET s3_access_key_id='minio';
-                    SET s3_secret_access_key='minio123';
+                    SET s3_access_key_id='${MINIO_ROOT_USER:-minio}';
+                    SET s3_secret_access_key='${MINIO_ROOT_PASSWORD:-minio123}';
                     SET s3_use_ssl=false;
                     SET s3_url_style='path';
                 )

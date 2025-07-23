@@ -68,11 +68,11 @@ generate_strong_password() {
     echo "$password"
 }
 
-# Generate database-safe password (no URL-breaking characters)
+# Generate database-safe password (no URL-breaking or shell-problematic characters)
 generate_db_safe_password() {
     local length=${1:-20}
-    # Only alphanumeric and safe symbols (no @, =, :, /, ?, #)
-    local chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789-_$%^&*+'
+    # Only alphanumeric and very safe symbols (no @, =, :, /, ?, #, $, *, `, \, ^, &)
+    local chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789-_+'
     local password=""
     
     for i in $(seq 1 $length); do
@@ -123,7 +123,7 @@ generate_all_credentials() {
     
     # Service-to-service credentials (strong passwords)
     POSTGRES_PASSWORD=$(generate_db_safe_password 20)  # Database-safe for connection strings
-    MINIO_ROOT_PASSWORD=$(generate_strong_password 20)
+    MINIO_ROOT_PASSWORD=$(generate_db_safe_password 20)  # Use safe characters for MinIO too
     
     # Validate generated passwords are not empty
     if [[ -z "$POSTGRES_PASSWORD" ]]; then
