@@ -1,8 +1,6 @@
 # Docker Compose Override for Apache Iceberg Support
 # Usage: docker compose -f docker-compose.yml -f docker-compose.iceberg.yml up -d
 
-version: '3.8'
-
 services:
   # Spark Master with Iceberg support
   spark-master:

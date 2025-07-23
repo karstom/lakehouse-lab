@@ -218,6 +218,10 @@ JUPYTER_SPARK_DRIVER_MEMORY=2g
 JUPYTER_SPARK_EXECUTOR_MEMORY=2g
 JUPYTER_SPARK_EXECUTOR_CORES=2
 
+# Spark Environment Variables (to prevent Docker Compose warnings)
+SPARK_HOME=/usr/local/spark
+PYTHONPATH=/usr/local/spark/python:/usr/local/spark/python/lib/py4j-0.10.9.7-src.zip
+
 EOF
 
     log_success "Credentials generated and saved to: $env_file"
