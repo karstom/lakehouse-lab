@@ -519,6 +519,7 @@ from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
 from airflow.operators.bash_operator import BashOperator
 import logging
+import os
 
 default_args = {
     'owner': 'lakehouse-lab',
@@ -574,8 +575,8 @@ def configure_duckdb_s3(**context):
         
         # Set S3 configuration for MinIO
         conn.execute("SET s3_endpoint='minio:9000'")
-        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'minio')}'")
-        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'minio123')}'")
+        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'admin')}'")
+        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'UPDATE_YOUR_PASSWORD')}'")
         conn.execute("SET s3_use_ssl=false")
         conn.execute("SET s3_url_style='path'")
         
@@ -598,8 +599,8 @@ def extract_data(**context):
         conn.execute("INSTALL httpfs")
         conn.execute("LOAD httpfs")
         conn.execute("SET s3_endpoint='minio:9000'")
-        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'minio')}'")
-        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'minio123')}'")
+        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'admin')}'")
+        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'UPDATE_YOUR_PASSWORD')}'")
         conn.execute("SET s3_use_ssl=false")
         conn.execute("SET s3_url_style='path'")
         
@@ -637,8 +638,8 @@ def transform_data(**context):
         conn.execute("INSTALL httpfs")
         conn.execute("LOAD httpfs")
         conn.execute("SET s3_endpoint='minio:9000'")
-        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'minio')}'")
-        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'minio123')}'")
+        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'admin')}'")
+        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'UPDATE_YOUR_PASSWORD')}'")
         conn.execute("SET s3_use_ssl=false")
         conn.execute("SET s3_url_style='path'")
         
@@ -686,8 +687,8 @@ def data_quality_check(**context):
         conn.execute("INSTALL httpfs")
         conn.execute("LOAD httpfs")
         conn.execute("SET s3_endpoint='minio:9000'")
-        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'minio')}'")
-        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'minio123')}'")
+        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'admin')}'")
+        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'UPDATE_YOUR_PASSWORD')}'")
         conn.execute("SET s3_use_ssl=false")
         conn.execute("SET s3_url_style='path'")
         
@@ -759,6 +760,7 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python_operator import PythonOperator
 import logging
+import os
 
 default_args = {
     'owner': 'lakehouse-lab',
@@ -790,8 +792,8 @@ def run_comprehensive_quality_checks(**context):
         conn.execute("INSTALL httpfs")
         conn.execute("LOAD httpfs")
         conn.execute("SET s3_endpoint='minio:9000'")
-        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'minio')}'")
-        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'minio123')}'")
+        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'admin')}'")
+        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'UPDATE_YOUR_PASSWORD')}'")
         conn.execute("SET s3_use_ssl=false")
         conn.execute("SET s3_url_style='path'")
         
@@ -1054,11 +1056,12 @@ create_jupyter_notebooks() {
    "outputs": [],
    "source": [
     "# Create Spark session\n",
+    "# 🔐 Get your MinIO password: Run './scripts/show-credentials.sh' in the lakehouse-lab directory\n",
     "spark = SparkSession.builder \\\n",
     "    .appName(\"Lakehouse Lab\") \\\n",
     "    .config(\"spark.hadoop.fs.s3a.endpoint\", \"http://minio:9000\") \\\n",
-    "    .config(\"spark.hadoop.fs.s3a.access.key\", \"minio\") \\\n",
-    "    .config(\"spark.hadoop.fs.s3a.secret.key\", \"minio123\") \\\n",
+    "    .config(\"spark.hadoop.fs.s3a.access.key\", \"admin\") \\\n",
+    "    .config(\"spark.hadoop.fs.s3a.secret.key\", \"YOUR_MINIO_PASSWORD\") \\\n",
     "    .config(\"spark.hadoop.fs.s3a.path.style.access\", \"true\") \\\n",
     "    .config(\"spark.hadoop.fs.s3a.connection.ssl.enabled\", \"false\") \\\n",
     "    .getOrCreate()\n",
@@ -1306,6 +1309,7 @@ EOF
    "source": [
     "# Create Spark session with Iceberg configuration\n",
     "# Note: These configurations should already be set when using docker-compose.iceberg.yml\n",
+    "# 🔐 Get your MinIO password: Run './scripts/show-credentials.sh' in the lakehouse-lab directory\n",
     "spark = SparkSession.builder \\\n",
     "    .appName(\"Iceberg Lakehouse Demo\") \\\n",
     "    .config(\"spark.sql.extensions\", \"org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions\") \\\n",
@@ -1315,8 +1319,8 @@ EOF
     "    .config(\"spark.sql.catalog.iceberg.type\", \"hadoop\") \\\n",
     "    .config(\"spark.sql.catalog.iceberg.warehouse\", \"s3a://lakehouse/iceberg-warehouse/\") \\\n",
     "    .config(\"spark.hadoop.fs.s3a.endpoint\", \"http://minio:9000\") \\\n",
-    "    .config(\"spark.hadoop.fs.s3a.access.key\", \"minio\") \\\n",
-    "    .config(\"spark.hadoop.fs.s3a.secret.key\", \"minio123\") \\\n",
+    "    .config(\"spark.hadoop.fs.s3a.access.key\", \"admin\") \\\n",
+    "    .config(\"spark.hadoop.fs.s3a.secret.key\", \"YOUR_MINIO_PASSWORD\") \\\n",
     "    .config(\"spark.hadoop.fs.s3a.path.style.access\", \"true\") \\\n",
     "    .config(\"spark.hadoop.fs.s3a.connection.ssl.enabled\", \"false\") \\\n",
     "    .getOrCreate()\n",
@@ -1898,8 +1902,8 @@ try:
     
     # Set S3 configuration for MinIO - FIXED to use minio:9000 instead of AWS
     conn.execute("SET s3_endpoint='minio:9000'")
-    conn.execute("SET s3_access_key_id='minio'")
-    conn.execute("SET s3_secret_access_key='minio123'")
+    conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'admin')}'")
+    conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'UPDATE_YOUR_PASSWORD')}')")
     conn.execute("SET s3_use_ssl=false")
     conn.execute("SET s3_url_style='path'")
     
@@ -1910,8 +1914,8 @@ try:
             INSTALL httpfs;
             LOAD httpfs;
             SET s3_endpoint='minio:9000';
-            SET s3_access_key_id='minio';
-            SET s3_secret_access_key='minio123';
+            SET s3_access_key_id='\${MINIO_ROOT_USER:-admin}';
+            SET s3_secret_access_key='\${MINIO_ROOT_PASSWORD:-UPDATE_YOUR_PASSWORD}';
             SET s3_use_ssl=false;
             SET s3_url_style='path';
         )
@@ -1988,8 +1992,8 @@ try:
                     "preload_extensions": ["httpfs"],
                     "config": {
                         "s3_endpoint": "minio:9000",
-                        "s3_access_key_id": "minio", 
-                        "s3_secret_access_key": "minio123",
+                        "s3_access_key_id": "$MINIO_ROOT_USER", 
+                        "s3_secret_access_key": "$MINIO_ROOT_PASSWORD",
                         "s3_url_style": "path",
                         "s3_use_ssl": "false"
                     }
