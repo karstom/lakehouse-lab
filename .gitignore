@@ -10,8 +10,9 @@ lakehouse-data/
 
 # Environment files (may contain secrets)
 .env
-.env.local
-.env.production
+.env.*
+!.env.example
+.credentials-summary.txt
 
 # Docker volumes and temp files
 docker-compose.override.yml
