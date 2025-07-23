@@ -565,6 +565,10 @@ configure_environment() {
     
     # Step 1: Generate secure credentials
     print_step "🔐 Generating secure credentials..."
+    print_step "DEBUG: Current directory: $(pwd)"
+    print_step "DEBUG: Looking for scripts/generate-credentials.sh"
+    print_step "DEBUG: Directory contents: $(ls -la scripts/ 2>/dev/null || echo 'scripts directory not found')"
+    
     if [[ -f "scripts/generate-credentials.sh" ]]; then
         ./scripts/generate-credentials.sh
     else
