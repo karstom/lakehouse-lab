@@ -96,7 +96,7 @@ else
     echo -e "${BLUE}   Services will be accessible remotely at this IP${NC}"
     
     # Check if Homer config needs updating (contains Docker IPs)
-    local homer_config="${LAKEHOUSE_ROOT:-./lakehouse-data}/homer/assets/config.yml"
+    homer_config="${LAKEHOUSE_ROOT:-./lakehouse-data}/homer/assets/config.yml"
     if [[ -f "$homer_config" ]] && grep -q "172\.[0-9]\+\.[0-9]\+\.[0-9]\+" "$homer_config" 2>/dev/null; then
         echo -e "${YELLOW}   📋 Note: Homer dashboard will be updated with new IP addresses${NC}"
     fi
