@@ -212,6 +212,9 @@ services:
       JUPYTER_ENABLE_LAB: "yes"
       JUPYTER_TOKEN: ${JUPYTER_TOKEN}
       SPARK_MASTER: spark://spark-master:7077
+      # MinIO credentials for automatic notebook configuration
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       # Spark configuration for Jupyter
       SPARK_DRIVER_MEMORY: ${JUPYTER_SPARK_DRIVER_MEMORY:-2g}
       SPARK_EXECUTOR_MEMORY: ${JUPYTER_SPARK_EXECUTOR_MEMORY:-2g}
