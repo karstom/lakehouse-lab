@@ -33,51 +33,48 @@ This guide explains how to manually configure Superset DuckDB to work with MinIO
    - ✅ Enable **Allow file uploads**
 5. Click **Test Connection** → **Connect** to save
 
-### 3. Configure S3/MinIO Access
+### 3. 🔑 Create Persistent S3 Secret (One-Time Setup)
 
-Go to **SQL Lab**, select your **DuckDB-S3** database, and run these setup commands:
+**Run this ONCE to permanently configure S3/MinIO access**. Go to **SQL Lab**, select your **DuckDB-S3** database, and run:
 
 ```sql
--- Install and load S3 extension
-INSTALL httpfs;
-LOAD httpfs;
-
--- Configure MinIO S3 settings
 -- Get your credentials by running: ./scripts/show-credentials.sh
-SET s3_endpoint='minio:9000';
-SET s3_access_key_id='admin';  -- Your MinIO username
-SET s3_secret_access_key='YOUR_MINIO_PASSWORD';  -- Your generated MinIO password
-SET s3_use_ssl=false;
-SET s3_url_style='path';
+-- Replace YOUR_MINIO_PASSWORD with your actual generated password
 
--- Test the connection
-SELECT 'S3 configuration successful' as status;
+CREATE PERSISTENT SECRET minio_secret (
+    TYPE S3,
+    KEY_ID 'admin',
+    SECRET 'YOUR_MINIO_PASSWORD',  -- Paste your actual MinIO password here
+    ENDPOINT 'minio:9000',
+    USE_SSL false,
+    URL_STYLE 'path',
+    SCOPE 's3://lakehouse'
+);
 ```
 
-### 4. Verify S3 Data Access
+✅ **That's it!** The secret persists across sessions, logins, and container restarts.
 
-Test querying data from your MinIO lakehouse:
+### 4. Test S3 Data Access
+
+Now you can query S3 data with **clean, simple queries** - no setup blocks needed:
 
 ```sql
 -- Test reading CSV data
 SELECT * FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv') LIMIT 5;
 
--- Check DuckDB version
-SELECT duckdb_version();
+-- Check DuckDB version  
+SELECT version();
 ```
 
 Expected results:
-- S3 configuration command succeeds
-- CSV query returns sample data
+- CSV query returns sample data immediately
 - DuckDB version shows `v1.3.2`
 
-### 5. Create a Dataset (Fixed Process)
+### 5. Example Queries
 
-1. Go to **Data** → **Datasets** → **+ Dataset**
-2. Choose **DuckDB-S3** database
-3. **Dataset Type**: Virtual
-4. **SQL**: Use ONLY a single SELECT statement:
+**All queries now work without any setup commands:**
 
+**Basic data exploration:**
 ```sql
 SELECT 
     product_category,
@@ -86,86 +83,45 @@ SELECT
     AVG(total_amount) as avg_order_value
 FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv')
 GROUP BY product_category
+ORDER BY revenue DESC;
 ```
 
-5. **Save** - This should work without errors!
-
-## Configuration Persistence & Setup Dataset
-
-**Important**: S3 settings are session-based and need to be reapplied when:
-- Starting a new SQL Lab session
-- After container restarts
-- When switching between different query tabs
-
-### 6. Create a "S3 Setup" Dataset for Easy Reconnection
-
-To make reconnection easier, create a reusable dataset:
-
-1. Go to **Data** → **Datasets** → **+ Dataset**
-2. Choose **DuckDB-S3** database
-3. **Dataset Type**: Virtual
-4. **Dataset Name**: `S3_Setup_Commands`
-5. **SQL**: Enter the complete setup script:
-
+**Date-based analysis:**
 ```sql
 SELECT 
-    'Step 1: Install S3 extension' as step,
-    'INSTALL httpfs; LOAD httpfs;' as command
-UNION ALL
-SELECT 
-    'Step 2: Configure endpoint',
-    'SET s3_endpoint=''minio:9000'';'
-UNION ALL
-SELECT 
-    'Step 3: Set credentials (UPDATE PASSWORD)',
-    'SET s3_access_key_id=''admin''; SET s3_secret_access_key=''YOUR_CURRENT_PASSWORD'';'
-UNION ALL
-SELECT 
-    'Step 4: Configure SSL and path style',
-    'SET s3_use_ssl=false; SET s3_url_style=''path'';'
-UNION ALL
-SELECT 
-    'Step 5: Test connection',
-    'SELECT ''S3 Ready'' as status;'
-ORDER BY step
+    DATE_TRUNC('month', order_date::DATE) as month,
+    COUNT(*) as monthly_orders,
+    SUM(total_amount) as monthly_revenue
+FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv')
+GROUP BY DATE_TRUNC('month', order_date::DATE)
+ORDER BY month;
 ```
 
-6. **Save** the dataset
-
-### 7. Using the Setup Dataset
-
-**For quick reconnection:**
-1. Go to **Data** → **Datasets** → find **S3_Setup_Commands**
-2. Click **Explore** to see the setup commands
-3. Copy the commands from the **command** column
-4. Go to **SQL Lab** → paste and run the commands
-5. Update the password using: `./scripts/show-credentials.sh`
-
-**Pro tip**: Bookmark the S3_Setup_Commands dataset for instant access!
-
-### 8. Alternative: Create a Setup View
-
-For even easier access, create a permanent view in SQL Lab:
-
+**Multi-file queries:**
 ```sql
--- Run this once to create a helper view
-CREATE OR REPLACE VIEW s3_setup_help AS 
 SELECT 
-    'Quick S3 Setup Commands - Copy and run these:' as instructions
-UNION ALL
-SELECT 'INSTALL httpfs; LOAD httpfs;'
-UNION ALL  
-SELECT 'SET s3_endpoint=''minio:9000'';'
-UNION ALL
-SELECT 'SET s3_access_key_id=''admin'';'
-UNION ALL
-SELECT 'SET s3_secret_access_key=''GET_FROM_show-credentials.sh'';'
-UNION ALL
-SELECT 'SET s3_use_ssl=false; SET s3_url_style=''path'';';
-
--- Then anytime you need setup commands:
-SELECT * FROM s3_setup_help;
+    COUNT(*) as total_records,
+    COUNT(DISTINCT product_category) as categories,
+    SUM(total_amount) as total_revenue
+FROM read_csv_auto('s3://lakehouse/raw-data/*.csv', union_by_name=true);
 ```
+
+### 6. Create Datasets (Now Works Perfectly!)
+
+1. Go to **SQL Lab**, run any query above
+2. Click **Save** → **Save as Dataset** 
+3. **Dataset creation works!** No more "Only single queries supported" errors
+
+## Why DuckDB Persistent Secrets are Amazing
+
+This approach is **vastly superior** to session-based configuration because:
+- ✅ **One-time setup**: Create the secret once, use forever
+- ✅ **Clean queries**: No more copying setup blocks for every query
+- ✅ **Dataset creation works**: Single SELECT statements work perfectly
+- ✅ **Session persistence**: Survives logins, restarts, and new tabs
+- ✅ **Professional experience**: Just like any production database
+
+**What changed:** DuckDB 1.3.2+ includes a powerful Secrets Manager that can store persistent S3 credentials in the database file itself.
 
 ## Troubleshooting
 
