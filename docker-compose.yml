@@ -212,6 +212,9 @@ services:
       JUPYTER_ENABLE_LAB: "yes"
       JUPYTER_TOKEN: ${JUPYTER_TOKEN}
       SPARK_MASTER: spark://spark-master:7077
+      # MinIO credentials for automatic notebook configuration
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       # Spark configuration for Jupyter
       SPARK_DRIVER_MEMORY: ${JUPYTER_SPARK_DRIVER_MEMORY:-2g}
       SPARK_EXECUTOR_MEMORY: ${JUPYTER_SPARK_EXECUTOR_MEMORY:-2g}
@@ -250,9 +253,13 @@ services:
         echo 'export PYSPARK_DRIVER_PYTHON=/opt/conda/bin/python' >> /home/jovyan/.bashrc
         echo 'export PYSPARK_SUBMIT_ARGS=--master spark://spark-master:7077 pyspark-shell' >> /home/jovyan/.bashrc
         
+        # Ensure MinIO credentials are available to jovyan user
+        echo "export MINIO_ROOT_USER='${MINIO_ROOT_USER}'" >> /home/jovyan/.bashrc
+        echo "export MINIO_ROOT_PASSWORD='${MINIO_ROOT_PASSWORD}'" >> /home/jovyan/.bashrc
+        
         echo 'Starting Jupyter...'
         # Use the proper Jupyter startup command with conda environment
-        exec sudo -u jovyan /opt/conda/bin/jupyter lab --NotebookApp.token='${JUPYTER_TOKEN}' --NotebookApp.password='' --NotebookApp.allow_origin='*' --NotebookApp.disable_check_xsrf=True
+        exec sudo -E -u jovyan /opt/conda/bin/jupyter lab --NotebookApp.token='${JUPYTER_TOKEN}' --NotebookApp.password='' --NotebookApp.allow_origin='*' --NotebookApp.disable_check_xsrf=True
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/notebooks:/home/jovyan/notebooks
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/jupyter-config:/home/jovyan/.jupyter
@@ -387,55 +394,10 @@ services:
         superset fab create-admin --username ${SUPERSET_ADMIN_USER:-admin} --firstname Admin --lastname User --email admin@example.com --password ${SUPERSET_ADMIN_PASSWORD} || true;
         superset init;
         
-        echo "Configuring DuckDB with S3 settings..."
-        python3 << 'EOF'
-        import duckdb
-        import os
+        # Small delay to ensure database is fully initialized
+        sleep 2
         
-        # Ensure directory exists
-        os.makedirs('/app/superset_home', exist_ok=True)
-        
-        # Create and configure DuckDB connection
-        conn = duckdb.connect('/app/superset_home/lakehouse.duckdb')
-        conn.execute('INSTALL httpfs; LOAD httpfs;')
-        conn.execute("SET s3_endpoint='minio:9000';")
-        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'minio')}';"  )
-        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'minio123')}';")
-        conn.execute("SET s3_use_ssl=false;")
-        conn.execute("SET s3_url_style='path';")
-        
-        # Persist S3 settings for session consistency
-        try:
-            conn.execute("CREATE SCHEMA IF NOT EXISTS config;")
-            conn.execute("""
-                CREATE OR REPLACE MACRO configure_s3() AS (
-                    INSTALL httpfs;
-                    LOAD httpfs;
-                    SET s3_endpoint='minio:9000';
-                    SET s3_access_key_id='${MINIO_ROOT_USER:-minio}';
-                    SET s3_secret_access_key='${MINIO_ROOT_PASSWORD:-minio123}';
-                    SET s3_use_ssl=false;
-                    SET s3_url_style='path';
-                )
-            """)
-            print("✅ Created S3 configuration macro")
-        except Exception as e:
-            print(f"⚠️ Macro creation warning: {e}")
-        
-        # Test the connection
-        try:
-            result = conn.execute("SELECT 'DuckDB S3 configuration successful' as status;").fetchone()
-            print(f"✅ {result[0]}")
-        except Exception as e:
-            print(f"⚠️ Configuration warning: {e}")
-        finally:
-            conn.close()
-        EOF
-        
-        echo "Setting up Superset database connection with S3 configuration..."
-        if [ -f /app/superset_home/add_duckdb_connection.py ]; then
-            python3 /app/superset_home/add_duckdb_connection.py || echo "⚠️ Could not auto-configure database connection"
-        fi
+        echo "Superset ready for manual configuration - see SUPERSET_DATABASE_SETUP.md"
         
         echo "Starting Superset webserver..."
         superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger
@@ -450,6 +412,7 @@ services:
       - "9030:8088"
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/superset:/app/superset_home
+      - ./scripts:/host/scripts:ro
     networks:
       - lakehouse
     healthcheck:

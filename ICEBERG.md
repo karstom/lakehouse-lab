@@ -216,7 +216,7 @@ docker compose logs jupyter
 
 - [Apache Iceberg Documentation](https://iceberg.apache.org/)
 - [Iceberg Spark Integration](https://iceberg.apache.org/docs/latest/spark-configuration/)
-- [Lakehouse Lab Repository](https://github.com/your-repo/lakehouse-lab)
+- [Lakehouse Lab Repository](https://github.com/karstom/lakehouse-lab)
 
 ---
 

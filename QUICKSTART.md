@@ -6,14 +6,14 @@ Get your complete data analytics environment running in 15 minutes!
 
 ### **Standard Setup (Laptops/Small Servers)**
 ```bash
-git clone <your-repo>
+git clone https://github.com/karstom/lakehouse-lab.git
 cd lakehouse-lab
 docker compose up -d
 ```
 
 ### **Fat Server Setup (32+ cores, 64GB+ RAM)**
 ```bash
-git clone <your-repo>
+git clone https://github.com/karstom/lakehouse-lab.git
 cd lakehouse-lab
 cp .env.fat-server .env
 docker compose up -d
@@ -69,9 +69,16 @@ This shows all your service URLs and login credentials in a clean, copy-paste re
 ### **Step 2: Use Pre-configured DuckDB Database**
 ✅ **FIXED**: The DuckDB connection is now pre-configured with the correct URI and S3 settings!
 
-The database connection "DuckDB Lakehouse" should appear automatically with:
+The database connection **"DuckDB-S3"** should appear automatically with:
 - **URI**: `duckdb:////app/superset_home/lakehouse.duckdb` (fixed persistent file)
 - **S3 Config**: Pre-configured for MinIO access
+- **DML/DDL**: Enabled (CREATE TABLE, INSERT, UPDATE, DELETE allowed)
+- **File Uploads**: Enabled for CSV import
+- **Async Queries**: Enabled for better performance
+
+**🔧 If you don't see "DuckDB-S3":**
+1. Refresh the page or try **Data** → **Database Connections**
+2. If still not there, see the [Superset Database Setup Guide](SUPERSET_DATABASE_SETUP.md) for manual creation steps
 
 ### **Step 3: Query Your Data (No Configuration Needed!)**
 ✅ **FIXED**: S3 configuration is now persistent - no need to run setup commands every time!
@@ -104,7 +111,7 @@ ORDER BY total_revenue DESC;
 ✅ **FIXED**: Use single SELECT statements to avoid "Only single queries supported" error
 
 1. In Superset, go to **Data** → **Datasets** → **+ Dataset**
-2. **Database**: DuckDB Lakehouse
+2. **Database**: DuckDB-S3
 3. **Dataset Type**: SQL
 4. **SQL**: Use ONLY a single SELECT statement:
 
@@ -160,8 +167,8 @@ conn = duckdb.connect()
 conn.execute("""
     INSTALL httpfs; LOAD httpfs;
     SET s3_endpoint='minio:9000';
-    SET s3_access_key_id='minio';
-    SET s3_secret_access_key='minio123';
+    SET s3_access_key_id='admin';  -- Replace with your MinIO username
+    SET s3_secret_access_key='YOUR_MINIO_PASSWORD';  -- Get from ./scripts/show-credentials.sh
     SET s3_use_ssl=false;
     SET s3_url_style='path';
 """)
@@ -314,7 +321,7 @@ docker compose up -d
 If you need to manually update the Superset DuckDB connection:
 
 1. Go to **Settings** → **Database Connections**
-2. Edit "DuckDB Lakehouse" 
+2. Edit "DuckDB-S3" 
 3. Ensure **SQLAlchemy URI**: `duckdb:////app/superset_home/lakehouse.duckdb`
 4. **Test Connection** should work immediately
 

@@ -857,7 +857,793 @@ quality_check_task = PythonOperator(
 )
 EOF
 
-    log_success "Enhanced Airflow DAGs created with DuckDB 1.3.0 support"
+    # PostgreSQL Analytics ETL DAG
+    cat <<'EOF' > "$LAKEHOUSE_ROOT/airflow/dags/postgres_analytics_dag.py"
+"""
+PostgreSQL Analytics ETL DAG
+
+This DAG demonstrates how to:
+1. Extract data from DuckDB/S3 sources
+2. Transform the data using Python
+3. Load aggregated results into PostgreSQL analytics tables
+
+Dependencies: psycopg2-binary, duckdb, pandas
+"""
+
+from datetime import datetime, timedelta
+import os
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+import pandas as pd
+import duckdb
+import logging
+
+# DAG configuration
+default_args = {
+    'owner': 'analytics-team',
+    'depends_on_past': False,
+    'start_date': datetime(2024, 1, 1),
+    'email_on_failure': False,
+    'email_on_retry': False,
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
+}
+
+dag = DAG(
+    'postgres_analytics_etl',
+    default_args=default_args,
+    description='ETL pipeline from DuckDB to PostgreSQL analytics',
+    schedule_interval=timedelta(days=1),  # Run daily
+    catchup=False,
+    tags=['analytics', 'postgres', 'etl'],
+)
+
+def get_postgres_connection():
+    """Get PostgreSQL connection string from environment variables"""
+    postgres_user = os.environ.get('POSTGRES_USER', 'postgres')
+    postgres_password = os.environ.get('POSTGRES_PASSWORD')
+    postgres_db = os.environ.get('POSTGRES_DB', 'lakehouse')
+    
+    if not postgres_password:
+        raise ValueError("POSTGRES_PASSWORD environment variable not set")
+    
+    return f"postgresql://{postgres_user}:{postgres_password}@postgres:5432/{postgres_db}"
+
+def setup_duckdb_s3():
+    """Configure DuckDB with S3/MinIO settings"""
+    conn = duckdb.connect(':memory:')
+    
+    # Install and load S3 extension
+    conn.execute('INSTALL httpfs; LOAD httpfs;')
+    
+    # Configure S3 settings
+    minio_user = os.environ.get('MINIO_ROOT_USER', 'admin')
+    minio_password = os.environ.get('MINIO_ROOT_PASSWORD')
+    
+    if not minio_password:
+        raise ValueError("MINIO_ROOT_PASSWORD environment variable not set")
+    
+    conn.execute("SET s3_endpoint='minio:9000';")
+    conn.execute(f"SET s3_access_key_id='{minio_user}';")
+    conn.execute(f"SET s3_secret_access_key='{minio_password}';")
+    conn.execute("SET s3_use_ssl=false;")
+    conn.execute("SET s3_url_style='path';")
+    
+    return conn
+
+def extract_sales_data(**context):
+    """Extract and aggregate sales data from S3 using DuckDB"""
+    logging.info("Starting sales data extraction from S3...")
+    
+    # Get execution date for data partitioning
+    execution_date = context['execution_date']
+    logging.info(f"Processing data for date: {execution_date}")
+    
+    # Setup DuckDB with S3 configuration
+    conn = setup_duckdb_s3()
+    
+    try:
+        # Sample aggregation query - modify based on your data structure
+        query = """
+        SELECT 
+            CURRENT_DATE as processing_date,
+            COALESCE(product_category, 'Unknown') as product_category,
+            COALESCE(customer_region, 'Unknown') as customer_region,
+            COUNT(DISTINCT order_id) as order_count,
+            SUM(COALESCE(total_amount, 0)) as total_revenue,
+            AVG(COALESCE(total_amount, 0)) as avg_order_value,
+            MIN(order_date) as earliest_order,
+            MAX(order_date) as latest_order
+        FROM read_csv_auto(
+            's3://lakehouse/raw-data/sample_orders.csv',
+            ignore_errors=true
+        )
+        WHERE order_date IS NOT NULL
+        GROUP BY product_category, customer_region
+        HAVING COUNT(*) > 0
+        ORDER BY total_revenue DESC
+        """
+        
+        # Execute query and get results
+        result = conn.execute(query).fetchdf()
+        logging.info(f"Extracted {len(result)} rows of aggregated sales data")
+        
+        # Store results for next task
+        result_path = f"/tmp/sales_data_{execution_date.strftime('%Y%m%d')}.parquet"
+        result.to_parquet(result_path, index=False)
+        logging.info(f"Saved extracted data to {result_path}")
+        
+        return result_path
+        
+    except Exception as e:
+        logging.error(f"Error extracting sales data: {str(e)}")
+        raise
+    finally:
+        conn.close()
+
+def transform_sales_data(**context):
+    """Transform the extracted sales data"""
+    logging.info("Starting sales data transformation...")
+    
+    # Get the file path from previous task
+    ti = context['ti']
+    data_path = ti.xcom_pull(task_ids='extract_sales_data')
+    
+    if not data_path:
+        raise ValueError("No data path received from extract task")
+    
+    # Read the data
+    df = pd.read_parquet(data_path)
+    logging.info(f"Loaded {len(df)} rows for transformation")
+    
+    # Apply transformations
+    df['revenue_category'] = df['total_revenue'].apply(
+        lambda x: 'High' if x >= 10000 else 'Medium' if x >= 5000 else 'Low'
+    )
+    
+    # Add calculated metrics
+    df['revenue_per_order'] = df['total_revenue'] / df['order_count'].replace(0, 1)
+    df['orders_per_day'] = df['order_count'] / (
+        (pd.to_datetime(df['latest_order']) - pd.to_datetime(df['earliest_order'])).dt.days + 1
+    )
+    
+    # Round numerical values
+    df['total_revenue'] = df['total_revenue'].round(2)
+    df['avg_order_value'] = df['avg_order_value'].round(2)
+    df['revenue_per_order'] = df['revenue_per_order'].round(2)
+    df['orders_per_day'] = df['orders_per_day'].round(2)
+    
+    logging.info("Applied transformations: revenue_category, revenue_per_order, orders_per_day")
+    
+    # Save transformed data
+    transformed_path = data_path.replace('.parquet', '_transformed.parquet')
+    df.to_parquet(transformed_path, index=False)
+    logging.info(f"Saved transformed data to {transformed_path}")
+    
+    return transformed_path
+
+def load_to_postgres(**context):
+    """Load transformed data into PostgreSQL analytics tables"""
+    logging.info("Starting data load to PostgreSQL...")
+    
+    # Get the transformed data path
+    ti = context['ti']
+    data_path = ti.xcom_pull(task_ids='transform_sales_data')
+    
+    if not data_path:
+        raise ValueError("No data path received from transform task")
+    
+    # Read transformed data
+    df = pd.read_parquet(data_path)
+    logging.info(f"Loading {len(df)} rows to PostgreSQL")
+    
+    # Get PostgreSQL connection
+    postgres_conn_str = get_postgres_connection()
+    
+    try:
+        # Load data to PostgreSQL
+        df.to_sql(
+            name='daily_sales_etl',
+            con=postgres_conn_str,
+            schema='analytics',
+            if_exists='append',
+            index=False,
+            method='multi'  # Use multi-row inserts for better performance
+        )
+        
+        logging.info(f"Successfully loaded {len(df)} rows to analytics.daily_sales_etl")
+        
+        # Clean up temporary files
+        os.remove(data_path)
+        if os.path.exists(data_path.replace('_transformed.parquet', '.parquet')):
+            os.remove(data_path.replace('_transformed.parquet', '.parquet'))
+        logging.info("Cleaned up temporary files")
+        
+    except Exception as e:
+        logging.error(f"Error loading data to PostgreSQL: {str(e)}")
+        raise
+
+def data_quality_check(**context):
+    """Perform data quality checks on loaded data"""
+    logging.info("Starting data quality checks...")
+    
+    postgres_hook = PostgresHook(postgres_conn_id='postgres_default')
+    
+    # Check 1: Row count validation
+    row_count = postgres_hook.get_first(
+        "SELECT COUNT(*) FROM analytics.daily_sales_etl WHERE processing_date = CURRENT_DATE"
+    )[0]
+    
+    if row_count == 0:
+        raise ValueError("No data loaded for today - data quality check failed")
+    
+    logging.info(f"✅ Row count check passed: {row_count} rows loaded today")
+    
+    # Check 2: Revenue validation
+    revenue_check = postgres_hook.get_first("""
+        SELECT 
+            COUNT(*) as total_rows,
+            COUNT(CASE WHEN total_revenue < 0 THEN 1 END) as negative_revenue,
+            COUNT(CASE WHEN total_revenue IS NULL THEN 1 END) as null_revenue
+        FROM analytics.daily_sales_etl 
+        WHERE processing_date = CURRENT_DATE
+    """)
+    
+    total_rows, negative_revenue, null_revenue = revenue_check
+    
+    if negative_revenue > 0:
+        logging.warning(f"⚠️ Found {negative_revenue} rows with negative revenue")
+    
+    if null_revenue > 0:
+        logging.warning(f"⚠️ Found {null_revenue} rows with null revenue")
+    
+    logging.info(f"✅ Revenue validation completed: {total_rows} total rows processed")
+    
+    # Check 3: Category distribution
+    category_dist = postgres_hook.get_records("""
+        SELECT product_category, COUNT(*) as count
+        FROM analytics.daily_sales_etl 
+        WHERE processing_date = CURRENT_DATE
+        GROUP BY product_category
+        ORDER BY count DESC
+    """)
+    
+    logging.info("✅ Product category distribution:")
+    for category, count in category_dist:
+        logging.info(f"   {category}: {count} records")
+    
+    return {
+        'total_rows': total_rows,
+        'categories': len(category_dist),
+        'quality_score': 'PASSED'
+    }
+
+# Task definitions
+create_analytics_table = PostgresOperator(
+    task_id='create_analytics_table',
+    postgres_conn_id='postgres_default',
+    sql="""
+    CREATE SCHEMA IF NOT EXISTS analytics;
+    
+    CREATE TABLE IF NOT EXISTS analytics.daily_sales_etl (
+        id SERIAL PRIMARY KEY,
+        processing_date DATE NOT NULL,
+        product_category VARCHAR(100),
+        customer_region VARCHAR(100),
+        order_count INTEGER DEFAULT 0,
+        total_revenue DECIMAL(12,2) DEFAULT 0.00,
+        avg_order_value DECIMAL(10,2) DEFAULT 0.00,
+        earliest_order DATE,
+        latest_order DATE,
+        revenue_category VARCHAR(20),
+        revenue_per_order DECIMAL(10,2),
+        orders_per_day DECIMAL(8,2),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_daily_sales_etl_date 
+    ON analytics.daily_sales_etl(processing_date);
+    
+    CREATE INDEX IF NOT EXISTS idx_daily_sales_etl_category 
+    ON analytics.daily_sales_etl(product_category);
+    """,
+    dag=dag,
+)
+
+extract_task = PythonOperator(
+    task_id='extract_sales_data',
+    python_callable=extract_sales_data,
+    dag=dag,
+)
+
+transform_task = PythonOperator(
+    task_id='transform_sales_data',
+    python_callable=transform_sales_data,
+    dag=dag,
+)
+
+load_task = PythonOperator(
+    task_id='load_to_postgres',
+    python_callable=load_to_postgres,
+    dag=dag,
+)
+
+quality_check_task = PythonOperator(
+    task_id='data_quality_check',
+    python_callable=data_quality_check,
+    dag=dag,
+)
+
+# Task dependencies
+create_analytics_table >> extract_task >> transform_task >> load_task >> quality_check_task
+EOF
+
+    # PostgreSQL Real-time Analytics DAG
+    cat <<'EOF' > "$LAKEHOUSE_ROOT/airflow/dags/postgres_streaming_dag.py"
+"""
+PostgreSQL Real-time Analytics DAG
+
+This DAG demonstrates how to:
+1. Monitor S3 buckets for new data files
+2. Process incremental data updates
+3. Maintain real-time analytics views in PostgreSQL
+4. Send alerts on data anomalies
+
+Dependencies: psycopg2-binary, duckdb, pandas, boto3
+"""
+
+from datetime import datetime, timedelta
+import os
+import json
+from airflow import DAG
+from airflow.operators.python import PythonOperator, BranchPythonOperator
+from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.operators.dummy import DummyOperator
+from airflow.operators.email import EmailOperator
+from airflow.models import Variable
+import pandas as pd
+import duckdb
+import logging
+
+# DAG configuration
+default_args = {
+    'owner': 'data-engineering',
+    'depends_on_past': False,
+    'start_date': datetime(2024, 1, 1),
+    'email_on_failure': False,
+    'email_on_retry': False,
+    'retries': 2,
+    'retry_delay': timedelta(minutes=2),
+}
+
+dag = DAG(
+    'postgres_streaming_analytics',
+    default_args=default_args,
+    description='Real-time data processing pipeline to PostgreSQL',
+    schedule_interval=timedelta(minutes=15),  # Run every 15 minutes
+    catchup=False,
+    tags=['streaming', 'postgres', 'real-time', 'monitoring'],
+    max_active_runs=1,  # Prevent overlapping runs
+)
+
+def setup_duckdb_s3():
+    """Configure DuckDB with S3/MinIO settings"""
+    conn = duckdb.connect(':memory:')
+    
+    # Install and load S3 extension
+    conn.execute('INSTALL httpfs; LOAD httpfs;')
+    
+    # Configure S3 settings
+    minio_user = os.environ.get('MINIO_ROOT_USER', 'admin')
+    minio_password = os.environ.get('MINIO_ROOT_PASSWORD')
+    
+    if not minio_password:
+        raise ValueError("MINIO_ROOT_PASSWORD environment variable not set")
+    
+    conn.execute("SET s3_endpoint='minio:9000';")
+    conn.execute(f"SET s3_access_key_id='{minio_user}';")
+    conn.execute(f"SET s3_secret_access_key='{minio_password}';")
+    conn.execute("SET s3_use_ssl=false;")
+    conn.execute("SET s3_url_style='path';")
+    
+    return conn
+
+def check_new_data(**context):
+    """Check if there's new data to process"""
+    logging.info("Checking for new data files...")
+    
+    # Get the last processed timestamp from Airflow Variables
+    try:
+        last_processed = Variable.get("last_processed_timestamp", default_var=None)
+        if last_processed:
+            last_processed = datetime.fromisoformat(last_processed)
+        else:
+            # First run - process data from 1 hour ago
+            last_processed = datetime.now() - timedelta(hours=1)
+    except Exception as e:
+        logging.warning(f"Error getting last processed timestamp: {e}")
+        last_processed = datetime.now() - timedelta(hours=1)
+    
+    current_time = context['execution_date']
+    logging.info(f"Last processed: {last_processed}, Current time: {current_time}")
+    
+    # Setup DuckDB connection
+    conn = setup_duckdb_s3()
+    
+    try:
+        # Check for new files in S3 bucket
+        # This is a simplified check - in production, you might use S3 metadata
+        file_check_query = """
+        SELECT COUNT(*) as file_count
+        FROM read_csv_auto(
+            's3://lakehouse/raw-data/*.csv',
+            union_by_name=true,
+            ignore_errors=true
+        )
+        WHERE TRY_CAST(order_date AS DATE) >= CURRENT_DATE - INTERVAL '1 day'
+        """
+        
+        result = conn.execute(file_check_query).fetchone()
+        file_count = result[0] if result else 0
+        
+        logging.info(f"Found {file_count} records in recent files")
+        
+        # Store the check result for the next task
+        context['ti'].xcom_push(key='file_count', value=file_count)
+        context['ti'].xcom_push(key='last_processed', value=last_processed.isoformat())
+        
+        # Decide which branch to take
+        if file_count > 0:
+            return 'process_incremental_data'
+        else:
+            return 'no_new_data'
+            
+    except Exception as e:
+        logging.error(f"Error checking for new data: {str(e)}")
+        # On error, skip processing
+        return 'no_new_data'
+    finally:
+        conn.close()
+
+def process_incremental_data(**context):
+    """Process incremental data updates"""
+    logging.info("Processing incremental data updates...")
+    
+    ti = context['ti']
+    file_count = ti.xcom_pull(key='file_count', task_ids='check_new_data')
+    last_processed = ti.xcom_pull(key='last_processed', task_ids='check_new_data')
+    
+    if not file_count or file_count == 0:
+        logging.info("No new data to process")
+        return
+    
+    # Setup DuckDB connection
+    conn = setup_duckdb_s3()
+    
+    try:
+        # Process incremental data
+        incremental_query = """
+        SELECT 
+            CURRENT_TIMESTAMP as processed_at,
+            CURRENT_DATE as batch_date,
+            product_category,
+            customer_region,
+            COUNT(*) as new_orders,
+            SUM(total_amount) as new_revenue,
+            AVG(total_amount) as avg_new_order_value,
+            MIN(order_date) as earliest_new_order,
+            MAX(order_date) as latest_new_order
+        FROM read_csv_auto(
+            's3://lakehouse/raw-data/*.csv',
+            union_by_name=true,
+            ignore_errors=true
+        )
+        WHERE TRY_CAST(order_date AS DATE) >= CURRENT_DATE - INTERVAL '1 day'
+        AND total_amount IS NOT NULL
+        GROUP BY product_category, customer_region
+        HAVING COUNT(*) > 0
+        ORDER BY new_revenue DESC
+        """
+        
+        df = conn.execute(incremental_query).fetchdf()
+        logging.info(f"Processed {len(df)} incremental data groups")
+        
+        if len(df) == 0:
+            logging.info("No valid incremental data found")
+            return
+        
+        # Calculate some real-time metrics
+        total_new_revenue = df['new_revenue'].sum()
+        total_new_orders = df['new_orders'].sum()
+        avg_order_value = total_new_revenue / total_new_orders if total_new_orders > 0 else 0
+        
+        # Store metrics for anomaly detection
+        metrics = {
+            'total_new_revenue': float(total_new_revenue),
+            'total_new_orders': int(total_new_orders),
+            'avg_order_value': float(avg_order_value),
+            'categories_updated': len(df),
+            'processed_at': datetime.now().isoformat()
+        }
+        
+        # Save incremental data
+        data_path = f"/tmp/incremental_data_{context['execution_date'].strftime('%Y%m%d_%H%M')}.parquet"
+        df.to_parquet(data_path, index=False)
+        
+        # Store results for next tasks
+        ti.xcom_push(key='incremental_data_path', value=data_path)
+        ti.xcom_push(key='metrics', value=metrics)
+        
+        logging.info(f"Incremental processing complete: {metrics}")
+        
+    except Exception as e:
+        logging.error(f"Error processing incremental data: {str(e)}")
+        raise
+    finally:
+        conn.close()
+
+def update_postgres_views(**context):
+    """Update real-time analytics views in PostgreSQL"""
+    logging.info("Updating PostgreSQL real-time views...")
+    
+    ti = context['ti']
+    data_path = ti.xcom_pull(key='incremental_data_path', task_ids='process_incremental_data')
+    
+    if not data_path:
+        logging.info("No incremental data to load")
+        return
+    
+    # Read incremental data
+    df = pd.read_parquet(data_path)
+    logging.info(f"Loading {len(df)} incremental records to PostgreSQL")
+    
+    # Get PostgreSQL connection
+    postgres_user = os.environ.get('POSTGRES_USER', 'postgres')
+    postgres_password = os.environ.get('POSTGRES_PASSWORD')
+    postgres_db = os.environ.get('POSTGRES_DB', 'lakehouse')
+    postgres_conn_str = f"postgresql://{postgres_user}:{postgres_password}@postgres:5432/{postgres_db}"
+    
+    try:
+        # Load incremental data to staging table
+        df.to_sql(
+            name='realtime_sales_staging',
+            con=postgres_conn_str,
+            schema='analytics',
+            if_exists='replace',  # Replace staging data each time
+            index=False,
+            method='multi'
+        )
+        
+        # Update the main real-time table using PostgreSQL hook
+        postgres_hook = PostgresHook(postgres_conn_id='postgres_default')
+        
+        # Upsert data into the main table
+        upsert_sql = """
+        INSERT INTO analytics.realtime_sales (
+            batch_date, product_category, customer_region,
+            new_orders, new_revenue, avg_new_order_value,
+            earliest_new_order, latest_new_order, processed_at
+        )
+        SELECT 
+            batch_date, product_category, customer_region,
+            new_orders, new_revenue, avg_new_order_value,
+            earliest_new_order, latest_new_order, processed_at
+        FROM analytics.realtime_sales_staging
+        ON CONFLICT (batch_date, product_category, customer_region) 
+        DO UPDATE SET
+            new_orders = EXCLUDED.new_orders + realtime_sales.new_orders,
+            new_revenue = EXCLUDED.new_revenue + realtime_sales.new_revenue,
+            avg_new_order_value = (EXCLUDED.new_revenue + realtime_sales.new_revenue) / 
+                                (EXCLUDED.new_orders + realtime_sales.new_orders),
+            latest_new_order = GREATEST(EXCLUDED.latest_new_order, realtime_sales.latest_new_order),
+            processed_at = EXCLUDED.processed_at;
+        """
+        
+        postgres_hook.run(upsert_sql)
+        logging.info("Successfully updated real-time analytics views")
+        
+        # Update the last processed timestamp
+        Variable.set("last_processed_timestamp", datetime.now().isoformat())
+        
+        # Clean up staging file
+        os.remove(data_path)
+        
+    except Exception as e:
+        logging.error(f"Error updating PostgreSQL views: {str(e)}")
+        raise
+
+def detect_anomalies(**context):
+    """Detect anomalies in the real-time data"""
+    logging.info("Running anomaly detection...")
+    
+    ti = context['ti']
+    current_metrics = ti.xcom_pull(key='metrics', task_ids='process_incremental_data')
+    
+    if not current_metrics:
+        logging.info("No metrics available for anomaly detection")
+        return {'anomalies_detected': False}
+    
+    postgres_hook = PostgresHook(postgres_conn_id='postgres_default')
+    
+    # Get historical averages for comparison
+    historical_query = """
+    SELECT 
+        AVG(new_revenue) as avg_revenue,
+        STDDEV(new_revenue) as stddev_revenue,
+        AVG(new_orders) as avg_orders,
+        STDDEV(new_orders) as stddev_orders,
+        AVG(avg_new_order_value) as avg_order_value_hist,
+        STDDEV(avg_new_order_value) as stddev_order_value
+    FROM analytics.realtime_sales
+    WHERE batch_date >= CURRENT_DATE - INTERVAL '30 days'
+    """
+    
+    try:
+        historical_data = postgres_hook.get_first(historical_query)
+        
+        if not historical_data or historical_data[0] is None:
+            logging.info("Insufficient historical data for anomaly detection")
+            return {'anomalies_detected': False}
+        
+        avg_rev, std_rev, avg_orders, std_orders, avg_aov, std_aov = historical_data
+        
+        anomalies = []
+        current_revenue = current_metrics['total_new_revenue']
+        current_orders = current_metrics['total_new_orders']
+        current_aov = current_metrics['avg_order_value']
+        
+        # Revenue anomaly detection (more than 2 standard deviations)
+        if std_rev and abs(current_revenue - avg_rev) > 2 * std_rev:
+            anomaly_type = "HIGH_REVENUE" if current_revenue > avg_rev else "LOW_REVENUE"
+            anomalies.append({
+                'type': anomaly_type,
+                'metric': 'revenue',
+                'current_value': current_revenue,
+                'expected_range': f"{avg_rev - 2*std_rev:.2f} - {avg_rev + 2*std_rev:.2f}",
+                'severity': 'HIGH' if abs(current_revenue - avg_rev) > 3 * std_rev else 'MEDIUM'
+            })
+        
+        if anomalies:
+            logging.warning(f"Detected {len(anomalies)} anomalies: {anomalies}")
+            ti.xcom_push(key='anomalies', value=anomalies)
+            return {'anomalies_detected': True, 'anomaly_count': len(anomalies)}
+        else:
+            logging.info("No anomalies detected - metrics within normal range")
+            return {'anomalies_detected': False}
+            
+    except Exception as e:
+        logging.error(f"Error in anomaly detection: {str(e)}")
+        return {'anomalies_detected': False, 'error': str(e)}
+
+def send_anomaly_alert(**context):
+    """Send alert when anomalies are detected"""
+    logging.info("Preparing anomaly alert...")
+    
+    ti = context['ti']
+    anomalies = ti.xcom_pull(key='anomalies', task_ids='detect_anomalies')
+    
+    if not anomalies:
+        logging.info("No anomalies to report")
+        return
+    
+    # Format alert message
+    alert_message = f"""
+    LAKEHOUSE ANALYTICS ANOMALY ALERT
+    
+    Detected {len(anomalies)} anomalies in real-time data processing:
+    
+    """
+    
+    for anomaly in anomalies:
+        alert_message += f"""
+    🚨 {anomaly['type']} ({anomaly['severity']} severity)
+       Metric: {anomaly['metric']}
+       Current Value: {anomaly['current_value']}
+       Expected Range: {anomaly['expected_range']}
+    """
+    
+    alert_message += f"""
+    
+    Execution Time: {context['execution_date']}
+    DAG: {context['dag'].dag_id}
+    
+    Please investigate the data pipeline and underlying data sources.
+    """
+    
+    logging.warning(f"Anomaly alert prepared: {alert_message}")
+    
+    # In a real implementation, you would send this via email, Slack, PagerDuty, etc.
+    # For now, we'll just log it and store in XCom
+    ti.xcom_push(key='alert_message', value=alert_message)
+
+# Task definitions
+create_realtime_tables = PostgresOperator(
+    task_id='create_realtime_tables',
+    postgres_conn_id='postgres_default',
+    sql="""
+    CREATE SCHEMA IF NOT EXISTS analytics;
+    
+    CREATE TABLE IF NOT EXISTS analytics.realtime_sales (
+        id SERIAL PRIMARY KEY,
+        batch_date DATE NOT NULL,
+        product_category VARCHAR(100) NOT NULL,
+        customer_region VARCHAR(100) NOT NULL,
+        new_orders INTEGER DEFAULT 0,
+        new_revenue DECIMAL(12,2) DEFAULT 0.00,
+        avg_new_order_value DECIMAL(10,2) DEFAULT 0.00,
+        earliest_new_order DATE,
+        latest_new_order DATE,
+        processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(batch_date, product_category, customer_region)
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_realtime_sales_batch_date 
+    ON analytics.realtime_sales(batch_date);
+    
+    CREATE INDEX IF NOT EXISTS idx_realtime_sales_category 
+    ON analytics.realtime_sales(product_category);
+    
+    -- Create a staging table for incremental loads
+    CREATE TABLE IF NOT EXISTS analytics.realtime_sales_staging (
+        batch_date DATE,
+        product_category VARCHAR(100),
+        customer_region VARCHAR(100),
+        new_orders INTEGER,
+        new_revenue DECIMAL(12,2),
+        avg_new_order_value DECIMAL(10,2),
+        earliest_new_order DATE,
+        latest_new_order DATE,
+        processed_at TIMESTAMP
+    );
+    """,
+    dag=dag,
+)
+
+check_data_task = BranchPythonOperator(
+    task_id='check_new_data',
+    python_callable=check_new_data,
+    dag=dag,
+)
+
+no_data_task = DummyOperator(
+    task_id='no_new_data',
+    dag=dag,
+)
+
+process_data_task = PythonOperator(
+    task_id='process_incremental_data',
+    python_callable=process_incremental_data,
+    dag=dag,
+)
+
+update_views_task = PythonOperator(
+    task_id='update_postgres_views',
+    python_callable=update_postgres_views,
+    dag=dag,
+)
+
+anomaly_detection_task = PythonOperator(
+    task_id='detect_anomalies',
+    python_callable=detect_anomalies,
+    dag=dag,
+)
+
+alert_task = PythonOperator(
+    task_id='send_anomaly_alert',
+    python_callable=send_anomaly_alert,
+    dag=dag,
+)
+
+# Task dependencies
+create_realtime_tables >> check_data_task
+check_data_task >> [no_data_task, process_data_task]
+process_data_task >> update_views_task >> anomaly_detection_task >> alert_task
+EOF
+
+    log_success "Enhanced Airflow DAGs created with DuckDB 1.3.0 support and PostgreSQL analytics"
 }
 
 create_airflow_dags
@@ -952,19 +1738,30 @@ create_jupyter_notebooks() {
    "metadata": {},
    "outputs": [],
    "source": [
-    "# Configure MinIO connection\n",
+    "# Configure MinIO connection with automatic credentials\n",
+    "import os\n",
+    "\n",
+    "# Get MinIO credentials from environment\n",
+    "minio_user = os.environ.get('MINIO_ROOT_USER', 'admin')\n",
+    "minio_password = os.environ.get('MINIO_ROOT_PASSWORD', 'changeme')\n",
+    "print(f'Using MinIO credentials for boto3: {minio_user} / {minio_password[:3]}***')\n",
+    "\n",
     "s3_client = boto3.client(\n",
     "    's3',\n",
     "    endpoint_url='http://minio:9000',\n",
-    "    aws_access_key_id='${MINIO_ROOT_USER}',\n",
-    "    aws_secret_access_key='${MINIO_ROOT_PASSWORD}'\n",
+    "    aws_access_key_id=minio_user,\n",
+    "    aws_secret_access_key=minio_password\n",
     ")\n",
     "\n",
     "# List buckets\n",
-    "buckets = s3_client.list_buckets()\n",
-    "print(\"Available buckets:\")\n",
-    "for bucket in buckets['Buckets']:\n",
-    "    print(f\"  - {bucket['Name']}\")"
+    "try:\n",
+    "    buckets = s3_client.list_buckets()\n",
+    "    print(\"Available buckets:\")\n",
+    "    for bucket in buckets['Buckets']:\n",
+    "        print(f\"  - {bucket['Name']}\")\n",
+    "except Exception as e:\n",
+    "    print(f\"Error: {e}\")\n",
+    "    print(\"💡 If this fails, restart Jupyter: 'docker compose restart jupyter'\")"
    ]
   },
   {
@@ -980,19 +1777,25 @@ create_jupyter_notebooks() {
    "metadata": {},
    "outputs": [],
    "source": [
-    "# Connect to DuckDB\n",
+    "# Connect to DuckDB with automatic MinIO credentials\n",
+    "import os\n",
     "conn = duckdb.connect()\n",
     "\n",
+    "# Get MinIO credentials from environment\n",
+    "minio_user = os.environ.get('MINIO_ROOT_USER', 'admin')\n",
+    "minio_password = os.environ.get('MINIO_ROOT_PASSWORD', 'changeme')\n",
+    "print(f'Configuring DuckDB with MinIO credentials: {minio_user} / {minio_password[:3]}***')\n",
+    "\n",
     "# Configure S3 access for DuckDB\n",
-    "conn.execute(\"\"\"\n",
-    "    INSTALL httpfs;\n",
-    "    LOAD httpfs;\n",
-    "    SET s3_endpoint='minio:9000';\n",
-    "    SET s3_access_key_id='${MINIO_ROOT_USER}';\n",
-    "    SET s3_secret_access_key='${MINIO_ROOT_PASSWORD}';\n",
-    "    SET s3_use_ssl=false;\n",
-    "    SET s3_url_style='path';\n",
-    "\"\"\")\n",
+    "conn.execute('INSTALL httpfs')\n",
+    "conn.execute('LOAD httpfs')\n",
+    "conn.execute(\"SET s3_endpoint='minio:9000'\")\n",
+    "conn.execute(f\"SET s3_access_key_id='{minio_user}'\")\n",
+    "conn.execute(f\"SET s3_secret_access_key='{minio_password}'\")\n",
+    "conn.execute(\"SET s3_use_ssl=false\")\n",
+    "conn.execute(\"SET s3_url_style='path'\")\n",
+    "\n",
+    "print('✅ DuckDB S3 configuration completed')\n",
     "\n",
     "print(\"✅ DuckDB 1.3.0 configured for S3 access!\")"
    ]
@@ -1055,13 +1858,19 @@ create_jupyter_notebooks() {
    "metadata": {},
    "outputs": [],
    "source": [
-    "# Create Spark session\n",
-    "# 🔐 Get your MinIO password: Run './scripts/show-credentials.sh' in the lakehouse-lab directory\n",
+    "# Create Spark session with automatic MinIO credentials\n",
+    "import os\n",
+    "\n",
+    "# Automatically get MinIO credentials from environment variables\n",
+    "minio_user = os.environ.get('MINIO_ROOT_USER', 'admin')\n",
+    "minio_password = os.environ.get('MINIO_ROOT_PASSWORD', 'changeme')\n",
+    "print(f'Using MinIO credentials: {minio_user} / {minio_password[:3]}***')\n",
+    "\n",
     "spark = SparkSession.builder \\\n",
     "    .appName(\"Lakehouse Lab\") \\\n",
     "    .config(\"spark.hadoop.fs.s3a.endpoint\", \"http://minio:9000\") \\\n",
-    "    .config(\"spark.hadoop.fs.s3a.access.key\", \"admin\") \\\n",
-    "    .config(\"spark.hadoop.fs.s3a.secret.key\", \"YOUR_MINIO_PASSWORD\") \\\n",
+    "    .config(\"spark.hadoop.fs.s3a.access.key\", minio_user) \\\n",
+    "    .config(\"spark.hadoop.fs.s3a.secret.key\", minio_password) \\\n",
     "    .config(\"spark.hadoop.fs.s3a.path.style.access\", \"true\") \\\n",
     "    .config(\"spark.hadoop.fs.s3a.connection.ssl.enabled\", \"false\") \\\n",
     "    .getOrCreate()\n",
@@ -1169,14 +1978,21 @@ EOF
    "metadata": {},
    "outputs": [],
    "source": [
-    "# Connect to DuckDB and configure S3\n",
+    "# Connect to DuckDB and configure S3 with automatic credentials\n",
+    "import os\n",
+    "\n",
+    "# Automatically get MinIO credentials from environment variables\n",
+    "minio_user = os.environ.get('MINIO_ROOT_USER', 'admin')\n",
+    "minio_password = os.environ.get('MINIO_ROOT_PASSWORD', 'changeme')\n",
+    "print(f'Using MinIO credentials: {minio_user} / {minio_password[:3]}***')\n",
+    "\n",
     "conn = duckdb.connect()\n",
-    "conn.execute(\"\"\"\n",
+    "conn.execute(f\"\"\"\n",
     "    INSTALL httpfs;\n",
     "    LOAD httpfs;\n",
     "    SET s3_endpoint='minio:9000';\n",
-    "    SET s3_access_key_id='${MINIO_ROOT_USER}';\n",
-    "    SET s3_secret_access_key='${MINIO_ROOT_PASSWORD}';\n",
+    "    SET s3_access_key_id='{minio_user}';\n",
+    "    SET s3_secret_access_key='{minio_password}';\n",
     "    SET s3_use_ssl=false;\n",
     "    SET s3_url_style='path';\n",
     "\"\"\")\n",
@@ -1307,9 +2123,15 @@ EOF
    "metadata": {},
    "outputs": [],
    "source": [
-    "# Create Spark session with Iceberg configuration\n",
+    "# Create Spark session with Iceberg configuration and automatic credentials\n",
     "# Note: These configurations should already be set when using docker-compose.iceberg.yml\n",
-    "# 🔐 Get your MinIO password: Run './scripts/show-credentials.sh' in the lakehouse-lab directory\n",
+    "import os\n",
+    "\n",
+    "# Automatically get MinIO credentials from environment variables\n",
+    "minio_user = os.environ.get('MINIO_ROOT_USER', 'admin')\n",
+    "minio_password = os.environ.get('MINIO_ROOT_PASSWORD', 'changeme')\n",
+    "print(f'Using MinIO credentials for Iceberg: {minio_user} / {minio_password[:3]}***')\n",
+    "\n",
     "spark = SparkSession.builder \\\n",
     "    .appName(\"Iceberg Lakehouse Demo\") \\\n",
     "    .config(\"spark.sql.extensions\", \"org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions\") \\\n",
@@ -1319,8 +2141,8 @@ EOF
     "    .config(\"spark.sql.catalog.iceberg.type\", \"hadoop\") \\\n",
     "    .config(\"spark.sql.catalog.iceberg.warehouse\", \"s3a://lakehouse/iceberg-warehouse/\") \\\n",
     "    .config(\"spark.hadoop.fs.s3a.endpoint\", \"http://minio:9000\") \\\n",
-    "    .config(\"spark.hadoop.fs.s3a.access.key\", \"admin\") \\\n",
-    "    .config(\"spark.hadoop.fs.s3a.secret.key\", \"YOUR_MINIO_PASSWORD\") \\\n",
+    "    .config(\"spark.hadoop.fs.s3a.access.key\", minio_user) \\\n",
+    "    .config(\"spark.hadoop.fs.s3a.secret.key\", minio_password) \\\n",
     "    .config(\"spark.hadoop.fs.s3a.path.style.access\", \"true\") \\\n",
     "    .config(\"spark.hadoop.fs.s3a.connection.ssl.enabled\", \"false\") \\\n",
     "    .getOrCreate()\n",
@@ -1741,6 +2563,36 @@ create_sample_data
 create_homer_config() {
     log_info "Creating Homer dashboard configuration..."
     
+    # Check if we need to regenerate Homer config due to IP change
+    local existing_config="$LAKEHOUSE_ROOT/homer/assets/config.yml"
+    local should_regenerate=true
+    
+    if [ -f "$existing_config" ]; then
+        # Check if existing config contains Docker IP addresses (172.x.x.x)
+        if grep -q "172\.[0-9]\+\.[0-9]\+\.[0-9]\+" "$existing_config"; then
+            log_info "Found Docker IPs in existing Homer config - will regenerate"
+            should_regenerate=true
+        elif [ -n "${HOST_IP:-}" ] && [ "$HOST_IP" != "localhost" ]; then
+            # Check if existing config matches current HOST_IP
+            if grep -q "http://$HOST_IP:" "$existing_config"; then
+                log_info "Homer config already uses current HOST_IP ($HOST_IP) - skipping regeneration"
+                should_regenerate=false
+            else
+                log_info "HOST_IP changed - will regenerate Homer config"
+                should_regenerate=true
+            fi
+        else
+            log_info "Using existing Homer configuration"
+            should_regenerate=false
+        fi
+    fi
+    
+    if [ "$should_regenerate" = "false" ]; then
+        return 0
+    fi
+    
+    log_info "Generating new Homer configuration..."
+    
     # Get server IP address - prefer HOST_IP environment variable from host
     local server_ip="$HOST_IP"
     
@@ -1749,32 +2601,65 @@ create_homer_config() {
     else
         log_info "HOST_IP not set or invalid, detecting server IP..."
         # Try multiple methods to get the correct IP from host perspective
+        
+        # Method 1: Use hostname -I (most reliable on Linux) - exclude Docker IPs
         if command -v hostname >/dev/null 2>&1; then
             server_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+            # Check if it's not localhost and not in Docker IP range (172.16-31.x.x)
+            if [ -n "$server_ip" ] && [ "$server_ip" != "127.0.0.1" ] && ! echo "$server_ip" | grep -E '^172\.(1[6-9]|2[0-9]|3[0-1])\.' >/dev/null; then
+                log_info "Detected IP using hostname -I: $server_ip"
+            else
+                server_ip=""
+            fi
         fi
         
-        # Fallback methods if hostname -I doesn't work
+        # Method 2: Use ip route to get the IP used for external connectivity
         if [ -z "$server_ip" ] || [ "$server_ip" = "127.0.0.1" ]; then
-            server_ip=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7}' | head -1)
+            server_ip=$(ip route get 8.8.8.8 2>/dev/null | awk '/src/ {print $7}' | head -1)
+            # Exclude Docker IP ranges
+            if [ -n "$server_ip" ] && [ "$server_ip" != "127.0.0.1" ] && ! echo "$server_ip" | grep -E '^172\.(1[6-9]|2[0-9]|3[0-1])\.' >/dev/null; then
+                log_info "Detected IP using ip route: $server_ip"
+            else
+                server_ip=""
+            fi
         fi
         
-        # Another fallback
+        # Method 3: Get first non-loopback, non-Docker IP from interfaces
         if [ -z "$server_ip" ] || [ "$server_ip" = "127.0.0.1" ]; then
-            server_ip=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d'/' -f1)
+            server_ip=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | grep -v 'docker' | grep -v '172\.1[6-9]\.' | grep -v '172\.2[0-9]\.' | grep -v '172\.3[0-1]\.' | head -1 | awk '{print $2}' | cut -d'/' -f1)
+            if [ -n "$server_ip" ] && [ "$server_ip" != "127.0.0.1" ]; then
+                log_info "Detected IP using ip addr: $server_ip"
+            else
+                server_ip=""
+            fi
+        fi
+        
+        # Method 4: Try using default gateway interface (exclude Docker interfaces)
+        if [ -z "$server_ip" ] || [ "$server_ip" = "127.0.0.1" ]; then
+            local default_interface=$(ip route | grep '^default' | awk '{print $5}' | head -1)
+            # Exclude Docker interfaces (docker*, br-*)
+            if [ -n "$default_interface" ] && ! echo "$default_interface" | grep -E '^(docker|br-)' >/dev/null; then
+                server_ip=$(ip addr show "$default_interface" 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d'/' -f1)
+                if [ -n "$server_ip" ] && [ "$server_ip" != "127.0.0.1" ]; then
+                    log_info "Detected IP using default interface ($default_interface): $server_ip"
+                else
+                    server_ip=""
+                fi
+            fi
         fi
         
         # Final fallback to localhost if we can't detect IP
-        if [ -z "$server_ip" ]; then
+        if [ -z "$server_ip" ] || [ "$server_ip" = "127.0.0.1" ]; then
             server_ip="localhost"
             log_warning "Could not detect server IP, using localhost"
         else
-            log_info "Detected server IP from container: $server_ip (may be Docker internal)"
+            log_info "Using detected server IP: $server_ip"
         fi
     fi
     
     cat > "$LAKEHOUSE_ROOT/homer/assets/config.yml" << EOF
 title: "Lakehouse Lab Dashboard"
-subtitle: "Open Source Data Analytics Stack - Issues #1 & #2 Fixed!"
+subtitle: "Open Source Data Analytics Stack"
 logo: "/logo.png"
 icon: "fas fa-database"
 header: true
@@ -1801,29 +2686,29 @@ message:
   content: "Your lakehouse is ready with all issues resolved:<br />✅ <strong>Issue #1</strong>: Superset S3 configuration now persistent<br />✅ <strong>Issue #2</strong>: Airflow DuckDB imports working<br />🚀 <strong>Latest tech</strong>: DuckDB 1.3.0 + duckdb-engine 0.17.0"
 
 services:
-  - name: "Analytics & BI - ✅ Fixed"
+  - name: "Analytics & BI"
     icon: "fas fa-chart-line"
     items:
-      - name: "Superset (Issue #1 Fixed)"
+      - name: "Superset"
         icon: "fas fa-chart-bar"
-        subtitle: "BI & Visualization - S3 config now persistent!"
+        subtitle: "BI & Visualization"
         tag: "fixed"
         url: "http://${server_ip}:9030"
         target: "_blank"
 
-      - name: "JupyterLab (DuckDB 1.3.0)"
+      - name: "JupyterLab"
         icon: "fas fa-book"
-        subtitle: "Data Science - Latest DuckDB packages installed"
+        subtitle: "Data Science Notebooks"
         tag: "updated"
         url: "http://${server_ip}:9040"
         target: "_blank"
 
-  - name: "Orchestration - ✅ Fixed"
+  - name: "Orchestration"
     icon: "fas fa-cogs"
     items:
-      - name: "Airflow (Issue #2 Fixed)"
+      - name: "Airflow"
         icon: "fas fa-tachometer-alt"
-        subtitle: "Workflow Orchestration - DuckDB imports working!"
+        subtitle: "Workflow Orchestration"
         tag: "fixed"
         url: "http://${server_ip}:9020"
         target: "_blank"
@@ -1967,73 +2852,7 @@ EOF
     
     log_success "Enhanced DuckDB configuration script created for Superset Issue #1 fix"
     
-    # Create Superset database connection programmatically
-    log_info "Setting up Superset database connection with S3 configuration..."
-    
-    cat > "$LAKEHOUSE_ROOT/superset/add_duckdb_connection.py" << 'EOF'
-import os
-import sys
-sys.path.append('/app/superset')
-os.environ.setdefault('SUPERSET_CONFIG_PATH', '/app/superset/superset_config.py')
-
-from superset import db
-from superset.models.core import Database
-from superset.utils.database import get_or_create_db
-import json
-
-try:
-    # Database connection configuration with S3 settings
-    database_config = {
-        "database_name": "DuckDB-S3",
-        "sqlalchemy_uri": "duckdb:////app/superset_home/lakehouse.duckdb",
-        "extra": json.dumps({
-            "engine_params": {
-                "connect_args": {
-                    "preload_extensions": ["httpfs"],
-                    "config": {
-                        "s3_endpoint": "minio:9000",
-                        "s3_access_key_id": "$MINIO_ROOT_USER", 
-                        "s3_secret_access_key": "$MINIO_ROOT_PASSWORD",
-                        "s3_url_style": "path",
-                        "s3_use_ssl": "false"
-                    }
-                }
-            }
-        })
-    }
-    
-    # Check if database already exists
-    existing_db = db.session.query(Database).filter_by(
-        database_name=database_config["database_name"]
-    ).first()
-    
-    if existing_db:
-        # Update existing database with new S3 configuration
-        existing_db.sqlalchemy_uri = database_config["sqlalchemy_uri"]
-        existing_db.extra = database_config["extra"]
-        db.session.commit()
-        print(f"✅ Updated existing database connection: {database_config['database_name']}")
-    else:
-        # Create new database connection
-        new_db = Database(
-            database_name=database_config["database_name"],
-            sqlalchemy_uri=database_config["sqlalchemy_uri"],
-            extra=database_config["extra"]
-        )
-        db.session.add(new_db)
-        db.session.commit()
-        print(f"✅ Created new database connection: {database_config['database_name']}")
-    
-    print("✅ Superset database connection configured with S3 settings")
-    print("📝 Connection name: DuckDB-S3")
-    print("🔗 S3 queries can now be run without manual configuration")
-    
-except Exception as e:
-    print(f"❌ Failed to configure Superset database connection: {e}")
-    print("ℹ️ You can manually create the connection in Superset UI")
-EOF
-
-    log_success "Superset database connection script created"
+    log_info "✅ Superset database connection will be auto-configured via docker-compose"
 }
 
 configure_superset_duckdb
@@ -2086,20 +2905,55 @@ echo ""
 COMPLETION_SERVER_IP="$HOST_IP"
 
 if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "localhost" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
+    log_info "Detecting server IP for completion message..."
+    
+    # Method 1: Use hostname -I (most reliable on Linux) - exclude Docker IPs
     if command -v hostname >/dev/null 2>&1; then
         COMPLETION_SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+        if [ -n "$COMPLETION_SERVER_IP" ] && [ "$COMPLETION_SERVER_IP" != "127.0.0.1" ] && ! echo "$COMPLETION_SERVER_IP" | grep -E '^172\.(1[6-9]|2[0-9]|3[0-1])\.' >/dev/null; then
+            log_info "Completion message using hostname -I: $COMPLETION_SERVER_IP"
+        else
+            COMPLETION_SERVER_IP=""
+        fi
     fi
 
+    # Method 2: Use ip route to get the IP used for external connectivity
     if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
-        COMPLETION_SERVER_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7}' | head -1)
+        COMPLETION_SERVER_IP=$(ip route get 8.8.8.8 2>/dev/null | awk '/src/ {print $7}' | head -1)
+        if [ -n "$COMPLETION_SERVER_IP" ] && [ "$COMPLETION_SERVER_IP" != "127.0.0.1" ] && ! echo "$COMPLETION_SERVER_IP" | grep -E '^172\.(1[6-9]|2[0-9]|3[0-1])\.' >/dev/null; then
+            log_info "Completion message using ip route: $COMPLETION_SERVER_IP"
+        else
+            COMPLETION_SERVER_IP=""
+        fi
     fi
 
+    # Method 3: Get first non-loopback, non-Docker IP from interfaces
     if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
-        COMPLETION_SERVER_IP=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d'/' -f1)
+        COMPLETION_SERVER_IP=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | grep -v 'docker' | grep -v '172\.1[6-9]\.' | grep -v '172\.2[0-9]\.' | grep -v '172\.3[0-1]\.' | head -1 | awk '{print $2}' | cut -d'/' -f1)
+        if [ -n "$COMPLETION_SERVER_IP" ] && [ "$COMPLETION_SERVER_IP" != "127.0.0.1" ]; then
+            log_info "Completion message using ip addr: $COMPLETION_SERVER_IP"
+        else
+            COMPLETION_SERVER_IP=""
+        fi
     fi
 
-    if [ -z "$COMPLETION_SERVER_IP" ]; then
+    # Method 4: Try using default gateway interface (exclude Docker interfaces)
+    if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
+        local default_interface=$(ip route | grep '^default' | awk '{print $5}' | head -1)
+        if [ -n "$default_interface" ] && ! echo "$default_interface" | grep -E '^(docker|br-)' >/dev/null; then
+            COMPLETION_SERVER_IP=$(ip addr show "$default_interface" 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d'/' -f1)
+            if [ -n "$COMPLETION_SERVER_IP" ] && [ "$COMPLETION_SERVER_IP" != "127.0.0.1" ]; then
+                log_info "Completion message using default interface: $COMPLETION_SERVER_IP"
+            else
+                COMPLETION_SERVER_IP=""
+            fi
+        fi
+    fi
+
+    # Final fallback to localhost
+    if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
         COMPLETION_SERVER_IP="localhost"
+        log_warning "Could not detect server IP for completion message, using localhost"
     fi
 fi
 

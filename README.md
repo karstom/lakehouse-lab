@@ -22,6 +22,8 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh
 ```
 
+**⚠️ WSL users:** If Docker is installed during setup, restart your terminal and re-run the installer to complete the process.
+
 That's it! ☕ Grab a coffee while it sets up your entire lakehouse environment.
 
 **For high-performance servers (64GB+ RAM):**
@@ -235,6 +237,39 @@ cp .env.default .env
 docker compose up -d
 ```
 
+### Remote Server Deployment 🌐
+
+When deploying on a remote server, the system automatically detects your server's IP address. For best results, you can explicitly set the HOST_IP:
+
+**Automatic IP Detection (Recommended):**
+```bash
+# The system will automatically detect your server's public IP
+docker compose up -d
+./scripts/show-credentials.sh  # Shows URLs with detected IP
+```
+
+**Manual IP Configuration:**
+```bash
+# Set your server's public/accessible IP address
+export HOST_IP=192.168.1.100  # Replace with your server's IP
+docker compose up -d
+
+# Or add to .env file:
+echo "HOST_IP=192.168.1.100" >> .env
+```
+
+**Examples:**
+- **Local machine**: `HOST_IP=localhost` (auto-detected)
+- **Home server**: `HOST_IP=192.168.1.100` 
+- **Cloud instance**: `HOST_IP=203.0.113.45`
+- **Corporate network**: `HOST_IP=10.0.1.50`
+
+**Important Notes:**
+- 🔥 **Firewall**: Ensure ports 8080, 9001, 9020, 9030, 9040, 9060, 9061 are accessible
+- 🔒 **Security**: Consider using a reverse proxy (nginx/traefik) for production
+- 📋 **Access**: Use `./scripts/show-credentials.sh` to see service URLs with detected IP
+- 🔄 **Homer Update**: If Homer dashboard shows old IPs, restart: `docker compose restart lakehouse-init`
+
 ## 📚 Getting Started Guide
 
 ### 1. **First Steps**
@@ -249,10 +284,11 @@ Sample datasets and notebooks are automatically created:
 **In Superset** (http://localhost:9030):
 ```sql
 -- Configure S3 access (run once per session)
+-- 🔐 First, get your credentials: Run './scripts/show-credentials.sh' to see your MinIO login
 INSTALL httpfs; LOAD httpfs;
 SET s3_endpoint='minio:9000';
-SET s3_access_key_id='minio';
-SET s3_secret_access_key='minio123';
+SET s3_access_key_id='admin';  -- Replace with your actual MinIO username
+SET s3_secret_access_key='YOUR_MINIO_PASSWORD';  -- Replace with your generated password
 SET s3_use_ssl=false;
 SET s3_url_style='path';
 
@@ -280,8 +316,8 @@ import duckdb
 spark = SparkSession.builder \
     .appName("My First Pipeline") \
     .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000") \
-    .config("spark.hadoop.fs.s3a.access.key", "minio") \
-    .config("spark.hadoop.fs.s3a.secret.key", "minio123") \
+    .config("spark.hadoop.fs.s3a.access.key", "admin") \
+    .config("spark.hadoop.fs.s3a.secret.key", "YOUR_MINIO_PASSWORD") \
     .getOrCreate()
 
 # Use DuckDB for fast analytics
@@ -289,8 +325,8 @@ conn = duckdb.connect()
 conn.execute("""
     INSTALL httpfs; LOAD httpfs;
     SET s3_endpoint='minio:9000';
-    SET s3_access_key_id='minio';
-    SET s3_secret_access_key='minio123';
+    SET s3_access_key_id='admin';  -- Replace with your actual credentials
+    SET s3_secret_access_key='YOUR_MINIO_PASSWORD';  -- Get from ./scripts/show-credentials.sh
     SET s3_use_ssl=false;
     SET s3_url_style='path';
 """)
@@ -304,10 +340,11 @@ print(f"Total records: {result[0]}")
 
 ### 5. **Build Dashboards**
 1. Go to Superset: http://localhost:9030
-2. Login with admin/admin  
-3. Add DuckDB database: `duckdb:///:memory:`
-4. Enable DDL operations in database settings
-5. Create charts from your S3 data
+2. **Get credentials**: Run `./scripts/show-credentials.sh` to see your Superset login  
+3. Use the pre-configured **"DuckDB-S3"** database connection (includes S3 access + DML/DDL permissions)
+4. If not visible, refresh the page or see [Superset Database Setup Guide](SUPERSET_DATABASE_SETUP.md)
+5. Create charts from your S3 data using queries like `SELECT * FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv')`
+6. **Bonus**: CREATE TABLE, INSERT, UPDATE, DELETE operations are pre-enabled!
 
 ### 6. **Orchestrate with Airflow**
 1. Visit http://localhost:9020

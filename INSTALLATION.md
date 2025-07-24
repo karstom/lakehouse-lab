@@ -299,7 +299,7 @@ cd lakehouse-lab
 - ☁️ **MinIO**: http://localhost:9001 (file storage)
 - ⚡ **Spark**: http://localhost:8080 (processing)
 
-**Default credentials**: `admin/admin` for most services
+**🔐 Secure Credentials**: Run `./scripts/show-credentials.sh` to see your unique generated passwords
 
 **Next steps:**
 1. 📖 Read `QUICKSTART.md` for tutorials

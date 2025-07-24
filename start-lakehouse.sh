@@ -18,6 +18,54 @@ STARTUP_MODE="${1:-normal}"  # normal, debug, minimal
 MAX_RETRIES=2
 RETRY_COUNT=0
 
+# Function to detect host IP address (runs on HOST, not in container)
+detect_host_ip() {
+    local detected_ip
+    
+    # Prefer HOST_IP environment variable if set and valid
+    if [[ -n "${HOST_IP:-}" && "$HOST_IP" != "localhost" && "$HOST_IP" != "127.0.0.1" ]]; then
+        echo "$HOST_IP"
+        return 0
+    fi
+    
+    # Try to detect from the host system - multiple fallback methods
+    # Method 1: Use hostname -I (most reliable on Linux)
+    if command -v hostname >/dev/null 2>&1; then
+        detected_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+        if [[ -n "$detected_ip" && "$detected_ip" != "127.0.0.1" && ! "$detected_ip" =~ ^172\.(1[6-9]|2[0-9]|3[0-1])\. ]]; then
+            echo "$detected_ip"
+            return 0
+        fi
+    fi
+    
+    # Method 2: Use ip route to get the IP used for external connectivity
+    detected_ip=$(ip route get 8.8.8.8 2>/dev/null | awk '/src/ {print $7}' | head -1)
+    if [[ -n "$detected_ip" && "$detected_ip" != "127.0.0.1" && ! "$detected_ip" =~ ^172\.(1[6-9]|2[0-9]|3[0-1])\. ]]; then
+        echo "$detected_ip"
+        return 0
+    fi
+    
+    # Method 3: Get first non-loopback, non-Docker IP from interfaces
+    detected_ip=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | grep -v 'docker' | grep -v '172\.1[6-9]\.' | grep -v '172\.2[0-9]\.' | grep -v '172\.3[0-1]\.' | head -1 | awk '{print $2}' | cut -d'/' -f1)
+    if [[ -n "$detected_ip" && "$detected_ip" != "127.0.0.1" ]]; then
+        echo "$detected_ip"
+        return 0
+    fi
+    
+    # Method 4: Try using default gateway interface (exclude Docker interfaces)
+    local default_interface=$(ip route | grep '^default' | awk '{print $5}' | head -1)
+    if [[ -n "$default_interface" && "$default_interface" != docker* && "$default_interface" != br-* ]]; then
+        detected_ip=$(ip addr show "$default_interface" 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d'/' -f1)
+        if [[ -n "$detected_ip" && "$detected_ip" != "127.0.0.1" ]]; then
+            echo "$detected_ip"
+            return 0
+        fi
+    fi
+    
+    # Final fallback to localhost
+    echo "localhost"
+}
+
 echo -e "${BLUE}🏠 Lakehouse Lab Startup Script${NC}"
 echo -e "${BLUE}================================${NC}"
 echo ""
@@ -32,6 +80,28 @@ if ! docker compose version &> /dev/null; then
     echo -e "${RED}❌ Docker Compose not found. Please install Docker Compose first.${NC}"
     exit 1
 fi
+
+# Detect and set HOST_IP for service URLs
+echo -e "${YELLOW}🌐 Detecting host IP address...${NC}"
+DETECTED_HOST_IP=$(detect_host_ip)
+
+# Export HOST_IP for Docker Compose and containers to use
+export HOST_IP="$DETECTED_HOST_IP"
+
+if [[ "$HOST_IP" == "localhost" ]]; then
+    echo -e "${YELLOW}   Using localhost - services accessible on this machine only${NC}"
+    echo -e "${BLUE}   Tip: Set HOST_IP environment variable for remote access${NC}"
+else
+    echo -e "${GREEN}   Using detected IP: $HOST_IP${NC}"
+    echo -e "${BLUE}   Services will be accessible remotely at this IP${NC}"
+    
+    # Check if Homer config needs updating (contains Docker IPs)
+    homer_config="${LAKEHOUSE_ROOT:-./lakehouse-data}/homer/assets/config.yml"
+    if [[ -f "$homer_config" ]] && grep -q "172\.[0-9]\+\.[0-9]\+\.[0-9]\+" "$homer_config" 2>/dev/null; then
+        echo -e "${YELLOW}   📋 Note: Homer dashboard will be updated with new IP addresses${NC}"
+    fi
+fi
+echo ""
 
 # Function to check service health
 check_service_health() {
@@ -171,15 +241,15 @@ start_with_dependencies() {
     echo -e "${GREEN}🎉 Lakehouse Lab is ready!${NC}"
     echo ""
     echo -e "${BLUE}Access points:${NC}"
-    echo -e "  🐳 Portainer:         ${GREEN}http://localhost:9060${NC} (container management)"
-    echo -e "  📈 Superset BI:       ${GREEN}http://localhost:9030${NC} (use ./scripts/show-credentials.sh for login)"
-    echo -e "  📋 Airflow:           ${GREEN}http://localhost:9020${NC} (use ./scripts/show-credentials.sh for login)"
-    echo -e "  📓 JupyterLab:        ${GREEN}http://localhost:9040${NC} (use ./scripts/show-credentials.sh for token)"
-    echo -e "  ☁️  MinIO Console:     ${GREEN}http://localhost:9001${NC} (use ./scripts/show-credentials.sh for login)"
-    echo -e "  ⚡ Spark Master:      ${GREEN}http://localhost:8080${NC}"
-    echo -e "  🏠 Service Links:     ${GREEN}http://localhost:9061${NC} (optional Homer)"
+    echo -e "  🐳 Portainer:         ${GREEN}http://${HOST_IP}:9060${NC} (container management)"
+    echo -e "  📈 Superset BI:       ${GREEN}http://${HOST_IP}:9030${NC} (use ./scripts/show-credentials.sh for login)"
+    echo -e "  📋 Airflow:           ${GREEN}http://${HOST_IP}:9020${NC} (use ./scripts/show-credentials.sh for login)"
+    echo -e "  📓 JupyterLab:        ${GREEN}http://${HOST_IP}:9040${NC} (use ./scripts/show-credentials.sh for token)"
+    echo -e "  ☁️  MinIO Console:     ${GREEN}http://${HOST_IP}:9001${NC} (use ./scripts/show-credentials.sh for login)"
+    echo -e "  ⚡ Spark Master:      ${GREEN}http://${HOST_IP}:8080${NC}"
+    echo -e "  🏠 Service Links:     ${GREEN}http://${HOST_IP}:9061${NC} (optional Homer)"
     echo ""
-    echo -e "${YELLOW}💡 Tip: Use Portainer (localhost:9060) for container management and monitoring${NC}"
+    echo -e "${YELLOW}💡 Tip: Use Portainer (${HOST_IP}:9060) for container management and monitoring${NC}"
     echo -e "${YELLOW}⚠️  IMPORTANT: Set up Portainer admin account within 5 minutes or you'll be locked out!${NC}"
     echo -e "${YELLOW}📖 Check QUICKSTART.md for step-by-step usage instructions${NC}"
     echo ""
