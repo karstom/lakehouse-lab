@@ -446,7 +446,10 @@ services:
         sleep 1
         
         echo "Setting up Superset database connection with S3 configuration..."
-        echo "✅ DuckDB connection will be auto-configured on first Superset access"
+        echo "✅ DuckDB-S3 connection will be configured via Superset CLI"
+        
+        # Use Superset CLI to create database connection
+        superset set-database-uri -d "DuckDB-S3" -u "duckdb:////app/superset_home/lakehouse.duckdb" || echo "⚠️ CLI method failed"
         
         echo "Starting Superset webserver..."
         superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger
