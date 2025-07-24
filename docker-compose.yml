@@ -253,9 +253,13 @@ services:
         echo 'export PYSPARK_DRIVER_PYTHON=/opt/conda/bin/python' >> /home/jovyan/.bashrc
         echo 'export PYSPARK_SUBMIT_ARGS=--master spark://spark-master:7077 pyspark-shell' >> /home/jovyan/.bashrc
         
+        # Ensure MinIO credentials are available to jovyan user
+        echo "export MINIO_ROOT_USER='${MINIO_ROOT_USER}'" >> /home/jovyan/.bashrc
+        echo "export MINIO_ROOT_PASSWORD='${MINIO_ROOT_PASSWORD}'" >> /home/jovyan/.bashrc
+        
         echo 'Starting Jupyter...'
         # Use the proper Jupyter startup command with conda environment
-        exec sudo -u jovyan /opt/conda/bin/jupyter lab --NotebookApp.token='${JUPYTER_TOKEN}' --NotebookApp.password='' --NotebookApp.allow_origin='*' --NotebookApp.disable_check_xsrf=True
+        exec sudo -E -u jovyan /opt/conda/bin/jupyter lab --NotebookApp.token='${JUPYTER_TOKEN}' --NotebookApp.password='' --NotebookApp.allow_origin='*' --NotebookApp.disable_check_xsrf=True
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/notebooks:/home/jovyan/notebooks
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/jupyter-config:/home/jovyan/.jupyter
