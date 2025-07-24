@@ -237,6 +237,38 @@ cp .env.default .env
 docker compose up -d
 ```
 
+### Remote Server Deployment 🌐
+
+When deploying on a remote server, the system automatically detects your server's IP address. For best results, you can explicitly set the HOST_IP:
+
+**Automatic IP Detection (Recommended):**
+```bash
+# The system will automatically detect your server's public IP
+docker compose up -d
+./scripts/show-credentials.sh  # Shows URLs with detected IP
+```
+
+**Manual IP Configuration:**
+```bash
+# Set your server's public/accessible IP address
+export HOST_IP=192.168.1.100  # Replace with your server's IP
+docker compose up -d
+
+# Or add to .env file:
+echo "HOST_IP=192.168.1.100" >> .env
+```
+
+**Examples:**
+- **Local machine**: `HOST_IP=localhost` (auto-detected)
+- **Home server**: `HOST_IP=192.168.1.100` 
+- **Cloud instance**: `HOST_IP=203.0.113.45`
+- **Corporate network**: `HOST_IP=10.0.1.50`
+
+**Important Notes:**
+- 🔥 **Firewall**: Ensure ports 8080, 9001, 9020, 9030, 9040, 9060, 9061 are accessible
+- 🔒 **Security**: Consider using a reverse proxy (nginx/traefik) for production
+- 📋 **Access**: Use `./scripts/show-credentials.sh` to see service URLs with detected IP
+
 ## 📚 Getting Started Guide
 
 ### 1. **First Steps**

@@ -2571,26 +2571,59 @@ create_homer_config() {
     else
         log_info "HOST_IP not set or invalid, detecting server IP..."
         # Try multiple methods to get the correct IP from host perspective
+        
+        # Method 1: Use hostname -I (most reliable on Linux) - exclude Docker IPs
         if command -v hostname >/dev/null 2>&1; then
             server_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+            # Check if it's not localhost and not in Docker IP range (172.16-31.x.x)
+            if [ -n "$server_ip" ] && [ "$server_ip" != "127.0.0.1" ] && ! echo "$server_ip" | grep -E '^172\.(1[6-9]|2[0-9]|3[0-1])\.' >/dev/null; then
+                log_info "Detected IP using hostname -I: $server_ip"
+            else
+                server_ip=""
+            fi
         fi
         
-        # Fallback methods if hostname -I doesn't work
+        # Method 2: Use ip route to get the IP used for external connectivity
         if [ -z "$server_ip" ] || [ "$server_ip" = "127.0.0.1" ]; then
-            server_ip=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7}' | head -1)
+            server_ip=$(ip route get 8.8.8.8 2>/dev/null | awk '/src/ {print $7}' | head -1)
+            # Exclude Docker IP ranges
+            if [ -n "$server_ip" ] && [ "$server_ip" != "127.0.0.1" ] && ! echo "$server_ip" | grep -E '^172\.(1[6-9]|2[0-9]|3[0-1])\.' >/dev/null; then
+                log_info "Detected IP using ip route: $server_ip"
+            else
+                server_ip=""
+            fi
         fi
         
-        # Another fallback
+        # Method 3: Get first non-loopback, non-Docker IP from interfaces
         if [ -z "$server_ip" ] || [ "$server_ip" = "127.0.0.1" ]; then
-            server_ip=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d'/' -f1)
+            server_ip=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | grep -v 'docker' | grep -v '172\.1[6-9]\.' | grep -v '172\.2[0-9]\.' | grep -v '172\.3[0-1]\.' | head -1 | awk '{print $2}' | cut -d'/' -f1)
+            if [ -n "$server_ip" ] && [ "$server_ip" != "127.0.0.1" ]; then
+                log_info "Detected IP using ip addr: $server_ip"
+            else
+                server_ip=""
+            fi
+        fi
+        
+        # Method 4: Try using default gateway interface (exclude Docker interfaces)
+        if [ -z "$server_ip" ] || [ "$server_ip" = "127.0.0.1" ]; then
+            local default_interface=$(ip route | grep '^default' | awk '{print $5}' | head -1)
+            # Exclude Docker interfaces (docker*, br-*)
+            if [ -n "$default_interface" ] && ! echo "$default_interface" | grep -E '^(docker|br-)' >/dev/null; then
+                server_ip=$(ip addr show "$default_interface" 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d'/' -f1)
+                if [ -n "$server_ip" ] && [ "$server_ip" != "127.0.0.1" ]; then
+                    log_info "Detected IP using default interface ($default_interface): $server_ip"
+                else
+                    server_ip=""
+                fi
+            fi
         fi
         
         # Final fallback to localhost if we can't detect IP
-        if [ -z "$server_ip" ]; then
+        if [ -z "$server_ip" ] || [ "$server_ip" = "127.0.0.1" ]; then
             server_ip="localhost"
             log_warning "Could not detect server IP, using localhost"
         else
-            log_info "Detected server IP from container: $server_ip (may be Docker internal)"
+            log_info "Using detected server IP: $server_ip"
         fi
     fi
     
@@ -2842,20 +2875,55 @@ echo ""
 COMPLETION_SERVER_IP="$HOST_IP"
 
 if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "localhost" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
+    log_info "Detecting server IP for completion message..."
+    
+    # Method 1: Use hostname -I (most reliable on Linux) - exclude Docker IPs
     if command -v hostname >/dev/null 2>&1; then
         COMPLETION_SERVER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+        if [ -n "$COMPLETION_SERVER_IP" ] && [ "$COMPLETION_SERVER_IP" != "127.0.0.1" ] && ! echo "$COMPLETION_SERVER_IP" | grep -E '^172\.(1[6-9]|2[0-9]|3[0-1])\.' >/dev/null; then
+            log_info "Completion message using hostname -I: $COMPLETION_SERVER_IP"
+        else
+            COMPLETION_SERVER_IP=""
+        fi
     fi
 
+    # Method 2: Use ip route to get the IP used for external connectivity
     if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
-        COMPLETION_SERVER_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{print $7}' | head -1)
+        COMPLETION_SERVER_IP=$(ip route get 8.8.8.8 2>/dev/null | awk '/src/ {print $7}' | head -1)
+        if [ -n "$COMPLETION_SERVER_IP" ] && [ "$COMPLETION_SERVER_IP" != "127.0.0.1" ] && ! echo "$COMPLETION_SERVER_IP" | grep -E '^172\.(1[6-9]|2[0-9]|3[0-1])\.' >/dev/null; then
+            log_info "Completion message using ip route: $COMPLETION_SERVER_IP"
+        else
+            COMPLETION_SERVER_IP=""
+        fi
     fi
 
+    # Method 3: Get first non-loopback, non-Docker IP from interfaces
     if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
-        COMPLETION_SERVER_IP=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | head -1 | awk '{print $2}' | cut -d'/' -f1)
+        COMPLETION_SERVER_IP=$(ip addr show | grep 'inet ' | grep -v '127.0.0.1' | grep -v 'docker' | grep -v '172\.1[6-9]\.' | grep -v '172\.2[0-9]\.' | grep -v '172\.3[0-1]\.' | head -1 | awk '{print $2}' | cut -d'/' -f1)
+        if [ -n "$COMPLETION_SERVER_IP" ] && [ "$COMPLETION_SERVER_IP" != "127.0.0.1" ]; then
+            log_info "Completion message using ip addr: $COMPLETION_SERVER_IP"
+        else
+            COMPLETION_SERVER_IP=""
+        fi
     fi
 
-    if [ -z "$COMPLETION_SERVER_IP" ]; then
+    # Method 4: Try using default gateway interface (exclude Docker interfaces)
+    if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
+        local default_interface=$(ip route | grep '^default' | awk '{print $5}' | head -1)
+        if [ -n "$default_interface" ] && ! echo "$default_interface" | grep -E '^(docker|br-)' >/dev/null; then
+            COMPLETION_SERVER_IP=$(ip addr show "$default_interface" 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d'/' -f1)
+            if [ -n "$COMPLETION_SERVER_IP" ] && [ "$COMPLETION_SERVER_IP" != "127.0.0.1" ]; then
+                log_info "Completion message using default interface: $COMPLETION_SERVER_IP"
+            else
+                COMPLETION_SERVER_IP=""
+            fi
+        fi
+    fi
+
+    # Final fallback to localhost
+    if [ -z "$COMPLETION_SERVER_IP" ] || [ "$COMPLETION_SERVER_IP" = "127.0.0.1" ]; then
         COMPLETION_SERVER_IP="localhost"
+        log_warning "Could not detect server IP for completion message, using localhost"
     fi
 fi
 
