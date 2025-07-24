@@ -22,6 +22,8 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh
 ```
 
+**⚠️ WSL users:** If Docker is installed during setup, restart your terminal and re-run the installer to complete the process.
+
 That's it! ☕ Grab a coffee while it sets up your entire lakehouse environment.
 
 **For high-performance servers (64GB+ RAM):**
