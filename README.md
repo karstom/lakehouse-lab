@@ -133,11 +133,13 @@ graph TB
     
     subgraph "Storage Layer"
         MI[MinIO<br/>S3-Compatible<br/>Object Storage]
+        PG[PostgreSQL<br/>Analytics Database]
     end
     
     subgraph "Query Engine"
-        DU[DuckDB + S3<br/>Fast Analytics]
+        DU[DuckDB + S3<br/>Data Lake Analytics]
         SS[Spark SQL<br/>Distributed Queries]
+        PA[PostgreSQL<br/>Structured Analytics]
     end
     
     subgraph "Visualization"
@@ -155,27 +157,35 @@ graph TB
     AF --> SP
     AF --> JU
     SP --> MI
+    SP --> PG
     JU --> MI
+    JU --> PG
     MI --> DU
     MI --> SS
+    PG --> PA
     DU --> SU
     DU --> JD
     SS --> SU
     SS --> JD
+    PA --> SU
+    PA --> JD
+    DU --> PG
     PO -.-> AF
     PO -.-> SP
     PO -.-> JU
     PO -.-> MI
+    PO -.-> PG
     
     classDef storage fill:#e1f5fe
     classDef processing fill:#f3e5f5
     classDef visualization fill:#e8f5e8
     classDef management fill:#fff3e0
     
-    class MI storage
+    class MI,PG storage
     class AF,SP,JU processing
     class SU,JD visualization
     class PO management
+    class DU,SS,PA storage
 ```
 
 ### **Component Overview**
@@ -184,8 +194,8 @@ graph TB
 |-----------|----------------|-------------|
 | **Data Sources** | CSV Files, APIs, Databases | Raw data ingestion from various sources |
 | **Processing** | Apache Airflow, Apache Spark, Jupyter | ETL workflows, distributed processing, analysis |
-| **Storage** | MinIO (S3-compatible) | Object storage with multi-format support |
-| **Query Engine** | DuckDB + S3, Spark SQL | Fast analytics directly on S3 data |
+| **Storage** | MinIO (S3-compatible), PostgreSQL | Object storage + analytics database |
+| **Query Engine** | DuckDB + S3, Spark SQL, PostgreSQL | Data lake analytics + structured queries |
 | **Visualization** | Apache Superset, Jupyter | BI dashboards and interactive analysis |
 | **Management** | Portainer, Docker Compose | Container orchestration and monitoring |
 
@@ -193,14 +203,19 @@ graph TB
 
 1. **Ingest** → Upload data files to MinIO or connect external sources
 2. **Process** → Transform data using Spark jobs orchestrated by Airflow  
-3. **Store** → Save processed data back to MinIO in analytics-ready formats
-4. **Analyze** → Query data directly with DuckDB or Spark SQL
-5. **Visualize** → Create dashboards in Superset or notebooks in Jupyter
+3. **Store** → Save processed data to MinIO (data lake) and PostgreSQL (analytics warehouse)
+4. **Analyze** → Query data with DuckDB (data lake), PostgreSQL (structured), or Spark SQL (distributed)
+5. **Visualize** → Create dashboards in Superset or notebooks in Jupyter from both data sources
 6. **Monitor** → Manage and monitor all services through Portainer
+
+**Dual Analytics Approach:**
+- **Data Lake (DuckDB + MinIO)**: Direct file queries, multi-format support, schema-on-read
+- **Data Warehouse (PostgreSQL)**: Structured analytics, ACID transactions, optimized performance
 
 ### **Key Architectural Benefits**
 
 - **🚀 S3-Native Analytics**: Query files directly without data movement
+- **🏗️ Dual Analytics**: Data lake (DuckDB) + warehouse (PostgreSQL) for different use cases
 - **📊 Multi-Format Support**: CSV, Parquet, JSON, and more
 - **🔄 Scalable Processing**: Spark scales from single machine to cluster
 - **🎯 Modern Lakehouse**: Combines data lake flexibility with warehouse performance
