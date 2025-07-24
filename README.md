@@ -38,7 +38,7 @@ cd lakehouse-lab
 docker compose up -d
 ```
 
-Wait 3-5 minutes for initialization, then visit: **http://localhost:9060** (Portainer)
+Wait 3-5 minutes for initialization, then run `./scripts/show-credentials.sh` to see all service URLs with your detected IP address.
 
 ## 🔄 Upgrading Existing Installation
 
@@ -67,13 +67,16 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 
 | Service | Purpose | URL | Credentials |
 |---------|---------|-----|-------------|
-| **Portainer** | Container Management | http://localhost:9060 | Create admin user |
-| **Superset** | BI & Visualization | http://localhost:9030 | 🔐 Generated securely |
-| **JupyterLab** | Data Science Notebooks | http://localhost:9040 | 🔐 Generated securely |
-| **Airflow** | Workflow Orchestration | http://localhost:9020 | 🔐 Generated securely |
-| **MinIO Console** | Object Storage | http://localhost:9001 | 🔐 Generated securely |
-| **Spark Master** | Distributed Computing | http://localhost:8080 | N/A |
-| **Homer** | Service Links (Optional) | http://localhost:9061 | N/A |
+| **Portainer** | Container Management | Auto-detected IP:9060 | Create admin user |
+| **Superset** | BI & Visualization | Auto-detected IP:9030 | 🔐 Generated securely |
+| **JupyterLab** | Data Science Notebooks | Auto-detected IP:9040 | 🔐 Generated securely |
+| **Airflow** | Workflow Orchestration | Auto-detected IP:9020 | 🔐 Generated securely |
+| **MinIO Console** | Object Storage | Auto-detected IP:9001 | 🔐 Generated securely |
+| **Spark Master** | Distributed Computing | Auto-detected IP:8080 | N/A |
+| **Homer** | Service Links (Optional) | Auto-detected IP:9061 | N/A |
+| **PostgreSQL** | Analytics Database | Auto-detected IP:5432 | 🔐 Generated securely |
+
+📋 **Get exact URLs**: Run `./scripts/show-credentials.sh` to see service URLs with your detected IP address.
 
 ## 🔒 Secure Credential Management
 
@@ -130,11 +133,13 @@ graph TB
     
     subgraph "Storage Layer"
         MI[MinIO<br/>S3-Compatible<br/>Object Storage]
+        PG[PostgreSQL<br/>Analytics Database]
     end
     
     subgraph "Query Engine"
-        DU[DuckDB + S3<br/>Fast Analytics]
+        DU[DuckDB + S3<br/>Data Lake Analytics]
         SS[Spark SQL<br/>Distributed Queries]
+        PA[PostgreSQL<br/>Structured Analytics]
     end
     
     subgraph "Visualization"
@@ -152,27 +157,35 @@ graph TB
     AF --> SP
     AF --> JU
     SP --> MI
+    SP --> PG
     JU --> MI
+    JU --> PG
     MI --> DU
     MI --> SS
+    PG --> PA
     DU --> SU
     DU --> JD
     SS --> SU
     SS --> JD
+    PA --> SU
+    PA --> JD
+    DU --> PG
     PO -.-> AF
     PO -.-> SP
     PO -.-> JU
     PO -.-> MI
+    PO -.-> PG
     
     classDef storage fill:#e1f5fe
     classDef processing fill:#f3e5f5
     classDef visualization fill:#e8f5e8
     classDef management fill:#fff3e0
     
-    class MI storage
+    class MI,PG storage
     class AF,SP,JU processing
     class SU,JD visualization
     class PO management
+    class DU,SS,PA storage
 ```
 
 ### **Component Overview**
@@ -181,8 +194,8 @@ graph TB
 |-----------|----------------|-------------|
 | **Data Sources** | CSV Files, APIs, Databases | Raw data ingestion from various sources |
 | **Processing** | Apache Airflow, Apache Spark, Jupyter | ETL workflows, distributed processing, analysis |
-| **Storage** | MinIO (S3-compatible) | Object storage with multi-format support |
-| **Query Engine** | DuckDB + S3, Spark SQL | Fast analytics directly on S3 data |
+| **Storage** | MinIO (S3-compatible), PostgreSQL | Object storage + analytics database |
+| **Query Engine** | DuckDB + S3, Spark SQL, PostgreSQL | Data lake analytics + structured queries |
 | **Visualization** | Apache Superset, Jupyter | BI dashboards and interactive analysis |
 | **Management** | Portainer, Docker Compose | Container orchestration and monitoring |
 
@@ -190,14 +203,19 @@ graph TB
 
 1. **Ingest** → Upload data files to MinIO or connect external sources
 2. **Process** → Transform data using Spark jobs orchestrated by Airflow  
-3. **Store** → Save processed data back to MinIO in analytics-ready formats
-4. **Analyze** → Query data directly with DuckDB or Spark SQL
-5. **Visualize** → Create dashboards in Superset or notebooks in Jupyter
+3. **Store** → Save processed data to MinIO (data lake) and PostgreSQL (analytics warehouse)
+4. **Analyze** → Query data with DuckDB (data lake), PostgreSQL (structured), or Spark SQL (distributed)
+5. **Visualize** → Create dashboards in Superset or notebooks in Jupyter from both data sources
 6. **Monitor** → Manage and monitor all services through Portainer
+
+**Dual Analytics Approach:**
+- **Data Lake (DuckDB + MinIO)**: Direct file queries, multi-format support, schema-on-read
+- **Data Warehouse (PostgreSQL)**: Structured analytics, ACID transactions, optimized performance
 
 ### **Key Architectural Benefits**
 
 - **🚀 S3-Native Analytics**: Query files directly without data movement
+- **🏗️ Dual Analytics**: Data lake (DuckDB) + warehouse (PostgreSQL) for different use cases
 - **📊 Multi-Format Support**: CSV, Parquet, JSON, and more
 - **🔄 Scalable Processing**: Spark scales from single machine to cluster
 - **🎯 Modern Lakehouse**: Combines data lake flexibility with warehouse performance
@@ -273,83 +291,131 @@ echo "HOST_IP=192.168.1.100" >> .env
 ## 📚 Getting Started Guide
 
 ### 1. **First Steps**
-After startup, visit Portainer at http://localhost:9060 to monitor all services.
+After startup, run `./scripts/show-credentials.sh` to see all service URLs and credentials, then visit Portainer for container monitoring.
 
 ### 2. **Load Sample Data**
 Sample datasets and notebooks are automatically created:
 - Check `/notebooks/` for Jupyter examples
 - MinIO contains sample CSV files in `lakehouse/raw-data/`
 
-### 3. **Query Data with DuckDB + S3**
-**In Superset** (http://localhost:9030):
-```sql
--- Configure S3 access (run once per session)
--- 🔐 First, get your credentials: Run './scripts/show-credentials.sh' to see your MinIO login
-INSTALL httpfs; LOAD httpfs;
-SET s3_endpoint='minio:9000';
-SET s3_access_key_id='admin';  -- Replace with your actual MinIO username
-SET s3_secret_access_key='YOUR_MINIO_PASSWORD';  -- Replace with your generated password
-SET s3_use_ssl=false;
-SET s3_url_style='path';
+### 3. **Query Data with DuckDB + S3 (Persistent Setup)**
+**In Superset** - Get your service URL from `./scripts/show-credentials.sh`:
 
--- Query sample data
-SELECT * FROM read_csv_auto('s3a://lakehouse/raw-data/sample_orders.csv')
-LIMIT 10;
+**Step 1: One-time S3 configuration (creates persistent secret):**
+```sql
+-- 🔐 Get your MinIO password: Run './scripts/show-credentials.sh'
+CREATE PERSISTENT SECRET minio_secret (
+    TYPE S3,
+    KEY_ID 'admin',
+    SECRET 'YOUR_MINIO_PASSWORD',  -- Replace with your actual password
+    ENDPOINT 'minio:9000',
+    USE_SSL false,
+    URL_STYLE 'path',
+    SCOPE 's3://lakehouse'
+);
+```
+
+**Step 2: Query data (no setup needed after Step 1):**
+```sql
+-- Query sample data - works immediately
+SELECT * FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv') LIMIT 10;
 
 -- Multi-file analytics
 SELECT 
     product_category,
     COUNT(*) as orders,
     SUM(total_amount) as revenue
-FROM read_csv_auto('s3a://lakehouse/raw-data/sample_orders.csv')
+FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv')
 GROUP BY product_category
 ORDER BY revenue DESC;
+
+-- Multi-file queries across all CSVs
+SELECT COUNT(*) as total_records 
+FROM read_csv_auto('s3://lakehouse/raw-data/*.csv', union_by_name=true);
 ```
 
+🎉 **The persistent secret survives sessions, logins, and container restarts!**
+
 ### 4. **Create Your First Pipeline**
-**In JupyterLab** (http://localhost:9040):
+**In JupyterLab** - Get your service URL from `./scripts/show-credentials.sh`:
+
+**DuckDB Analytics:**
 ```python
-from pyspark.sql import SparkSession
 import duckdb
 
-# Initialize Spark
-spark = SparkSession.builder \
-    .appName("My First Pipeline") \
-    .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000") \
-    .config("spark.hadoop.fs.s3a.access.key", "admin") \
-    .config("spark.hadoop.fs.s3a.secret.key", "YOUR_MINIO_PASSWORD") \
-    .getOrCreate()
+# Connect to DuckDB (persistent secret already configured)
+conn = duckdb.connect("/app/superset_home/lakehouse.duckdb")
 
-# Use DuckDB for fast analytics
-conn = duckdb.connect()
-conn.execute("""
-    INSTALL httpfs; LOAD httpfs;
-    SET s3_endpoint='minio:9000';
-    SET s3_access_key_id='admin';  -- Replace with your actual credentials
-    SET s3_secret_access_key='YOUR_MINIO_PASSWORD';  -- Get from ./scripts/show-credentials.sh
-    SET s3_use_ssl=false;
-    SET s3_url_style='path';
-""")
-
-# Query your data lake
+# Query your data lake directly (no setup needed if secret exists)
 result = conn.execute("""
-    SELECT COUNT(*) FROM read_csv_auto('s3a://lakehouse/raw-data/*.csv')
+    SELECT COUNT(*) as total_records 
+    FROM read_csv_auto('s3://lakehouse/raw-data/*.csv', union_by_name=true)
 """).fetchone()
 print(f"Total records: {result[0]}")
+
+# Advanced analytics
+analytics = conn.execute("""
+    SELECT 
+        product_category,
+        COUNT(*) as orders,
+        SUM(total_amount) as revenue,
+        AVG(total_amount) as avg_order_value
+    FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv')
+    GROUP BY product_category
+    ORDER BY revenue DESC
+""").fetchall()
+
+for row in analytics:
+    print(f"Category: {row[0]}, Orders: {row[1]}, Revenue: ${row[2]:.2f}")
+```
+
+**PostgreSQL Analytics:**
+```python
+import psycopg2
+import pandas as pd
+
+# Connect to PostgreSQL analytics database  
+# Get password from: ./scripts/show-credentials.sh
+conn = psycopg2.connect(
+    host="postgres", 
+    database="lakehouse",
+    user="postgres", 
+    password="YOUR_POSTGRES_PASSWORD"
+)
+
+# Run analytical queries
+df = pd.read_sql("""
+    SELECT 
+        order_date,
+        SUM(total_revenue) as daily_revenue,
+        COUNT(*) as daily_orders
+    FROM analytics.order_facts 
+    WHERE order_date >= CURRENT_DATE - INTERVAL '30 days'
+    GROUP BY order_date 
+    ORDER BY order_date
+""", conn)
+
+print(df.head())
 ```
 
 ### 5. **Build Dashboards**
-1. Go to Superset: http://localhost:9030
-2. **Get credentials**: Run `./scripts/show-credentials.sh` to see your Superset login  
-3. Use the pre-configured **"DuckDB-S3"** database connection (includes S3 access + DML/DDL permissions)
-4. If not visible, refresh the page or see [Superset Database Setup Guide](SUPERSET_DATABASE_SETUP.md)
-5. Create charts from your S3 data using queries like `SELECT * FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv')`
-6. **Bonus**: CREATE TABLE, INSERT, UPDATE, DELETE operations are pre-enabled!
+1. **Get Superset URL**: Run `./scripts/show-credentials.sh` to see your service URLs and login credentials
+2. **Choose your database connection:**
+   - **"DuckDB-S3"** - For data lake queries with persistent S3 access
+   - **"PostgreSQL Analytics"** - For structured analytics and real-time dashboards  
+3. **Create charts** with simple queries:
+   - **DuckDB**: `SELECT * FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv')`
+   - **PostgreSQL**: `SELECT * FROM analytics.order_facts WHERE order_date >= CURRENT_DATE - 7`
+4. **Advanced features**: Both connections support CREATE, INSERT, UPDATE, DELETE operations
+5. See the [Superset Database Setup Guide](SUPERSET_DATABASE_SETUP.md) for detailed configuration
 
 ### 6. **Orchestrate with Airflow**
-1. Visit http://localhost:9020
-2. Check the sample DAGs: `sample_duckdb_pipeline`
-3. Enable and trigger workflows
+1. **Get Airflow URL**: Run `./scripts/show-credentials.sh` to see your service URLs and login credentials
+2. **Available DAGs:**
+   - **`sample_duckdb_pipeline`** - DuckDB ETL pipeline with S3 data processing
+   - **`postgres_analytics_etl`** - ETL pipeline from DuckDB to PostgreSQL analytics
+   - **`postgres_streaming_analytics`** - Real-time data processing with anomaly detection
+3. **Getting started:** Enable and trigger the `sample_duckdb_pipeline` DAG to see DuckDB in action
 
 ## 🗂️ Project Structure
 
@@ -376,16 +442,29 @@ lakehouse-lab/
 
 ### Multi-File Analytics with DuckDB
 ```sql
--- Query all CSV files in a directory
-SELECT * FROM read_csv_auto('s3a://lakehouse/raw-data/*.csv', union_by_name=true);
+-- Query all CSV files in a directory (after persistent secret setup)
+SELECT * FROM read_csv_auto('s3://lakehouse/raw-data/*.csv', union_by_name=true);
 
--- Cross-format queries
-SELECT * FROM read_parquet('s3a://lakehouse/warehouse/*.parquet')
+-- Cross-format queries  
+SELECT * FROM read_parquet('s3://lakehouse/warehouse/*.parquet')
 UNION ALL
-SELECT * FROM read_csv_auto('s3a://lakehouse/raw-data/*.csv');
+SELECT * FROM read_csv_auto('s3://lakehouse/raw-data/*.csv');
 
 -- Partitioned data analysis
-SELECT * FROM read_csv_auto('s3a://lakehouse/data/year=2024/month=*/day=*/*.csv');
+SELECT * FROM read_csv_auto('s3://lakehouse/data/year=2024/month=*/day=*/*.csv');
+
+-- Advanced analytics with window functions
+SELECT 
+    product_category,
+    order_date,
+    total_amount,
+    AVG(total_amount) OVER (
+        PARTITION BY product_category 
+        ORDER BY order_date 
+        ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+    ) as moving_avg_7day
+FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv')
+ORDER BY product_category, order_date;
 ```
 
 ### Adding New Data Sources
@@ -446,14 +525,23 @@ docker compose restart
 ```
 
 ### DuckDB S3 Connection Issues
-```bash
-# Test S3 configuration in Superset
-INSTALL httpfs; LOAD httpfs;
-SET s3_endpoint='minio:9000';
-# ... (full config from quickstart)
+```sql
+-- Check if persistent secret exists
+SELECT * FROM duckdb_secrets();
 
-# Verify MinIO connectivity
-SELECT 1 as test;  -- Should work if DuckDB is connected
+-- If no secret, create one (get password from ./scripts/show-credentials.sh)
+CREATE PERSISTENT SECRET minio_secret (
+    TYPE S3,
+    KEY_ID 'admin',
+    SECRET 'YOUR_MINIO_PASSWORD',
+    ENDPOINT 'minio:9000',
+    USE_SSL false,
+    URL_STYLE 'path',
+    SCOPE 's3://lakehouse'
+);
+
+-- Test connectivity
+SELECT COUNT(*) FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv');
 ```
 
 ### Memory Issues
@@ -475,11 +563,14 @@ ports:
 
 ### Data Access Issues
 ```bash
-# Test MinIO access
-curl http://localhost:9001
+# Test MinIO access (get URL from ./scripts/show-credentials.sh)
+curl http://YOUR_IP:9001
 
 # Check file permissions
 ls -la lakehouse-data/
+
+# Test PostgreSQL connection
+docker exec lakehouse-lab-postgres-1 psql -U postgres -d lakehouse -c "SELECT version();"
 
 # Reset all data (WARNING: Destroys everything)
 docker compose down -v
@@ -502,6 +593,7 @@ MIT License - see LICENSE file for details.
 
 Built with these amazing open source projects:
 - [DuckDB](https://duckdb.org/) - Fast analytical database with S3 support
+- [PostgreSQL](https://www.postgresql.org/) - Advanced open source relational database
 - [Apache Spark](https://spark.apache.org/) - Unified analytics engine
 - [Apache Airflow](https://airflow.apache.org/) - Workflow orchestration
 - [Apache Superset](https://superset.apache.org/) - Modern BI platform
