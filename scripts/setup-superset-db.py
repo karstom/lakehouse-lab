@@ -11,14 +11,17 @@ sys.path.append('/app/superset')
 os.environ.setdefault('SUPERSET_CONFIG_PATH', '/app/superset/superset_config.py')
 
 try:
-    from superset import create_app
-    from superset import db
-    from superset.models.core import Database
-    
     print("🔧 Setting up DuckDB-S3 database connection...")
     
+    # Import and create app first
+    from superset import create_app
     app = create_app()
+    
+    # Import models inside application context
     with app.app_context():
+        from superset import db
+        from superset.models.core import Database
+        
         # Database connection configuration
         database_config = {
             "database_name": "DuckDB-S3",
