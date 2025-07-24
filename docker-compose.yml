@@ -397,58 +397,7 @@ services:
         # Small delay to ensure database is fully initialized
         sleep 2
         
-        echo "Configuring DuckDB with S3 settings..."
-        python3 << 'EOF'
-        import duckdb
-        import os
-        
-        # Ensure directory exists
-        os.makedirs('/app/superset_home', exist_ok=True)
-        
-        # Create and configure DuckDB connection
-        conn = duckdb.connect('/app/superset_home/lakehouse.duckdb')
-        conn.execute('INSTALL httpfs; LOAD httpfs;')
-        conn.execute("SET s3_endpoint='minio:9000';")
-        conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'minio')}';"  )
-        conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'minio123')}';")
-        conn.execute("SET s3_use_ssl=false;")
-        conn.execute("SET s3_url_style='path';")
-        
-        # Persist S3 settings for session consistency
-        try:
-            conn.execute("CREATE SCHEMA IF NOT EXISTS config;")
-            conn.execute("""
-                CREATE OR REPLACE MACRO configure_s3() AS (
-                    INSTALL httpfs;
-                    LOAD httpfs;
-                    SET s3_endpoint='minio:9000';
-                    SET s3_access_key_id='${MINIO_ROOT_USER:-minio}';
-                    SET s3_secret_access_key='${MINIO_ROOT_PASSWORD:-minio123}';
-                    SET s3_use_ssl=false;
-                    SET s3_url_style='path';
-                )
-            """)
-            print("✅ Created S3 configuration macro")
-        except Exception as e:
-            print(f"⚠️ Macro creation warning: {e}")
-        
-        # Test the connection
-        try:
-            result = conn.execute("SELECT 'DuckDB S3 configuration successful' as status;").fetchone()
-            print(f"✅ {result[0]}")
-        except Exception as e:
-            print(f"⚠️ Configuration warning: {e}")
-        finally:
-            conn.close()
-        EOF
-        
-        # Wait a moment for DuckDB file to be fully written
-        sleep 1
-        
-        echo "Setting up Superset database connection with S3 configuration..."
-        
-        # Run database setup script in background after Superset starts
-        nohup bash -c 'sleep 10; python3 /host/scripts/setup-superset-db.py' > /tmp/db-setup.log 2>&1 &
+        echo "Superset ready for manual configuration - see SUPERSET_DATABASE_SETUP.md"
         
         echo "Starting Superset webserver..."
         superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger

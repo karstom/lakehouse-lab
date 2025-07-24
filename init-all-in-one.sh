@@ -857,7 +857,793 @@ quality_check_task = PythonOperator(
 )
 EOF
 
-    log_success "Enhanced Airflow DAGs created with DuckDB 1.3.0 support"
+    # PostgreSQL Analytics ETL DAG
+    cat <<'EOF' > "$LAKEHOUSE_ROOT/airflow/dags/postgres_analytics_dag.py"
+"""
+PostgreSQL Analytics ETL DAG
+
+This DAG demonstrates how to:
+1. Extract data from DuckDB/S3 sources
+2. Transform the data using Python
+3. Load aggregated results into PostgreSQL analytics tables
+
+Dependencies: psycopg2-binary, duckdb, pandas
+"""
+
+from datetime import datetime, timedelta
+import os
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+import pandas as pd
+import duckdb
+import logging
+
+# DAG configuration
+default_args = {
+    'owner': 'analytics-team',
+    'depends_on_past': False,
+    'start_date': datetime(2024, 1, 1),
+    'email_on_failure': False,
+    'email_on_retry': False,
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5),
+}
+
+dag = DAG(
+    'postgres_analytics_etl',
+    default_args=default_args,
+    description='ETL pipeline from DuckDB to PostgreSQL analytics',
+    schedule_interval=timedelta(days=1),  # Run daily
+    catchup=False,
+    tags=['analytics', 'postgres', 'etl'],
+)
+
+def get_postgres_connection():
+    """Get PostgreSQL connection string from environment variables"""
+    postgres_user = os.environ.get('POSTGRES_USER', 'postgres')
+    postgres_password = os.environ.get('POSTGRES_PASSWORD')
+    postgres_db = os.environ.get('POSTGRES_DB', 'lakehouse')
+    
+    if not postgres_password:
+        raise ValueError("POSTGRES_PASSWORD environment variable not set")
+    
+    return f"postgresql://{postgres_user}:{postgres_password}@postgres:5432/{postgres_db}"
+
+def setup_duckdb_s3():
+    """Configure DuckDB with S3/MinIO settings"""
+    conn = duckdb.connect(':memory:')
+    
+    # Install and load S3 extension
+    conn.execute('INSTALL httpfs; LOAD httpfs;')
+    
+    # Configure S3 settings
+    minio_user = os.environ.get('MINIO_ROOT_USER', 'admin')
+    minio_password = os.environ.get('MINIO_ROOT_PASSWORD')
+    
+    if not minio_password:
+        raise ValueError("MINIO_ROOT_PASSWORD environment variable not set")
+    
+    conn.execute("SET s3_endpoint='minio:9000';")
+    conn.execute(f"SET s3_access_key_id='{minio_user}';")
+    conn.execute(f"SET s3_secret_access_key='{minio_password}';")
+    conn.execute("SET s3_use_ssl=false;")
+    conn.execute("SET s3_url_style='path';")
+    
+    return conn
+
+def extract_sales_data(**context):
+    """Extract and aggregate sales data from S3 using DuckDB"""
+    logging.info("Starting sales data extraction from S3...")
+    
+    # Get execution date for data partitioning
+    execution_date = context['execution_date']
+    logging.info(f"Processing data for date: {execution_date}")
+    
+    # Setup DuckDB with S3 configuration
+    conn = setup_duckdb_s3()
+    
+    try:
+        # Sample aggregation query - modify based on your data structure
+        query = """
+        SELECT 
+            CURRENT_DATE as processing_date,
+            COALESCE(product_category, 'Unknown') as product_category,
+            COALESCE(customer_region, 'Unknown') as customer_region,
+            COUNT(DISTINCT order_id) as order_count,
+            SUM(COALESCE(total_amount, 0)) as total_revenue,
+            AVG(COALESCE(total_amount, 0)) as avg_order_value,
+            MIN(order_date) as earliest_order,
+            MAX(order_date) as latest_order
+        FROM read_csv_auto(
+            's3://lakehouse/raw-data/sample_orders.csv',
+            ignore_errors=true
+        )
+        WHERE order_date IS NOT NULL
+        GROUP BY product_category, customer_region
+        HAVING COUNT(*) > 0
+        ORDER BY total_revenue DESC
+        """
+        
+        # Execute query and get results
+        result = conn.execute(query).fetchdf()
+        logging.info(f"Extracted {len(result)} rows of aggregated sales data")
+        
+        # Store results for next task
+        result_path = f"/tmp/sales_data_{execution_date.strftime('%Y%m%d')}.parquet"
+        result.to_parquet(result_path, index=False)
+        logging.info(f"Saved extracted data to {result_path}")
+        
+        return result_path
+        
+    except Exception as e:
+        logging.error(f"Error extracting sales data: {str(e)}")
+        raise
+    finally:
+        conn.close()
+
+def transform_sales_data(**context):
+    """Transform the extracted sales data"""
+    logging.info("Starting sales data transformation...")
+    
+    # Get the file path from previous task
+    ti = context['ti']
+    data_path = ti.xcom_pull(task_ids='extract_sales_data')
+    
+    if not data_path:
+        raise ValueError("No data path received from extract task")
+    
+    # Read the data
+    df = pd.read_parquet(data_path)
+    logging.info(f"Loaded {len(df)} rows for transformation")
+    
+    # Apply transformations
+    df['revenue_category'] = df['total_revenue'].apply(
+        lambda x: 'High' if x >= 10000 else 'Medium' if x >= 5000 else 'Low'
+    )
+    
+    # Add calculated metrics
+    df['revenue_per_order'] = df['total_revenue'] / df['order_count'].replace(0, 1)
+    df['orders_per_day'] = df['order_count'] / (
+        (pd.to_datetime(df['latest_order']) - pd.to_datetime(df['earliest_order'])).dt.days + 1
+    )
+    
+    # Round numerical values
+    df['total_revenue'] = df['total_revenue'].round(2)
+    df['avg_order_value'] = df['avg_order_value'].round(2)
+    df['revenue_per_order'] = df['revenue_per_order'].round(2)
+    df['orders_per_day'] = df['orders_per_day'].round(2)
+    
+    logging.info("Applied transformations: revenue_category, revenue_per_order, orders_per_day")
+    
+    # Save transformed data
+    transformed_path = data_path.replace('.parquet', '_transformed.parquet')
+    df.to_parquet(transformed_path, index=False)
+    logging.info(f"Saved transformed data to {transformed_path}")
+    
+    return transformed_path
+
+def load_to_postgres(**context):
+    """Load transformed data into PostgreSQL analytics tables"""
+    logging.info("Starting data load to PostgreSQL...")
+    
+    # Get the transformed data path
+    ti = context['ti']
+    data_path = ti.xcom_pull(task_ids='transform_sales_data')
+    
+    if not data_path:
+        raise ValueError("No data path received from transform task")
+    
+    # Read transformed data
+    df = pd.read_parquet(data_path)
+    logging.info(f"Loading {len(df)} rows to PostgreSQL")
+    
+    # Get PostgreSQL connection
+    postgres_conn_str = get_postgres_connection()
+    
+    try:
+        # Load data to PostgreSQL
+        df.to_sql(
+            name='daily_sales_etl',
+            con=postgres_conn_str,
+            schema='analytics',
+            if_exists='append',
+            index=False,
+            method='multi'  # Use multi-row inserts for better performance
+        )
+        
+        logging.info(f"Successfully loaded {len(df)} rows to analytics.daily_sales_etl")
+        
+        # Clean up temporary files
+        os.remove(data_path)
+        if os.path.exists(data_path.replace('_transformed.parquet', '.parquet')):
+            os.remove(data_path.replace('_transformed.parquet', '.parquet'))
+        logging.info("Cleaned up temporary files")
+        
+    except Exception as e:
+        logging.error(f"Error loading data to PostgreSQL: {str(e)}")
+        raise
+
+def data_quality_check(**context):
+    """Perform data quality checks on loaded data"""
+    logging.info("Starting data quality checks...")
+    
+    postgres_hook = PostgresHook(postgres_conn_id='postgres_default')
+    
+    # Check 1: Row count validation
+    row_count = postgres_hook.get_first(
+        "SELECT COUNT(*) FROM analytics.daily_sales_etl WHERE processing_date = CURRENT_DATE"
+    )[0]
+    
+    if row_count == 0:
+        raise ValueError("No data loaded for today - data quality check failed")
+    
+    logging.info(f"✅ Row count check passed: {row_count} rows loaded today")
+    
+    # Check 2: Revenue validation
+    revenue_check = postgres_hook.get_first("""
+        SELECT 
+            COUNT(*) as total_rows,
+            COUNT(CASE WHEN total_revenue < 0 THEN 1 END) as negative_revenue,
+            COUNT(CASE WHEN total_revenue IS NULL THEN 1 END) as null_revenue
+        FROM analytics.daily_sales_etl 
+        WHERE processing_date = CURRENT_DATE
+    """)
+    
+    total_rows, negative_revenue, null_revenue = revenue_check
+    
+    if negative_revenue > 0:
+        logging.warning(f"⚠️ Found {negative_revenue} rows with negative revenue")
+    
+    if null_revenue > 0:
+        logging.warning(f"⚠️ Found {null_revenue} rows with null revenue")
+    
+    logging.info(f"✅ Revenue validation completed: {total_rows} total rows processed")
+    
+    # Check 3: Category distribution
+    category_dist = postgres_hook.get_records("""
+        SELECT product_category, COUNT(*) as count
+        FROM analytics.daily_sales_etl 
+        WHERE processing_date = CURRENT_DATE
+        GROUP BY product_category
+        ORDER BY count DESC
+    """)
+    
+    logging.info("✅ Product category distribution:")
+    for category, count in category_dist:
+        logging.info(f"   {category}: {count} records")
+    
+    return {
+        'total_rows': total_rows,
+        'categories': len(category_dist),
+        'quality_score': 'PASSED'
+    }
+
+# Task definitions
+create_analytics_table = PostgresOperator(
+    task_id='create_analytics_table',
+    postgres_conn_id='postgres_default',
+    sql="""
+    CREATE SCHEMA IF NOT EXISTS analytics;
+    
+    CREATE TABLE IF NOT EXISTS analytics.daily_sales_etl (
+        id SERIAL PRIMARY KEY,
+        processing_date DATE NOT NULL,
+        product_category VARCHAR(100),
+        customer_region VARCHAR(100),
+        order_count INTEGER DEFAULT 0,
+        total_revenue DECIMAL(12,2) DEFAULT 0.00,
+        avg_order_value DECIMAL(10,2) DEFAULT 0.00,
+        earliest_order DATE,
+        latest_order DATE,
+        revenue_category VARCHAR(20),
+        revenue_per_order DECIMAL(10,2),
+        orders_per_day DECIMAL(8,2),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_daily_sales_etl_date 
+    ON analytics.daily_sales_etl(processing_date);
+    
+    CREATE INDEX IF NOT EXISTS idx_daily_sales_etl_category 
+    ON analytics.daily_sales_etl(product_category);
+    """,
+    dag=dag,
+)
+
+extract_task = PythonOperator(
+    task_id='extract_sales_data',
+    python_callable=extract_sales_data,
+    dag=dag,
+)
+
+transform_task = PythonOperator(
+    task_id='transform_sales_data',
+    python_callable=transform_sales_data,
+    dag=dag,
+)
+
+load_task = PythonOperator(
+    task_id='load_to_postgres',
+    python_callable=load_to_postgres,
+    dag=dag,
+)
+
+quality_check_task = PythonOperator(
+    task_id='data_quality_check',
+    python_callable=data_quality_check,
+    dag=dag,
+)
+
+# Task dependencies
+create_analytics_table >> extract_task >> transform_task >> load_task >> quality_check_task
+EOF
+
+    # PostgreSQL Real-time Analytics DAG
+    cat <<'EOF' > "$LAKEHOUSE_ROOT/airflow/dags/postgres_streaming_dag.py"
+"""
+PostgreSQL Real-time Analytics DAG
+
+This DAG demonstrates how to:
+1. Monitor S3 buckets for new data files
+2. Process incremental data updates
+3. Maintain real-time analytics views in PostgreSQL
+4. Send alerts on data anomalies
+
+Dependencies: psycopg2-binary, duckdb, pandas, boto3
+"""
+
+from datetime import datetime, timedelta
+import os
+import json
+from airflow import DAG
+from airflow.operators.python import PythonOperator, BranchPythonOperator
+from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.operators.dummy import DummyOperator
+from airflow.operators.email import EmailOperator
+from airflow.models import Variable
+import pandas as pd
+import duckdb
+import logging
+
+# DAG configuration
+default_args = {
+    'owner': 'data-engineering',
+    'depends_on_past': False,
+    'start_date': datetime(2024, 1, 1),
+    'email_on_failure': False,
+    'email_on_retry': False,
+    'retries': 2,
+    'retry_delay': timedelta(minutes=2),
+}
+
+dag = DAG(
+    'postgres_streaming_analytics',
+    default_args=default_args,
+    description='Real-time data processing pipeline to PostgreSQL',
+    schedule_interval=timedelta(minutes=15),  # Run every 15 minutes
+    catchup=False,
+    tags=['streaming', 'postgres', 'real-time', 'monitoring'],
+    max_active_runs=1,  # Prevent overlapping runs
+)
+
+def setup_duckdb_s3():
+    """Configure DuckDB with S3/MinIO settings"""
+    conn = duckdb.connect(':memory:')
+    
+    # Install and load S3 extension
+    conn.execute('INSTALL httpfs; LOAD httpfs;')
+    
+    # Configure S3 settings
+    minio_user = os.environ.get('MINIO_ROOT_USER', 'admin')
+    minio_password = os.environ.get('MINIO_ROOT_PASSWORD')
+    
+    if not minio_password:
+        raise ValueError("MINIO_ROOT_PASSWORD environment variable not set")
+    
+    conn.execute("SET s3_endpoint='minio:9000';")
+    conn.execute(f"SET s3_access_key_id='{minio_user}';")
+    conn.execute(f"SET s3_secret_access_key='{minio_password}';")
+    conn.execute("SET s3_use_ssl=false;")
+    conn.execute("SET s3_url_style='path';")
+    
+    return conn
+
+def check_new_data(**context):
+    """Check if there's new data to process"""
+    logging.info("Checking for new data files...")
+    
+    # Get the last processed timestamp from Airflow Variables
+    try:
+        last_processed = Variable.get("last_processed_timestamp", default_var=None)
+        if last_processed:
+            last_processed = datetime.fromisoformat(last_processed)
+        else:
+            # First run - process data from 1 hour ago
+            last_processed = datetime.now() - timedelta(hours=1)
+    except Exception as e:
+        logging.warning(f"Error getting last processed timestamp: {e}")
+        last_processed = datetime.now() - timedelta(hours=1)
+    
+    current_time = context['execution_date']
+    logging.info(f"Last processed: {last_processed}, Current time: {current_time}")
+    
+    # Setup DuckDB connection
+    conn = setup_duckdb_s3()
+    
+    try:
+        # Check for new files in S3 bucket
+        # This is a simplified check - in production, you might use S3 metadata
+        file_check_query = """
+        SELECT COUNT(*) as file_count
+        FROM read_csv_auto(
+            's3://lakehouse/raw-data/*.csv',
+            union_by_name=true,
+            ignore_errors=true
+        )
+        WHERE TRY_CAST(order_date AS DATE) >= CURRENT_DATE - INTERVAL '1 day'
+        """
+        
+        result = conn.execute(file_check_query).fetchone()
+        file_count = result[0] if result else 0
+        
+        logging.info(f"Found {file_count} records in recent files")
+        
+        # Store the check result for the next task
+        context['ti'].xcom_push(key='file_count', value=file_count)
+        context['ti'].xcom_push(key='last_processed', value=last_processed.isoformat())
+        
+        # Decide which branch to take
+        if file_count > 0:
+            return 'process_incremental_data'
+        else:
+            return 'no_new_data'
+            
+    except Exception as e:
+        logging.error(f"Error checking for new data: {str(e)}")
+        # On error, skip processing
+        return 'no_new_data'
+    finally:
+        conn.close()
+
+def process_incremental_data(**context):
+    """Process incremental data updates"""
+    logging.info("Processing incremental data updates...")
+    
+    ti = context['ti']
+    file_count = ti.xcom_pull(key='file_count', task_ids='check_new_data')
+    last_processed = ti.xcom_pull(key='last_processed', task_ids='check_new_data')
+    
+    if not file_count or file_count == 0:
+        logging.info("No new data to process")
+        return
+    
+    # Setup DuckDB connection
+    conn = setup_duckdb_s3()
+    
+    try:
+        # Process incremental data
+        incremental_query = """
+        SELECT 
+            CURRENT_TIMESTAMP as processed_at,
+            CURRENT_DATE as batch_date,
+            product_category,
+            customer_region,
+            COUNT(*) as new_orders,
+            SUM(total_amount) as new_revenue,
+            AVG(total_amount) as avg_new_order_value,
+            MIN(order_date) as earliest_new_order,
+            MAX(order_date) as latest_new_order
+        FROM read_csv_auto(
+            's3://lakehouse/raw-data/*.csv',
+            union_by_name=true,
+            ignore_errors=true
+        )
+        WHERE TRY_CAST(order_date AS DATE) >= CURRENT_DATE - INTERVAL '1 day'
+        AND total_amount IS NOT NULL
+        GROUP BY product_category, customer_region
+        HAVING COUNT(*) > 0
+        ORDER BY new_revenue DESC
+        """
+        
+        df = conn.execute(incremental_query).fetchdf()
+        logging.info(f"Processed {len(df)} incremental data groups")
+        
+        if len(df) == 0:
+            logging.info("No valid incremental data found")
+            return
+        
+        # Calculate some real-time metrics
+        total_new_revenue = df['new_revenue'].sum()
+        total_new_orders = df['new_orders'].sum()
+        avg_order_value = total_new_revenue / total_new_orders if total_new_orders > 0 else 0
+        
+        # Store metrics for anomaly detection
+        metrics = {
+            'total_new_revenue': float(total_new_revenue),
+            'total_new_orders': int(total_new_orders),
+            'avg_order_value': float(avg_order_value),
+            'categories_updated': len(df),
+            'processed_at': datetime.now().isoformat()
+        }
+        
+        # Save incremental data
+        data_path = f"/tmp/incremental_data_{context['execution_date'].strftime('%Y%m%d_%H%M')}.parquet"
+        df.to_parquet(data_path, index=False)
+        
+        # Store results for next tasks
+        ti.xcom_push(key='incremental_data_path', value=data_path)
+        ti.xcom_push(key='metrics', value=metrics)
+        
+        logging.info(f"Incremental processing complete: {metrics}")
+        
+    except Exception as e:
+        logging.error(f"Error processing incremental data: {str(e)}")
+        raise
+    finally:
+        conn.close()
+
+def update_postgres_views(**context):
+    """Update real-time analytics views in PostgreSQL"""
+    logging.info("Updating PostgreSQL real-time views...")
+    
+    ti = context['ti']
+    data_path = ti.xcom_pull(key='incremental_data_path', task_ids='process_incremental_data')
+    
+    if not data_path:
+        logging.info("No incremental data to load")
+        return
+    
+    # Read incremental data
+    df = pd.read_parquet(data_path)
+    logging.info(f"Loading {len(df)} incremental records to PostgreSQL")
+    
+    # Get PostgreSQL connection
+    postgres_user = os.environ.get('POSTGRES_USER', 'postgres')
+    postgres_password = os.environ.get('POSTGRES_PASSWORD')
+    postgres_db = os.environ.get('POSTGRES_DB', 'lakehouse')
+    postgres_conn_str = f"postgresql://{postgres_user}:{postgres_password}@postgres:5432/{postgres_db}"
+    
+    try:
+        # Load incremental data to staging table
+        df.to_sql(
+            name='realtime_sales_staging',
+            con=postgres_conn_str,
+            schema='analytics',
+            if_exists='replace',  # Replace staging data each time
+            index=False,
+            method='multi'
+        )
+        
+        # Update the main real-time table using PostgreSQL hook
+        postgres_hook = PostgresHook(postgres_conn_id='postgres_default')
+        
+        # Upsert data into the main table
+        upsert_sql = """
+        INSERT INTO analytics.realtime_sales (
+            batch_date, product_category, customer_region,
+            new_orders, new_revenue, avg_new_order_value,
+            earliest_new_order, latest_new_order, processed_at
+        )
+        SELECT 
+            batch_date, product_category, customer_region,
+            new_orders, new_revenue, avg_new_order_value,
+            earliest_new_order, latest_new_order, processed_at
+        FROM analytics.realtime_sales_staging
+        ON CONFLICT (batch_date, product_category, customer_region) 
+        DO UPDATE SET
+            new_orders = EXCLUDED.new_orders + realtime_sales.new_orders,
+            new_revenue = EXCLUDED.new_revenue + realtime_sales.new_revenue,
+            avg_new_order_value = (EXCLUDED.new_revenue + realtime_sales.new_revenue) / 
+                                (EXCLUDED.new_orders + realtime_sales.new_orders),
+            latest_new_order = GREATEST(EXCLUDED.latest_new_order, realtime_sales.latest_new_order),
+            processed_at = EXCLUDED.processed_at;
+        """
+        
+        postgres_hook.run(upsert_sql)
+        logging.info("Successfully updated real-time analytics views")
+        
+        # Update the last processed timestamp
+        Variable.set("last_processed_timestamp", datetime.now().isoformat())
+        
+        # Clean up staging file
+        os.remove(data_path)
+        
+    except Exception as e:
+        logging.error(f"Error updating PostgreSQL views: {str(e)}")
+        raise
+
+def detect_anomalies(**context):
+    """Detect anomalies in the real-time data"""
+    logging.info("Running anomaly detection...")
+    
+    ti = context['ti']
+    current_metrics = ti.xcom_pull(key='metrics', task_ids='process_incremental_data')
+    
+    if not current_metrics:
+        logging.info("No metrics available for anomaly detection")
+        return {'anomalies_detected': False}
+    
+    postgres_hook = PostgresHook(postgres_conn_id='postgres_default')
+    
+    # Get historical averages for comparison
+    historical_query = """
+    SELECT 
+        AVG(new_revenue) as avg_revenue,
+        STDDEV(new_revenue) as stddev_revenue,
+        AVG(new_orders) as avg_orders,
+        STDDEV(new_orders) as stddev_orders,
+        AVG(avg_new_order_value) as avg_order_value_hist,
+        STDDEV(avg_new_order_value) as stddev_order_value
+    FROM analytics.realtime_sales
+    WHERE batch_date >= CURRENT_DATE - INTERVAL '30 days'
+    """
+    
+    try:
+        historical_data = postgres_hook.get_first(historical_query)
+        
+        if not historical_data or historical_data[0] is None:
+            logging.info("Insufficient historical data for anomaly detection")
+            return {'anomalies_detected': False}
+        
+        avg_rev, std_rev, avg_orders, std_orders, avg_aov, std_aov = historical_data
+        
+        anomalies = []
+        current_revenue = current_metrics['total_new_revenue']
+        current_orders = current_metrics['total_new_orders']
+        current_aov = current_metrics['avg_order_value']
+        
+        # Revenue anomaly detection (more than 2 standard deviations)
+        if std_rev and abs(current_revenue - avg_rev) > 2 * std_rev:
+            anomaly_type = "HIGH_REVENUE" if current_revenue > avg_rev else "LOW_REVENUE"
+            anomalies.append({
+                'type': anomaly_type,
+                'metric': 'revenue',
+                'current_value': current_revenue,
+                'expected_range': f"{avg_rev - 2*std_rev:.2f} - {avg_rev + 2*std_rev:.2f}",
+                'severity': 'HIGH' if abs(current_revenue - avg_rev) > 3 * std_rev else 'MEDIUM'
+            })
+        
+        if anomalies:
+            logging.warning(f"Detected {len(anomalies)} anomalies: {anomalies}")
+            ti.xcom_push(key='anomalies', value=anomalies)
+            return {'anomalies_detected': True, 'anomaly_count': len(anomalies)}
+        else:
+            logging.info("No anomalies detected - metrics within normal range")
+            return {'anomalies_detected': False}
+            
+    except Exception as e:
+        logging.error(f"Error in anomaly detection: {str(e)}")
+        return {'anomalies_detected': False, 'error': str(e)}
+
+def send_anomaly_alert(**context):
+    """Send alert when anomalies are detected"""
+    logging.info("Preparing anomaly alert...")
+    
+    ti = context['ti']
+    anomalies = ti.xcom_pull(key='anomalies', task_ids='detect_anomalies')
+    
+    if not anomalies:
+        logging.info("No anomalies to report")
+        return
+    
+    # Format alert message
+    alert_message = f"""
+    LAKEHOUSE ANALYTICS ANOMALY ALERT
+    
+    Detected {len(anomalies)} anomalies in real-time data processing:
+    
+    """
+    
+    for anomaly in anomalies:
+        alert_message += f"""
+    🚨 {anomaly['type']} ({anomaly['severity']} severity)
+       Metric: {anomaly['metric']}
+       Current Value: {anomaly['current_value']}
+       Expected Range: {anomaly['expected_range']}
+    """
+    
+    alert_message += f"""
+    
+    Execution Time: {context['execution_date']}
+    DAG: {context['dag'].dag_id}
+    
+    Please investigate the data pipeline and underlying data sources.
+    """
+    
+    logging.warning(f"Anomaly alert prepared: {alert_message}")
+    
+    # In a real implementation, you would send this via email, Slack, PagerDuty, etc.
+    # For now, we'll just log it and store in XCom
+    ti.xcom_push(key='alert_message', value=alert_message)
+
+# Task definitions
+create_realtime_tables = PostgresOperator(
+    task_id='create_realtime_tables',
+    postgres_conn_id='postgres_default',
+    sql="""
+    CREATE SCHEMA IF NOT EXISTS analytics;
+    
+    CREATE TABLE IF NOT EXISTS analytics.realtime_sales (
+        id SERIAL PRIMARY KEY,
+        batch_date DATE NOT NULL,
+        product_category VARCHAR(100) NOT NULL,
+        customer_region VARCHAR(100) NOT NULL,
+        new_orders INTEGER DEFAULT 0,
+        new_revenue DECIMAL(12,2) DEFAULT 0.00,
+        avg_new_order_value DECIMAL(10,2) DEFAULT 0.00,
+        earliest_new_order DATE,
+        latest_new_order DATE,
+        processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(batch_date, product_category, customer_region)
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_realtime_sales_batch_date 
+    ON analytics.realtime_sales(batch_date);
+    
+    CREATE INDEX IF NOT EXISTS idx_realtime_sales_category 
+    ON analytics.realtime_sales(product_category);
+    
+    -- Create a staging table for incremental loads
+    CREATE TABLE IF NOT EXISTS analytics.realtime_sales_staging (
+        batch_date DATE,
+        product_category VARCHAR(100),
+        customer_region VARCHAR(100),
+        new_orders INTEGER,
+        new_revenue DECIMAL(12,2),
+        avg_new_order_value DECIMAL(10,2),
+        earliest_new_order DATE,
+        latest_new_order DATE,
+        processed_at TIMESTAMP
+    );
+    """,
+    dag=dag,
+)
+
+check_data_task = BranchPythonOperator(
+    task_id='check_new_data',
+    python_callable=check_new_data,
+    dag=dag,
+)
+
+no_data_task = DummyOperator(
+    task_id='no_new_data',
+    dag=dag,
+)
+
+process_data_task = PythonOperator(
+    task_id='process_incremental_data',
+    python_callable=process_incremental_data,
+    dag=dag,
+)
+
+update_views_task = PythonOperator(
+    task_id='update_postgres_views',
+    python_callable=update_postgres_views,
+    dag=dag,
+)
+
+anomaly_detection_task = PythonOperator(
+    task_id='detect_anomalies',
+    python_callable=detect_anomalies,
+    dag=dag,
+)
+
+alert_task = PythonOperator(
+    task_id='send_anomaly_alert',
+    python_callable=send_anomaly_alert,
+    dag=dag,
+)
+
+# Task dependencies
+create_realtime_tables >> check_data_task
+check_data_task >> [no_data_task, process_data_task]
+process_data_task >> update_views_task >> anomaly_detection_task >> alert_task
+EOF
+
+    log_success "Enhanced Airflow DAGs created with DuckDB 1.3.0 support and PostgreSQL analytics"
 }
 
 create_airflow_dags
