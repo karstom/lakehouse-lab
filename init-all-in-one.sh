@@ -2563,6 +2563,36 @@ create_sample_data
 create_homer_config() {
     log_info "Creating Homer dashboard configuration..."
     
+    # Check if we need to regenerate Homer config due to IP change
+    local existing_config="$LAKEHOUSE_ROOT/homer/assets/config.yml"
+    local should_regenerate=true
+    
+    if [ -f "$existing_config" ]; then
+        # Check if existing config contains Docker IP addresses (172.x.x.x)
+        if grep -q "172\.[0-9]\+\.[0-9]\+\.[0-9]\+" "$existing_config"; then
+            log_info "Found Docker IPs in existing Homer config - will regenerate"
+            should_regenerate=true
+        elif [ -n "${HOST_IP:-}" ] && [ "$HOST_IP" != "localhost" ]; then
+            # Check if existing config matches current HOST_IP
+            if grep -q "http://$HOST_IP:" "$existing_config"; then
+                log_info "Homer config already uses current HOST_IP ($HOST_IP) - skipping regeneration"
+                should_regenerate=false
+            else
+                log_info "HOST_IP changed - will regenerate Homer config"
+                should_regenerate=true
+            fi
+        else
+            log_info "Using existing Homer configuration"
+            should_regenerate=false
+        fi
+    fi
+    
+    if [ "$should_regenerate" = "false" ]; then
+        return 0
+    fi
+    
+    log_info "Generating new Homer configuration..."
+    
     # Get server IP address - prefer HOST_IP environment variable from host
     local server_ip="$HOST_IP"
     

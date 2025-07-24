@@ -94,6 +94,12 @@ if [[ "$HOST_IP" == "localhost" ]]; then
 else
     echo -e "${GREEN}   Using detected IP: $HOST_IP${NC}"
     echo -e "${BLUE}   Services will be accessible remotely at this IP${NC}"
+    
+    # Check if Homer config needs updating (contains Docker IPs)
+    local homer_config="${LAKEHOUSE_ROOT:-./lakehouse-data}/homer/assets/config.yml"
+    if [[ -f "$homer_config" ]] && grep -q "172\.[0-9]\+\.[0-9]\+\.[0-9]\+" "$homer_config" 2>/dev/null; then
+        echo -e "${YELLOW}   📋 Note: Homer dashboard will be updated with new IP addresses${NC}"
+    fi
 fi
 echo ""
 
@@ -235,15 +241,15 @@ start_with_dependencies() {
     echo -e "${GREEN}🎉 Lakehouse Lab is ready!${NC}"
     echo ""
     echo -e "${BLUE}Access points:${NC}"
-    echo -e "  🐳 Portainer:         ${GREEN}http://localhost:9060${NC} (container management)"
-    echo -e "  📈 Superset BI:       ${GREEN}http://localhost:9030${NC} (use ./scripts/show-credentials.sh for login)"
-    echo -e "  📋 Airflow:           ${GREEN}http://localhost:9020${NC} (use ./scripts/show-credentials.sh for login)"
-    echo -e "  📓 JupyterLab:        ${GREEN}http://localhost:9040${NC} (use ./scripts/show-credentials.sh for token)"
-    echo -e "  ☁️  MinIO Console:     ${GREEN}http://localhost:9001${NC} (use ./scripts/show-credentials.sh for login)"
-    echo -e "  ⚡ Spark Master:      ${GREEN}http://localhost:8080${NC}"
-    echo -e "  🏠 Service Links:     ${GREEN}http://localhost:9061${NC} (optional Homer)"
+    echo -e "  🐳 Portainer:         ${GREEN}http://${HOST_IP}:9060${NC} (container management)"
+    echo -e "  📈 Superset BI:       ${GREEN}http://${HOST_IP}:9030${NC} (use ./scripts/show-credentials.sh for login)"
+    echo -e "  📋 Airflow:           ${GREEN}http://${HOST_IP}:9020${NC} (use ./scripts/show-credentials.sh for login)"
+    echo -e "  📓 JupyterLab:        ${GREEN}http://${HOST_IP}:9040${NC} (use ./scripts/show-credentials.sh for token)"
+    echo -e "  ☁️  MinIO Console:     ${GREEN}http://${HOST_IP}:9001${NC} (use ./scripts/show-credentials.sh for login)"
+    echo -e "  ⚡ Spark Master:      ${GREEN}http://${HOST_IP}:8080${NC}"
+    echo -e "  🏠 Service Links:     ${GREEN}http://${HOST_IP}:9061${NC} (optional Homer)"
     echo ""
-    echo -e "${YELLOW}💡 Tip: Use Portainer (localhost:9060) for container management and monitoring${NC}"
+    echo -e "${YELLOW}💡 Tip: Use Portainer (${HOST_IP}:9060) for container management and monitoring${NC}"
     echo -e "${YELLOW}⚠️  IMPORTANT: Set up Portainer admin account within 5 minutes or you'll be locked out!${NC}"
     echo -e "${YELLOW}📖 Check QUICKSTART.md for step-by-step usage instructions${NC}"
     echo ""

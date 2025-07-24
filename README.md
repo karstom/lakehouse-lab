@@ -268,6 +268,7 @@ echo "HOST_IP=192.168.1.100" >> .env
 - 🔥 **Firewall**: Ensure ports 8080, 9001, 9020, 9030, 9040, 9060, 9061 are accessible
 - 🔒 **Security**: Consider using a reverse proxy (nginx/traefik) for production
 - 📋 **Access**: Use `./scripts/show-credentials.sh` to see service URLs with detected IP
+- 🔄 **Homer Update**: If Homer dashboard shows old IPs, restart: `docker compose restart lakehouse-init`
 
 ## 📚 Getting Started Guide
 
