@@ -446,10 +446,9 @@ services:
         sleep 1
         
         echo "Setting up Superset database connection with S3 configuration..."
-        echo "✅ DuckDB-S3 connection will be configured via Superset CLI"
         
-        # Use Superset CLI to create database connection
-        superset set-database-uri -d "DuckDB-S3" -u "duckdb:////app/superset_home/lakehouse.duckdb" || echo "⚠️ CLI method failed"
+        # Copy and run database setup script
+        python3 /host/scripts/setup-superset-db.py || echo "⚠️ Database auto-setup failed, manual configuration needed"
         
         echo "Starting Superset webserver..."
         superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger
@@ -464,6 +463,7 @@ services:
       - "9030:8088"
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/superset:/app/superset_home
+      - ./scripts:/host/scripts:ro
     networks:
       - lakehouse
     healthcheck:
