@@ -8,7 +8,7 @@ import json
 
 # Add Superset to Python path
 sys.path.append('/app/superset')
-os.environ.setdefault('SUPERSET_CONFIG_PATH', '/app/superset/superset_config.py')
+# Use default Superset configuration
 
 try:
     print("🔧 Setting up DuckDB-S3 database connection...")

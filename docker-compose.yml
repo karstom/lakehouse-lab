@@ -447,8 +447,8 @@ services:
         
         echo "Setting up Superset database connection with S3 configuration..."
         
-        # Copy and run database setup script
-        python3 /host/scripts/setup-superset-db.py || echo "⚠️ Database auto-setup failed, manual configuration needed"
+        # Run database setup script in background after Superset starts
+        nohup bash -c 'sleep 10; python3 /host/scripts/setup-superset-db.py' > /tmp/db-setup.log 2>&1 &
         
         echo "Starting Superset webserver..."
         superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger
