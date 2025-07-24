@@ -244,21 +244,48 @@ In addition to DuckDB for data lake queries, the lakehouse includes a PostgreSQL
 
 ## PostgreSQL Database Connection Setup
 
-### 1. Add PostgreSQL Connection to Superset
+### 1. Fix PostgreSQL Database Permissions
+
+First, we need to grant the postgres user access to the lakehouse database. Create a **temporary connection** to fix permissions:
+
+1. Go to **Settings** → **Database Connections** → **+ Database**
+2. Choose **PostgreSQL** from the database list
+3. **Temporary setup**:
+   - **Database Name**: `PostgreSQL Temp`
+   - **SQLAlchemy URI**: `postgresql://postgres:YOUR_POSTGRES_PASSWORD@postgres:5432/postgres`
+   - **Replace credentials**: Run `./scripts/show-credentials.sh` to get your actual PostgreSQL password
+4. **Test Connection** → **Connect** to save
+
+5. Go to **SQL Lab**, select **PostgreSQL Temp**, and run:
+
+```sql
+-- Grant permissions on lakehouse database to postgres user
+GRANT ALL PRIVILEGES ON DATABASE lakehouse TO postgres;
+ALTER DATABASE lakehouse OWNER TO postgres;
+
+-- Verify the grants worked
+SELECT datname, datacl FROM pg_database WHERE datname = 'lakehouse';
+```
+
+6. **Delete the temporary connection** after running these commands
+
+### 2. Add PostgreSQL Analytics Connection
+
+Now create the proper analytics connection:
 
 1. Go to **Settings** → **Database Connections** → **+ Database**
 2. Choose **PostgreSQL** from the database list
 3. Configure the connection:
    - **Database Name**: `PostgreSQL Analytics`
-   - **SQLAlchemy URI**: `postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-lakehouse}`
+   - **SQLAlchemy URI**: `postgresql://postgres:YOUR_POSTGRES_PASSWORD@postgres:5432/lakehouse`
    - **Replace credentials**: Run `./scripts/show-credentials.sh` to get your actual PostgreSQL password
 4. **Advanced Options**:
    - ✅ Enable **Allow DDL** (CREATE, DROP statements)
    - ✅ Enable **Allow DML** (INSERT, UPDATE, DELETE statements)
    - ✅ Enable **Allow file uploads**
-5. Click **Test Connection** → **Connect** to save
+5. Click **Test Connection** → **Connect** to save (should work now!)
 
-### 2. Test PostgreSQL Connection
+### 3. Test PostgreSQL Connection
 
 Go to **SQL Lab**, select your **PostgreSQL Analytics** database, and run:
 
