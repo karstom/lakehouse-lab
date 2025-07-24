@@ -2659,7 +2659,7 @@ create_homer_config() {
     
     cat > "$LAKEHOUSE_ROOT/homer/assets/config.yml" << EOF
 title: "Lakehouse Lab Dashboard"
-subtitle: "Open Source Data Analytics Stack - Issues #1 & #2 Fixed!"
+subtitle: "Open Source Data Analytics Stack"
 logo: "/logo.png"
 icon: "fas fa-database"
 header: true
@@ -2686,29 +2686,29 @@ message:
   content: "Your lakehouse is ready with all issues resolved:<br />✅ <strong>Issue #1</strong>: Superset S3 configuration now persistent<br />✅ <strong>Issue #2</strong>: Airflow DuckDB imports working<br />🚀 <strong>Latest tech</strong>: DuckDB 1.3.0 + duckdb-engine 0.17.0"
 
 services:
-  - name: "Analytics & BI - ✅ Fixed"
+  - name: "Analytics & BI"
     icon: "fas fa-chart-line"
     items:
-      - name: "Superset (Issue #1 Fixed)"
+      - name: "Superset"
         icon: "fas fa-chart-bar"
-        subtitle: "BI & Visualization - S3 config now persistent!"
+        subtitle: "BI & Visualization"
         tag: "fixed"
         url: "http://${server_ip}:9030"
         target: "_blank"
 
-      - name: "JupyterLab (DuckDB 1.3.0)"
+      - name: "JupyterLab"
         icon: "fas fa-book"
-        subtitle: "Data Science - Latest DuckDB packages installed"
+        subtitle: "Data Science Notebooks"
         tag: "updated"
         url: "http://${server_ip}:9040"
         target: "_blank"
 
-  - name: "Orchestration - ✅ Fixed"
+  - name: "Orchestration"
     icon: "fas fa-cogs"
     items:
-      - name: "Airflow (Issue #2 Fixed)"
+      - name: "Airflow"
         icon: "fas fa-tachometer-alt"
-        subtitle: "Workflow Orchestration - DuckDB imports working!"
+        subtitle: "Workflow Orchestration"
         tag: "fixed"
         url: "http://${server_ip}:9020"
         target: "_blank"
