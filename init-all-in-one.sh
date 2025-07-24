@@ -2003,73 +2003,7 @@ EOF
     
     log_success "Enhanced DuckDB configuration script created for Superset Issue #1 fix"
     
-    # Create Superset database connection programmatically
-    log_info "Setting up Superset database connection with S3 configuration..."
-    
-    cat > "$LAKEHOUSE_ROOT/superset/add_duckdb_connection.py" << 'EOF'
-import os
-import sys
-sys.path.append('/app/superset')
-os.environ.setdefault('SUPERSET_CONFIG_PATH', '/app/superset/superset_config.py')
-
-from superset import db
-from superset.models.core import Database
-from superset.utils.database import get_or_create_db
-import json
-
-try:
-    # Database connection configuration with S3 settings
-    database_config = {
-        "database_name": "DuckDB-S3",
-        "sqlalchemy_uri": "duckdb:////app/superset_home/lakehouse.duckdb",
-        "extra": json.dumps({
-            "engine_params": {
-                "connect_args": {
-                    "preload_extensions": ["httpfs"],
-                    "config": {
-                        "s3_endpoint": "minio:9000",
-                        "s3_access_key_id": "$MINIO_ROOT_USER", 
-                        "s3_secret_access_key": "$MINIO_ROOT_PASSWORD",
-                        "s3_url_style": "path",
-                        "s3_use_ssl": "false"
-                    }
-                }
-            }
-        })
-    }
-    
-    # Check if database already exists
-    existing_db = db.session.query(Database).filter_by(
-        database_name=database_config["database_name"]
-    ).first()
-    
-    if existing_db:
-        # Update existing database with new S3 configuration
-        existing_db.sqlalchemy_uri = database_config["sqlalchemy_uri"]
-        existing_db.extra = database_config["extra"]
-        db.session.commit()
-        print(f"✅ Updated existing database connection: {database_config['database_name']}")
-    else:
-        # Create new database connection
-        new_db = Database(
-            database_name=database_config["database_name"],
-            sqlalchemy_uri=database_config["sqlalchemy_uri"],
-            extra=database_config["extra"]
-        )
-        db.session.add(new_db)
-        db.session.commit()
-        print(f"✅ Created new database connection: {database_config['database_name']}")
-    
-    print("✅ Superset database connection configured with S3 settings")
-    print("📝 Connection name: DuckDB-S3")
-    print("🔗 S3 queries can now be run without manual configuration")
-    
-except Exception as e:
-    print(f"❌ Failed to configure Superset database connection: {e}")
-    print("ℹ️ You can manually create the connection in Superset UI")
-EOF
-
-    log_success "Superset database connection script created"
+    log_info "✅ Superset database connection will be auto-configured via docker-compose"
 }
 
 configure_superset_duckdb
