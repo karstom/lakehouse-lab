@@ -7,7 +7,35 @@
 
 version: '3.8'
 
+# ==============================================================================
+# ENVIRONMENT VARIABLES - Copy these to your .env file and customize
+# ==============================================================================
+# HOST_IP=192.168.1.100                    # Set for remote server access
+# LAKEHOUSE_ROOT=./lakehouse-data           # Data directory location  
+# POSTGRES_MEMORY_LIMIT=4G                 # PostgreSQL memory allocation
+# SPARK_WORKER_MEMORY=16g                  # Spark worker memory per instance
+# SUPERSET_WORKERS=8                       # Superset worker processes
+
 services:
+  # ==============================================================================
+  # REMOTE SERVER ACCESS CONFIGURATION
+  # ==============================================================================
+  
+  # Example: Configure lakehouse-init for remote server deployment
+  lakehouse-init:
+    environment:
+      # Override HOST_IP for specific server deployment
+      - HOST_IP=your.server.ip.address
+      # Use external storage for larger deployments
+      - LAKEHOUSE_ROOT=/mnt/lakehouse-storage
+      # Adjust timeouts for slower networks
+      - MINIO_READY_TIMEOUT=30
+      - MINIO_READY_INTERVAL=5
+
+  # ==============================================================================
+  # ENHANCED SERVICE CONFIGURATIONS
+  # ==============================================================================
+
   # Example: Enhanced MinIO configuration with SSL
   minio:
     volumes:
@@ -42,25 +70,36 @@ services:
       # Mount custom datasets for local processing
       - ./local-datasets:/opt/datasets:ro
 
-  # Example: Enhanced Jupyter configuration
+  # Example: Enhanced Jupyter configuration with DuckDB 1.3.2
   jupyter:
     environment:
-      # Custom Jupyter token
-      - JUPYTER_TOKEN=my-secure-token
+      # NOTE: JUPYTER_TOKEN is auto-generated - see ./scripts/show-credentials.sh
+      # Custom Jupyter token (optional override)
+      # - JUPYTER_TOKEN=your-custom-token
+      
       # Enable Jupyter extensions
       - JUPYTER_ENABLE_LAB=yes
-      # Custom Spark settings for Jupyter
+      
+      # Enhanced Spark settings for large analytics
       - SPARK_DRIVER_MEMORY=8g
       - SPARK_EXECUTOR_MEMORY=8g
       - SPARK_EXECUTOR_CORES=4
+      - SPARK_DRIVER_MAX_RESULT_SIZE=4g
+      
+      # DuckDB configuration for data lake analytics
+      - DUCKDB_MEMORY_LIMIT=8GB
+      - DUCKDB_THREADS=4
     volumes:
       # Mount additional Python packages
       - ./custom-python-packages:/home/jovyan/custom-packages:ro
-      # Mount external datasets
+      # Mount external datasets for analysis
       - ./external-data:/home/jovyan/external-data:ro
-    # Expose additional ports if needed
+      # Mount custom DuckDB extensions
+      - ./custom-duckdb-extensions:/home/jovyan/.duckdb/extensions:ro
+    # Expose additional ports if needed for custom services
     # ports:
-    #   - "8889:8888"  # Alternative port
+    #   - "8889:8888"  # Alternative Jupyter port
+    #   - "8050:8050"  # For Dash/Plotly apps
 
   # Example: Enhanced Airflow configuration
   airflow-webserver:
@@ -87,39 +126,70 @@ services:
       - ./custom-airflow-plugins:/opt/airflow/plugins:ro
       - ./custom-requirements.txt:/opt/airflow/requirements.txt:ro
 
-  # Example: Enhanced Superset configuration
+  # Example: Enhanced Superset configuration with dual analytics
   superset:
     environment:
-      # Custom secret key (IMPORTANT: Change this!)
-      - SUPERSET_SECRET_KEY=your-very-long-random-secret-key-here
-      # Database connection for metadata (if using external DB)
+      # NOTE: SUPERSET_SECRET_KEY is auto-generated - see ./scripts/show-credentials.sh
+      # Custom secret key (optional override - use strong random string)
+      # - SUPERSET_SECRET_KEY=your-very-long-random-secret-key-here
+      
+      # Enhanced performance settings
+      - SUPERSET_WORKERS=8
+      - SUPERSET_TIMEOUT=120
+      - SUPERSET_WEBSERVER_TIMEOUT=120
+      
+      # Enable additional features
+      - SUPERSET_FEATURE_FLAGS='{"ENABLE_TEMPLATE_PROCESSING": true, "DASHBOARD_NATIVE_FILTERS": true}'
+      
+      # Database connections (both DuckDB and PostgreSQL pre-configured)
       # - SUPERSET_CONFIG_PATH=/app/superset_config.py
     volumes:
       # Mount custom Superset configuration
       - ./custom-superset-config.py:/app/superset_config.py:ro
-      # Mount custom themes/assets
+      # Mount custom themes/assets  
       - ./custom-superset-assets:/app/superset/static/assets/custom:ro
-    # Add health check override
+      # Mount additional DuckDB database files
+      - ./custom-duckdb-files:/app/superset_home/databases:ro
+    # Enhanced health check
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
       interval: 30s
-      timeout: 10s
+      timeout: 15s
       retries: 3
+      start_period: 90s
 
-  # Example: Enhanced Postgres configuration
+  # Example: Enhanced PostgreSQL configuration for analytics
   postgres:
     environment:
-      # Custom Postgres settings
-      - POSTGRES_SHARED_BUFFERS=256MB
-      - POSTGRES_EFFECTIVE_CACHE_SIZE=2GB
-      - POSTGRES_MAINTENANCE_WORK_MEM=128MB
+      # Performance tuning for analytics workloads
+      - POSTGRES_SHARED_BUFFERS=512MB           # Increase for larger datasets
+      - POSTGRES_EFFECTIVE_CACHE_SIZE=4GB       # Set to ~75% of available RAM
+      - POSTGRES_MAINTENANCE_WORK_MEM=256MB     # Increase for faster index builds
+      - POSTGRES_WORK_MEM=32MB                  # Per-connection memory for sorts/joins
+      - POSTGRES_CHECKPOINT_COMPLETION_TARGET=0.9
+      - POSTGRES_WAL_BUFFERS=64MB
+      - POSTGRES_DEFAULT_STATISTICS_TARGET=100
+      # Enable connection pooling
+      - POSTGRES_MAX_CONNECTIONS=200
     volumes:
       # Mount custom postgres configuration
       - ./custom-postgres.conf:/etc/postgresql/postgresql.conf:ro
-      # Mount initialization scripts
+      # Mount initialization scripts for analytics schema
       - ./postgres-init-scripts:/docker-entrypoint-initdb.d:ro
-    # Custom command to use custom config
-    # command: postgres -c config_file=/etc/postgresql/postgresql.conf
+      # Use external storage for better performance
+      # - /mnt/fast-storage/postgres:/var/lib/postgresql/data
+    command: >
+      postgres
+      -c shared_buffers=512MB
+      -c effective_cache_size=4GB
+      -c maintenance_work_mem=256MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=64MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=32MB
+      -c max_connections=200
 
   # Example: Enhanced Portainer configuration
   portainer:
@@ -231,6 +301,44 @@ volumes:
   #     type: none
   #     o: bind
   #     device: /mnt/external-storage/minio
+
+# ==============================================================================
+# DUCKDB & CREDENTIAL MANAGEMENT EXAMPLES
+# ==============================================================================
+
+# Example: Create custom initialization script for DuckDB persistent secrets
+# Create a file ./custom-init/setup-duckdb-secrets.sql:
+#
+# -- Auto-configure DuckDB persistent secrets
+# CREATE PERSISTENT SECRET minio_prod (
+#     TYPE S3,
+#     KEY_ID 'admin',
+#     SECRET '${MINIO_ROOT_PASSWORD}',
+#     ENDPOINT 'minio:9000',
+#     USE_SSL false,
+#     URL_STYLE 'path',
+#     SCOPE 's3://lakehouse'
+# );
+#
+# -- Create additional secrets for external S3 buckets
+# CREATE PERSISTENT SECRET aws_s3_prod (
+#     TYPE S3,
+#     KEY_ID 'your-aws-access-key',
+#     SECRET 'your-aws-secret-key',
+#     REGION 'us-west-2',
+#     SCOPE 's3://your-prod-bucket'
+# );
+
+# Example: Mount custom initialization scripts
+#  lakehouse-init:
+#    volumes:
+#      - ./custom-init:/host/custom-init:ro
+#    environment:
+#      - CUSTOM_INIT_SCRIPTS=/host/custom-init
+
+# ==============================================================================
+# PRODUCTION DEPLOYMENT EXAMPLES
+# ==============================================================================
 
 # Example configurations you can uncomment and customize:
 
