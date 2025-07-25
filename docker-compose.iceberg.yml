@@ -1,5 +1,9 @@
 # Docker Compose Override for Apache Iceberg Support
 # Usage: docker compose -f docker-compose.yml -f docker-compose.iceberg.yml up -d
+#
+# This overlay adds Apache Iceberg table format support for lakehouse analytics
+# Requires: Generated credentials (./scripts/show-credentials.sh)
+# Features: Iceberg tables, time travel, schema evolution, partition evolution
 
 services:
   # Spark Master with Iceberg support
@@ -7,6 +11,14 @@ services:
     environment:
       # Add Iceberg JAR to Spark classpath
       - SPARK_CLASSPATH=/opt/bitnami/spark/jars/iceberg-spark-runtime-3.5_2.12-1.4.3.jar
+      
+      # S3/MinIO configuration for Iceberg (uses generated credentials)
+      - SPARK_CONF_spark_hadoop_fs_s3a_endpoint=http://minio:9000
+      - SPARK_CONF_spark_hadoop_fs_s3a_access_key=${MINIO_ROOT_USER:-admin}
+      - SPARK_CONF_spark_hadoop_fs_s3a_secret_key=${MINIO_ROOT_PASSWORD}
+      - SPARK_CONF_spark_hadoop_fs_s3a_path_style_access=true
+      - SPARK_CONF_spark_hadoop_fs_s3a_impl=org.apache.hadoop.fs.s3a.S3AFileSystem
+      
       # Iceberg-specific Spark configurations
       - SPARK_CONF_spark_sql_extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
       - SPARK_CONF_spark_sql_catalog_spark__catalog=org.apache.iceberg.spark.SparkSessionCatalog
@@ -14,6 +26,11 @@ services:
       - SPARK_CONF_spark_sql_catalog_iceberg=org.apache.iceberg.spark.SparkCatalog
       - SPARK_CONF_spark_sql_catalog_iceberg_type=hadoop
       - SPARK_CONF_spark_sql_catalog_iceberg_warehouse=s3a://lakehouse/iceberg-warehouse/
+      - SPARK_CONF_spark_sql_catalog_iceberg_io__impl=org.apache.iceberg.aws.s3.S3FileIO
+      
+      # Enhanced performance settings for Iceberg
+      - SPARK_CONF_spark_sql_adaptive_enabled=true
+      - SPARK_CONF_spark_sql_adaptive_coalescePartitions_enabled=true
     volumes:
       # Mount directory containing Iceberg JAR files
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/iceberg-jars:/opt/bitnami/spark/jars/iceberg:ro
@@ -25,6 +42,14 @@ services:
     environment:
       # Add Iceberg JAR to Spark classpath
       - SPARK_CLASSPATH=/opt/bitnami/spark/jars/iceberg-spark-runtime-3.5_2.12-1.4.3.jar
+      
+      # S3/MinIO configuration for Iceberg (uses generated credentials)
+      - SPARK_CONF_spark_hadoop_fs_s3a_endpoint=http://minio:9000
+      - SPARK_CONF_spark_hadoop_fs_s3a_access_key=${MINIO_ROOT_USER:-admin}
+      - SPARK_CONF_spark_hadoop_fs_s3a_secret_key=${MINIO_ROOT_PASSWORD}
+      - SPARK_CONF_spark_hadoop_fs_s3a_path_style_access=true
+      - SPARK_CONF_spark_hadoop_fs_s3a_impl=org.apache.hadoop.fs.s3a.S3AFileSystem
+      
       # Iceberg-specific Spark configurations
       - SPARK_CONF_spark_sql_extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
       - SPARK_CONF_spark_sql_catalog_spark__catalog=org.apache.iceberg.spark.SparkSessionCatalog
@@ -32,6 +57,11 @@ services:
       - SPARK_CONF_spark_sql_catalog_iceberg=org.apache.iceberg.spark.SparkCatalog
       - SPARK_CONF_spark_sql_catalog_iceberg_type=hadoop
       - SPARK_CONF_spark_sql_catalog_iceberg_warehouse=s3a://lakehouse/iceberg-warehouse/
+      - SPARK_CONF_spark_sql_catalog_iceberg_io__impl=org.apache.iceberg.aws.s3.S3FileIO
+      
+      # Enhanced performance settings for Iceberg
+      - SPARK_CONF_spark_sql_adaptive_enabled=true
+      - SPARK_CONF_spark_sql_adaptive_coalescePartitions_enabled=true
     volumes:
       # Mount directory containing Iceberg JAR files
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/iceberg-jars:/opt/bitnami/spark/jars/iceberg:ro
@@ -44,32 +74,81 @@ services:
     environment:
       # Add Iceberg configurations for Jupyter Spark sessions
       - SPARK_OPTS=--jars /home/jovyan/work/iceberg-jars/iceberg-spark-runtime-3.5_2.12-1.4.3.jar
+      
+      # S3/MinIO configuration for Jupyter Iceberg sessions (uses generated credentials)
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-admin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      
+      # Enhanced Jupyter configuration for Iceberg analytics
+      - JUPYTER_ICEBERG_ENABLED=true
     volumes:
       # Mount Iceberg JARs for Jupyter access
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/iceberg-jars:/home/jovyan/work/iceberg-jars:ro
+      # Mount custom Iceberg notebooks
+      - ./iceberg-notebooks:/home/jovyan/work/iceberg-examples:ro
 
-  # Optional: Iceberg REST Catalog (uncomment if needed)
+  # Optional: Iceberg REST Catalog with PostgreSQL metadata (uncomment if needed)
   # iceberg-rest:
-  #   image: tabulario/iceberg-rest:0.6.0
+  #   image: tabulario/iceberg-rest:0.7.0
   #   container_name: iceberg-rest
   #   ports:
   #     - "8181:8181"
   #   environment:
+  #     # S3/MinIO configuration (uses generated credentials)
   #     - CATALOG_WAREHOUSE=s3a://lakehouse/iceberg-warehouse/
   #     - CATALOG_S3_ENDPOINT=http://minio:9000
-  #     - CATALOG_S3_ACCESS_KEY_ID=minio
-  #     - CATALOG_S3_SECRET_ACCESS_KEY=minio123
+  #     - CATALOG_S3_ACCESS_KEY_ID=${MINIO_ROOT_USER:-admin}
+  #     - CATALOG_S3_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD}
   #     - CATALOG_S3_PATH_STYLE_ACCESS=true
+  #     
+  #     # PostgreSQL metadata storage (uses generated credentials)  
+  #     - CATALOG_URI=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/lakehouse
+  #     - CATALOG_JDBC_USER=postgres
+  #     - CATALOG_JDBC_PASSWORD=${POSTGRES_PASSWORD}
+  #     
+  #     # REST catalog configuration
+  #     - CATALOG_TYPE=jdbc
+  #     - CATALOG_JDBC_INITIALIZE=true
   #   networks:
   #     - lakehouse
   #   depends_on:
   #     - minio
+  #     - postgres
   #   deploy:
   #     resources:
   #       limits:
   #         memory: ${ICEBERG_MEMORY_LIMIT:-4G}
   #       reservations:
   #         memory: ${ICEBERG_MEMORY_RESERVATION:-1G}
+
+  # Optional: Enhanced Superset with Iceberg support (uncomment if needed)
+  # superset:
+  #   environment:
+  #     # Enable Iceberg table discovery in Superset
+  #     - SUPERSET_FEATURE_FLAGS='{"ENABLE_TEMPLATE_PROCESSING": true, "DYNAMIC_PLUGINS": true}'
+  #   volumes:
+  #     # Mount Iceberg JAR for Superset Spark SQL interface
+  #     - ${LAKEHOUSE_ROOT:-./lakehouse-data}/iceberg-jars:/app/iceberg-jars:ro
+
+# ==============================================================================
+# REMOTE SERVER DEPLOYMENT EXAMPLES
+# ==============================================================================
+
+# Example: Override for remote server with external S3
+# Uncomment and customize for production deployments:
+#
+# services:
+#   spark-master:
+#     environment:
+#       # Use external S3 instead of MinIO
+#       - SPARK_CONF_spark_hadoop_fs_s3a_endpoint=https://s3.amazonaws.com
+#       - SPARK_CONF_spark_hadoop_fs_s3a_access_key=YOUR_AWS_ACCESS_KEY
+#       - SPARK_CONF_spark_hadoop_fs_s3a_secret_key=YOUR_AWS_SECRET_KEY
+#       - SPARK_CONF_spark_sql_catalog_iceberg_warehouse=s3a://your-prod-bucket/iceberg-warehouse/
+#       
+#       # Add SSL and encryption
+#       - SPARK_CONF_spark_hadoop_fs_s3a_connection_ssl_enabled=true
+#       - SPARK_CONF_spark_hadoop_fs_s3a_server_side_encryption_algorithm=AES256
 
 # Create iceberg-warehouse bucket in MinIO
 volumes:
