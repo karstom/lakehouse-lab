@@ -93,36 +93,27 @@ create_directories() {
 set_permissions() {
     log_info "Setting appropriate permissions for lakehouse directories..."
     
-    # Get current user info
-    local current_user=$(whoami)
-    local current_group=$(id -gn)
+    # In container environments, use permissive permissions instead of changing ownership
+    # This allows different service users to access the directories
+    log_info "Setting permissive permissions for multi-user container access"
     
-    log_info "Setting ownership to $current_user:$current_group"
-    
-    # Set ownership of entire lakehouse directory tree
-    if chown -R "$current_user:$current_group" "$LAKEHOUSE_ROOT" 2>/dev/null; then
-        log_success "Ownership set successfully"
-    else
-        log_warning "Failed to set ownership (this may cause permission issues)"
-    fi
-    
-    # Set directory permissions (755 - rwxr-xr-x)
-    find "$LAKEHOUSE_ROOT" -type d -exec chmod 755 {} \; 2>/dev/null || {
+    # Set directory permissions (777 - rwxrwxrwx for container compatibility)
+    find "$LAKEHOUSE_ROOT" -type d -exec chmod 777 {} \; 2>/dev/null || {
         log_warning "Some directory permissions could not be set"
     }
     
-    # Set file permissions (644 - rw-r--r--)
-    find "$LAKEHOUSE_ROOT" -type f -exec chmod 644 {} \; 2>/dev/null || {
+    # Set file permissions (666 - rw-rw-rw- for container compatibility)
+    find "$LAKEHOUSE_ROOT" -type f -exec chmod 666 {} \; 2>/dev/null || {
         log_warning "Some file permissions could not be set"
     }
     
     # Special permissions for executables
-    find "$LAKEHOUSE_ROOT" -name "*.sh" -exec chmod 755 {} \; 2>/dev/null || true
-    find "$LAKEHOUSE_ROOT" -name "*.py" -exec chmod 755 {} \; 2>/dev/null || true
+    find "$LAKEHOUSE_ROOT" -name "*.sh" -exec chmod 777 {} \; 2>/dev/null || true
+    find "$LAKEHOUSE_ROOT" -name "*.py" -exec chmod 777 {} \; 2>/dev/null || true
     
     # Create log file with proper permissions
     touch "$LAKEHOUSE_ROOT/init.log"
-    chmod 664 "$LAKEHOUSE_ROOT/init.log"
+    chmod 666 "$LAKEHOUSE_ROOT/init.log"
     
     log_success "Permissions set successfully"
 }
