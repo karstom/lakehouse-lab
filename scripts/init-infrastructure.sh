@@ -30,7 +30,7 @@ install_minio_client() {
     log_info "Downloading MinIO client from $mc_url"
     
     if curl -fsSL "$mc_url" -o /tmp/mc; then
-        if sudo mv /tmp/mc "$mc_path" && sudo chmod +x "$mc_path"; then
+        if mv /tmp/mc "$mc_path" && chmod +x "$mc_path"; then
             log_success "MinIO client installed successfully to $mc_path"
             
             # Verify installation
@@ -100,7 +100,7 @@ set_permissions() {
     log_info "Setting ownership to $current_user:$current_group"
     
     # Set ownership of entire lakehouse directory tree
-    if sudo chown -R "$current_user:$current_group" "$LAKEHOUSE_ROOT"; then
+    if chown -R "$current_user:$current_group" "$LAKEHOUSE_ROOT" 2>/dev/null; then
         log_success "Ownership set successfully"
     else
         log_warning "Failed to set ownership (this may cause permission issues)"

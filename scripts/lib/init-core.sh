@@ -63,7 +63,7 @@ cleanup() {
         echo "   • Try: docker compose down && docker compose up -d"
         echo ""
         echo "🔧 Permission Issues:"
-        echo "   • Run: sudo chown -R \$USER:\$USER $LAKEHOUSE_ROOT"
+        echo "   • Run: chown -R \$USER:\$USER $LAKEHOUSE_ROOT"
         echo "   • Check: ls -la $LAKEHOUSE_ROOT"
         echo ""
         echo "🔧 Network Issues:"
