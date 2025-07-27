@@ -567,8 +567,9 @@ configure_environment() {
     fi
     
     # Make scripts executable
-    chmod +x init-all-in-one.sh
+    chmod +x init-all-in-one-modular.sh
     chmod +x start-lakehouse.sh
+    find ./scripts -name "*.sh" -exec chmod +x {} \;
 }
 
 start_services() {

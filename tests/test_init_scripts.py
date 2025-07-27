@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Unit tests for lakehouse initialization scripts
-Tests the core functionality of init-all-in-one.sh and start-lakehouse.sh
+Tests the core functionality of init-all-in-one-modular.sh and start-lakehouse.sh
 """
 
 import unittest
@@ -23,13 +23,18 @@ class TestInitScripts(unittest.TestCase):
         os.chdir(self.test_dir)
         
         # Create mock script files
-        self.init_script = Path("init-all-in-one.sh")
+        self.init_script = Path("init-all-in-one-modular.sh")
         self.start_script = Path("start-lakehouse.sh")
         
         # Copy actual scripts to test directory
         project_root = Path(__file__).parent.parent
-        if (project_root / "init-all-in-one.sh").exists():
-            shutil.copy2(project_root / "init-all-in-one.sh", self.init_script)
+        if (project_root / "init-all-in-one-modular.sh").exists():
+            shutil.copy2(project_root / "init-all-in-one-modular.sh", self.init_script)
+        # Also copy the scripts and templates directories
+        if (project_root / "scripts").exists():
+            shutil.copytree(project_root / "scripts", Path("scripts"))
+        if (project_root / "templates").exists():
+            shutil.copytree(project_root / "templates", Path("templates"))
         if (project_root / "start-lakehouse.sh").exists():
             shutil.copy2(project_root / "start-lakehouse.sh", self.start_script)
     
@@ -40,7 +45,7 @@ class TestInitScripts(unittest.TestCase):
     
     def test_init_script_exists(self):
         """Test that init script exists and is executable"""
-        self.assertTrue(self.init_script.exists(), "init-all-in-one.sh should exist")
+        self.assertTrue(self.init_script.exists(), "init-all-in-one-modular.sh should exist")
         
         # Make script executable if it exists
         if self.init_script.exists():
@@ -59,7 +64,7 @@ class TestInitScripts(unittest.TestCase):
     def test_init_script_syntax(self):
         """Test that init script has valid bash syntax"""
         if not self.init_script.exists():
-            self.skipTest("init-all-in-one.sh not found")
+            self.skipTest("init-all-in-one-modular.sh not found")
         
         result = subprocess.run(
             ["bash", "-n", str(self.init_script)],
@@ -83,7 +88,7 @@ class TestInitScripts(unittest.TestCase):
     def test_init_script_shebang(self):
         """Test that init script has proper shebang"""
         if not self.init_script.exists():
-            self.skipTest("init-all-in-one.sh not found")
+            self.skipTest("init-all-in-one-modular.sh not found")
         
         with open(self.init_script, 'r') as f:
             first_line = f.readline().strip()
@@ -109,7 +114,7 @@ class TestInitScripts(unittest.TestCase):
     def test_init_script_has_error_handling(self):
         """Test that init script has proper error handling"""
         if not self.init_script.exists():
-            self.skipTest("init-all-in-one.sh not found")
+            self.skipTest("init-all-in-one-modular.sh not found")
         
         with open(self.init_script, 'r') as f:
             content = f.read()
@@ -132,7 +137,7 @@ class TestInitScripts(unittest.TestCase):
     def test_init_script_environment_variables(self):
         """Test that init script properly handles environment variables"""
         if not self.init_script.exists():
-            self.skipTest("init-all-in-one.sh not found")
+            self.skipTest("init-all-in-one-modular.sh not found")
         
         with open(self.init_script, 'r') as f:
             content = f.read()
@@ -157,7 +162,7 @@ class TestInitScripts(unittest.TestCase):
     def test_init_script_logging(self):
         """Test that init script has proper logging functions"""
         if not self.init_script.exists():
-            self.skipTest("init-all-in-one.sh not found")
+            self.skipTest("init-all-in-one-modular.sh not found")
         
         with open(self.init_script, 'r') as f:
             content = f.read()
@@ -182,7 +187,7 @@ class TestInitScripts(unittest.TestCase):
     def test_init_script_minio_client_installation(self):
         """Test that init script properly installs MinIO client"""
         if not self.init_script.exists():
-            self.skipTest("init-all-in-one.sh not found")
+            self.skipTest("init-all-in-one-modular.sh not found")
         
         with open(self.init_script, 'r') as f:
             content = f.read()
@@ -194,7 +199,7 @@ class TestInitScripts(unittest.TestCase):
     def test_init_script_iceberg_support(self):
         """Test that init script supports Iceberg integration"""
         if not self.init_script.exists():
-            self.skipTest("init-all-in-one.sh not found")
+            self.skipTest("init-all-in-one-modular.sh not found")
         
         with open(self.init_script, 'r') as f:
             content = f.read()

@@ -21,7 +21,7 @@ class TestIcebergIntegration(unittest.TestCase):
         """Set up test environment"""
         self.project_root = Path(__file__).parent.parent
         self.iceberg_compose = self.project_root / 'docker-compose.iceberg.yml'
-        self.init_script = self.project_root / 'init-all-in-one.sh'
+        self.init_script = self.project_root / 'init-all-in-one-modular.sh'
         self.iceberg_docs = self.project_root / 'ICEBERG.md'
         
     def test_iceberg_compose_file_exists(self):
@@ -196,7 +196,7 @@ class TestIcebergIntegration(unittest.TestCase):
     def test_init_script_iceberg_support(self):
         """Test that init script supports Iceberg JAR downloading"""
         if not self.init_script.exists():
-            self.skipTest("init-all-in-one.sh not found")
+            self.skipTest("init-all-in-one-modular.sh not found")
         
         with open(self.init_script, 'r') as f:
             content = f.read()
@@ -216,7 +216,7 @@ class TestIcebergIntegration(unittest.TestCase):
     def test_iceberg_jar_download_function(self):
         """Test Iceberg JAR download functionality in init script"""
         if not self.init_script.exists():
-            self.skipTest("init-all-in-one.sh not found")
+            self.skipTest("init-all-in-one-modular.sh not found")
         
         with open(self.init_script, 'r') as f:
             content = f.read()

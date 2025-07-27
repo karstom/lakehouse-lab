@@ -290,7 +290,9 @@ print(f"Total records: {result[0]}")
 ```
 lakehouse-lab/
 ├── docker-compose.yml           # Main stack definition
-├── init-all-in-one.sh          # Initialization script
+├── init-all-in-one-modular.sh  # Modular initialization script
+├── scripts/                    # Initialization modules
+├── templates/                  # Configuration templates
 ├── .env.default                # Default configuration
 ├── .env.fat-server             # High-resource configuration
 ├── README.md                   # This file
