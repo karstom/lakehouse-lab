@@ -567,9 +567,28 @@ configure_environment() {
     fi
     
     # Make scripts executable
-    [ -f init-all-in-one-modular.sh ] && chmod +x init-all-in-one-modular.sh
-    [ -f start-lakehouse.sh ] && chmod +x start-lakehouse.sh
-    [ -d scripts ] && find ./scripts -name "*.sh" -exec chmod +x {} \;
+    print_info "Setting executable permissions on scripts..."
+    if [ -f init-all-in-one-modular.sh ]; then
+        chmod +x init-all-in-one-modular.sh
+        print_info "Made init-all-in-one-modular.sh executable"
+    else
+        print_warning "init-all-in-one-modular.sh not found in $(pwd)"
+        ls -la init-all-in-one*.sh 2>/dev/null || print_warning "No init scripts found"
+    fi
+    
+    if [ -f start-lakehouse.sh ]; then
+        chmod +x start-lakehouse.sh
+        print_info "Made start-lakehouse.sh executable"
+    else
+        print_warning "start-lakehouse.sh not found"
+    fi
+    
+    if [ -d scripts ]; then
+        find ./scripts -name "*.sh" -exec chmod +x {} \;
+        print_info "Made modular scripts executable"
+    else
+        print_warning "scripts directory not found"
+    fi
 }
 
 start_services() {
