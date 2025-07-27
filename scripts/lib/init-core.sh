@@ -164,6 +164,16 @@ check_docker_services() {
 validate_environment() {
     log_info "Validating environment requirements..."
     
+    # Check if we're in Alpine and install dependencies
+    if [ -f /etc/alpine-release ]; then
+        log_info "Detected Alpine Linux - installing required packages..."
+        apk add --no-cache curl python3 py3-pip >/dev/null 2>&1 || {
+            log_error "Failed to install required packages in Alpine"
+            return 1
+        }
+        log_success "Required packages installed in Alpine"
+    fi
+    
     # Check required commands
     local required_commands=("curl" "python3")
     for cmd in "${required_commands[@]}"; do
