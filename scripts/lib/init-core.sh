@@ -139,6 +139,12 @@ wait_for_minio_api() {
 check_docker_services() {
     log_info "Checking Docker services status..."
     
+    # Check if we're running inside a container (skip Docker checks)
+    if [ -f /.dockerenv ] || [ -f /proc/1/cgroup ] && grep -q docker /proc/1/cgroup 2>/dev/null; then
+        log_info "Running inside container - skipping Docker service checks"
+        return 0
+    fi
+    
     # Check if docker compose is available
     if ! command -v docker &> /dev/null; then
         log_error "Docker is not installed or not in PATH"
