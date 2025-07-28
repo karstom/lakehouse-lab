@@ -52,11 +52,22 @@ Once startup completes, access these URLs:
 | Service | URL | Purpose | Credentials |
 |---------|-----|---------|-------------|
 | **Portainer** | http://localhost:9060 | Container Management | Create admin user |
-| **Superset** | http://localhost:9030 | BI & Dashboards | admin/admin |
-| **JupyterLab** | http://localhost:9040 | Data Science | token: lakehouse |
-| **Airflow** | http://localhost:9020 | Orchestration | admin/admin |
-| **MinIO** | http://localhost:9001 | File Storage | minio/minio123 |
+| **Superset** | http://localhost:9030 | BI & Dashboards | 🔐 Generated |
+| **JupyterLab** | http://localhost:9040 | Data Science | 🔐 Generated |
+| **Airflow** | http://localhost:9020 | Orchestration | 🔐 Generated |
+| **MinIO** | http://localhost:9001 | File Storage | 🔐 Generated |
 | **Spark** | http://localhost:8080 | Processing Engine | N/A |
+
+## 🔒 Getting Your Login Credentials
+
+**Lakehouse Lab now generates unique, secure credentials for every installation!** No more default passwords.
+
+### View Your Credentials
+```bash
+./scripts/show-credentials.sh
+```
+
+This shows all your service URLs and login credentials in a clean, copy-paste ready format with memorable passphrases like `swift-river-bright-847`.
 
 ---
 
@@ -64,15 +75,23 @@ Once startup completes, access these URLs:
 
 ### **Step 1: Open Superset**
 1. Visit http://localhost:9030
-2. Login: **admin** / **admin**
-3. Go to **SQL Lab**
+2. **Get credentials**: Run `./scripts/show-credentials.sh` to see your Superset login
+3. Login with your generated credentials (format: admin / memorable-passphrase)
+4. Go to **SQL Lab**
 
 ### **Step 2: Use Pre-configured DuckDB Database**
 ✅ **FIXED**: The DuckDB connection is now pre-configured with the correct URI and S3 settings!
 
-The database connection "DuckDB Lakehouse" should appear automatically with:
+The database connection **"DuckDB-S3"** should appear automatically with:
 - **URI**: `duckdb:////app/superset_home/lakehouse.duckdb` (fixed persistent file)
 - **S3 Config**: Pre-configured for MinIO access
+- **DML/DDL**: Enabled (CREATE TABLE, INSERT, UPDATE, DELETE allowed)
+- **File Uploads**: Enabled for CSV import
+- **Async Queries**: Enabled for better performance
+
+**🔧 If you don't see "DuckDB-S3":**
+1. Refresh the page or try **Data** → **Database Connections**
+2. If still not there, see the [Superset Database Setup Guide](SUPERSET_DATABASE_SETUP.md) for manual creation steps
 
 ### **Step 3: Query Your Data (No Configuration Needed!)**
 ✅ **FIXED**: S3 configuration is now persistent - no need to run setup commands every time!
@@ -105,7 +124,7 @@ ORDER BY total_revenue DESC;
 ✅ **FIXED**: Use single SELECT statements to avoid "Only single queries supported" error
 
 1. In Superset, go to **Data** → **Datasets** → **+ Dataset**
-2. **Database**: DuckDB Lakehouse
+2. **Database**: DuckDB-S3
 3. **Dataset Type**: SQL
 4. **SQL**: Use ONLY a single SELECT statement:
 
@@ -142,7 +161,8 @@ GROUP BY product_category
 ✅ **FIXED**: DuckDB packages are now pre-installed in Jupyter
 
 1. Visit http://localhost:9040
-2. Enter token: **lakehouse**
+2. **Get token**: Run `./scripts/show-credentials.sh` to see your JupyterLab token
+3. Enter your generated token (format: memorable-passphrase)
 3. DuckDB 1.3.2 and all dependencies are ready to use!
 
 ### **Step 2: Try Your Analysis**
@@ -160,8 +180,8 @@ conn = duckdb.connect()
 conn.execute("""
     INSTALL httpfs; LOAD httpfs;
     SET s3_endpoint='minio:9000';
-    SET s3_access_key_id='minio';
-    SET s3_secret_access_key='minio123';
+    SET s3_access_key_id='admin';  -- Replace with your MinIO username
+    SET s3_secret_access_key='YOUR_MINIO_PASSWORD';  -- Get from ./scripts/show-credentials.sh
     SET s3_use_ssl=false;
     SET s3_url_style='path';
 """)
@@ -195,7 +215,8 @@ print(f"DuckDB version: {duckdb.__version__}")  # Should show 1.3.2
 ✅ **FIXED**: DuckDB import errors resolved - DAGs now work!
 
 1. Visit http://localhost:9020
-2. Login: **admin** / **admin**
+2. **Get credentials**: Run `./scripts/show-credentials.sh` to see your Airflow login
+3. Login with your generated credentials (format: admin / memorable-passphrase)
 
 ### **Step 2: Explore Sample DAGs**
 - `sample_duckdb_pipeline` - Now works without import errors!
@@ -213,7 +234,8 @@ print(f"DuckDB version: {duckdb.__version__}")  # Should show 1.3.2
 
 ### **Step 1: Access MinIO Console**
 1. Visit http://localhost:9001
-2. Login: **minio** / **minio123**
+2. **Get credentials**: Run `./scripts/show-credentials.sh` to see your MinIO login
+3. Login with your generated credentials (format: admin / strong-password)
 
 ### **Step 2: Explore Data Structure**
 - **Bucket**: `lakehouse`
@@ -312,7 +334,7 @@ docker compose up -d
 If you need to manually update the Superset DuckDB connection:
 
 1. Go to **Settings** → **Database Connections**
-2. Edit "DuckDB Lakehouse" 
+2. Edit "DuckDB-S3" 
 3. Ensure **SQLAlchemy URI**: `duckdb:////app/superset_home/lakehouse.duckdb`
 4. **Test Connection** should work immediately
 

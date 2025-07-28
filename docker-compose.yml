@@ -143,6 +143,8 @@ services:
       MINIO_READY_INTERVAL: ${MINIO_READY_INTERVAL:-3}         # seconds between attempts
       BUCKET_CREATE_RETRIES: ${BUCKET_CREATE_RETRIES:-8}       # bucket creation retry attempts
       SKIP_MINIO_READY_CHECK: ${SKIP_MINIO_READY_CHECK:-false} # set to 'true' to skip readiness check
+      # Host IP for Homer dashboard (detected from host system)
+      HOST_IP: ${HOST_IP:-}
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}:/mnt/lakehouse
       - ./init-all-in-one-modular.sh:/host/init-all-in-one-modular.sh:ro
@@ -240,22 +242,47 @@ services:
       SPARK_DRIVER_MEMORY: ${JUPYTER_SPARK_DRIVER_MEMORY:-2g}
       SPARK_EXECUTOR_MEMORY: ${JUPYTER_SPARK_EXECUTOR_MEMORY:-2g}
       SPARK_EXECUTOR_CORES: ${JUPYTER_SPARK_EXECUTOR_CORES:-2}
+      # PySpark environment variables
+      SPARK_HOME: ${SPARK_HOME:-/usr/local/spark}
+      PYTHONPATH: ${PYTHONPATH:-/usr/local/spark/python:/usr/local/spark/python/lib/py4j-0.10.9.7-src.zip}
+      PYSPARK_PYTHON: /opt/conda/bin/python
+      PYSPARK_DRIVER_PYTHON: /opt/conda/bin/python
+      PYSPARK_SUBMIT_ARGS: --master spark://spark-master:7077 pyspark-shell
     ports:
       - "9040:8888"
     user: root
-    command: >
-      bash -c "
-      set -e
-      echo 'Installing additional packages...'
-      pip install --no-cache-dir duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 'sqlalchemy>=1.4.0' pandas matplotlib seaborn plotly
-      
-      echo 'Setting up Jupyter configuration...'
-      mkdir -p /home/jovyan/.jupyter
-      
-      echo 'Starting Jupyter...'
-      chown -R jovyan:users /home/jovyan
-      sudo -u jovyan start-notebook.sh --NotebookApp.token='${JUPYTER_TOKEN}' --NotebookApp.password='' --NotebookApp.allow_origin='*' --NotebookApp.disable_check_xsrf=True
-      "
+    command:
+      - bash
+      - -c
+      - |
+        set -e
+        echo 'Installing additional packages...'
+        # Install Python packages including PySpark for compatibility
+        pip install --no-cache-dir pyspark==3.5.0 duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 'sqlalchemy>=1.4.0' pandas matplotlib seaborn plotly
+        
+        echo 'Setting up Jupyter configuration...'
+        mkdir -p /home/jovyan/.jupyter
+        
+        echo 'Setting up permissions and environment...'
+        chown -R jovyan:users /home/jovyan 2>/dev/null || echo 'Permission setup skipped'
+        
+        # Install packages for jovyan user as well to ensure availability
+        sudo -u jovyan /opt/conda/bin/pip install --user --no-cache-dir pyspark==3.5.0 duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 'sqlalchemy>=1.4.0' pandas matplotlib seaborn plotly
+        
+        # Ensure PySpark environment variables are set for jovyan user
+        echo 'export SPARK_HOME=/usr/local/spark' >> /home/jovyan/.bashrc
+        echo 'export PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.9.7-src.zip:$PYTHONPATH' >> /home/jovyan/.bashrc
+        echo 'export PYSPARK_PYTHON=/opt/conda/bin/python' >> /home/jovyan/.bashrc
+        echo 'export PYSPARK_DRIVER_PYTHON=/opt/conda/bin/python' >> /home/jovyan/.bashrc
+        echo 'export PYSPARK_SUBMIT_ARGS=--master spark://spark-master:7077 pyspark-shell' >> /home/jovyan/.bashrc
+        
+        # Ensure MinIO credentials are available to jovyan user
+        echo "export MINIO_ROOT_USER='${MINIO_ROOT_USER}'" >> /home/jovyan/.bashrc
+        echo "export MINIO_ROOT_PASSWORD='${MINIO_ROOT_PASSWORD}'" >> /home/jovyan/.bashrc
+        
+        echo 'Starting Jupyter...'
+        # Use the proper Jupyter startup command with conda environment
+        exec sudo -E -u jovyan /opt/conda/bin/jupyter lab --NotebookApp.token='${JUPYTER_TOKEN}' --NotebookApp.password='' --NotebookApp.allow_origin='*' --NotebookApp.disable_check_xsrf=True
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/notebooks:/home/jovyan/notebooks
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/jupyter-config:/home/jovyan/.jupyter
@@ -277,57 +304,61 @@ services:
         condition: service_healthy
       lakehouse-init:
         condition: service_completed_successfully
-    command: >
-      bash -c "
-      set -e
-      echo '🚀 Starting Airflow initialization...'
-      
-      # Enhanced PostgreSQL readiness check with multiple validation steps
-      echo '⏳ Waiting for PostgreSQL to be fully ready...'
-      
-      # Step 1: Check if PostgreSQL service is responding
-      timeout 120 bash -c 'until pg_isready -h postgres -p 5432 -U postgres; do echo \"Waiting for postgres service...\"; sleep 3; done'
-      echo '✓ PostgreSQL service is responding'
-      
-      # Step 2: Wait for database to be accessible and accept connections
-      timeout 60 bash -c 'until psql -h postgres -p 5432 -U postgres -d airflow -c \"SELECT 1;\" >/dev/null 2>&1; do echo \"Waiting for database accessibility...\"; sleep 2; done'
-      echo '✓ PostgreSQL database is accessible'
-      
-      # Step 3: Additional safety delay to ensure full PostgreSQL initialization
-      echo '⏳ Adding safety delay for PostgreSQL full initialization...'
-      sleep 10
-      
-      echo '📦 Installing additional packages...'
-      pip install --no-cache-dir duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 'sqlalchemy>=1.4.0'
-      
-      echo '🗄️  Initializing Airflow database...'
-      # Retry database initialization if it fails initially
-      max_retries=3
-      retry_count=0
-      while [ $$retry_count -lt $$max_retries ]; do
-        if airflow db init; then
-          echo '✅ Airflow database initialized successfully'
-          break
-        else
-          retry_count=$$((retry_count + 1))
-          if [ $$retry_count -lt $$max_retries ]; then
-            echo \"⚠️  Database initialization attempt $$retry_count failed, retrying in 10 seconds...\"
-            sleep 10
+    command:
+      - bash
+      - -c
+      - |
+        set -e
+        echo '🚀 Starting Airflow initialization...'
+        
+        # Enhanced PostgreSQL readiness check with multiple validation steps
+        echo '⏳ Waiting for PostgreSQL to be fully ready...'
+        
+        # Step 1: Check if PostgreSQL service is responding
+        timeout 120 bash -c 'until pg_isready -h postgres -p 5432 -U postgres; do echo "Waiting for postgres service..."; sleep 3; done'
+        echo '✓ PostgreSQL service is responding'
+        
+        # Step 2: Wait for database to be accessible and accept connections
+        timeout 60 bash -c 'until psql -h postgres -p 5432 -U postgres -d airflow -c "SELECT 1;" >/dev/null 2>&1; do echo "Waiting for database accessibility..."; sleep 2; done'
+        echo '✓ PostgreSQL database is accessible'
+        
+        # Step 3: Additional safety delay to ensure full PostgreSQL initialization
+        echo '⏳ Adding safety delay for PostgreSQL full initialization...'
+        sleep 10
+        
+        echo '📦 Installing additional packages...'
+        pip install --no-cache-dir duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 'sqlalchemy>=1.4.0'
+        
+        echo '🗄️  Initializing Airflow database...'
+        # Retry database initialization if it fails initially
+        max_retries=3
+        retry_count=0
+        while [ $retry_count -lt $max_retries ]; do
+          if airflow db init; then
+            echo '✅ Airflow database initialized successfully'
+            break
           else
-            echo '❌ Database initialization failed after $$max_retries attempts'
-            exit 1
+            retry_count=$((retry_count + 1))
+            if [ $retry_count -lt $max_retries ]; then
+              echo "⚠️  Database initialization attempt $retry_count failed, retrying in 10 seconds..."
+              sleep 10
+            else
+              echo '❌ Database initialization failed after $max_retries attempts'
+              exit 1
+            fi
           fi
-        fi
-      done
-      
-      echo '👤 Creating admin user...'
-      airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin || echo 'Admin user already exists'
-      
-      echo '🔍 Verifying database initialization...'
-      airflow db check
-      
-      echo '✅ Airflow initialization completed successfully!'
-      "
+        done
+        
+        echo 'Upgrading database schema...'
+        airflow db upgrade
+        
+        echo '👤 Creating admin user...'
+        airflow users create --username ${AIRFLOW_ADMIN_USER:-admin} --firstname Admin --lastname User --role Admin --email admin@example.com --password ${AIRFLOW_ADMIN_PASSWORD} || echo 'Admin user already exists'
+        
+        echo '🔍 Verifying database initialization...'
+        airflow db check
+        
+        echo '✅ Airflow initialization completed successfully!'
     restart: "no"
     healthcheck:
       test: ["CMD-SHELL", "airflow db check || exit 1"]
@@ -361,11 +392,17 @@ services:
   airflow-webserver:
     <<: *airflow-common
     depends_on:
+      postgres:
+        condition: service_healthy
       airflow-init:
         condition: service_completed_successfully
       airflow-scheduler:
         condition: service_started
-    command: webserver
+    command: >
+      bash -c "
+      echo 'Starting Airflow webserver...';
+      exec airflow webserver
+      "
     ports:
       - "9020:8080"
     healthcheck:
@@ -396,63 +433,37 @@ services:
       - |
         set -e
         echo "Installing DuckDB and dependencies..."
-        mkdir -p /app/superset_home/.local && chmod 755 /app/superset_home/.local
-        pip install --no-cache-dir psycopg2-binary duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 'sqlalchemy>=1.4.0'
         
-        echo "Initializing Superset database..."
-        superset db upgrade
-        superset fab create-admin --username admin --firstname Admin --lastname User --email admin@example.com --password admin || true
-        superset init
+        # Ensure proper permissions for superset_home directory with fallback
+        mkdir -p /app/superset_home || echo 'Main directory exists';
         
-        echo "Configuring DuckDB with S3 settings..."
-        python3 << 'EOF'
-        import duckdb
-        import os
-        
-        # Ensure directory exists
-        os.makedirs('/app/superset_home', exist_ok=True)
-        
-        # Create and configure DuckDB connection
-        conn = duckdb.connect('/app/superset_home/lakehouse.duckdb')
-        conn.execute('INSTALL httpfs; LOAD httpfs;')
-        conn.execute("SET s3_endpoint='minio:9000';")
-        conn.execute("SET s3_access_key_id='minio';") 
-        conn.execute("SET s3_secret_access_key='minio123';")
-        conn.execute("SET s3_use_ssl=false;")
-        conn.execute("SET s3_url_style='path';")
-        
-        # Persist S3 settings for session consistency
-        try:
-            conn.execute("CREATE SCHEMA IF NOT EXISTS config;")
-            conn.execute("""
-                CREATE OR REPLACE MACRO configure_s3() AS (
-                    INSTALL httpfs;
-                    LOAD httpfs;
-                    SET s3_endpoint='minio:9000';
-                    SET s3_access_key_id='minio';
-                    SET s3_secret_access_key='minio123';
-                    SET s3_use_ssl=false;
-                    SET s3_url_style='path';
-                )
-            """)
-            print("✅ Created S3 configuration macro")
-        except Exception as e:
-            print(f"⚠️ Macro creation warning: {e}")
-        
-        # Test the connection
-        try:
-            result = conn.execute("SELECT 'DuckDB S3 configuration successful' as status;").fetchone()
-            print(f"✅ {result[0]}")
-        except Exception as e:
-            print(f"⚠️ Configuration warning: {e}")
-        finally:
-            conn.close()
-        EOF
-        
-        echo "Setting up Superset database connection with S3 configuration..."
-        if [ -f /app/superset_home/add_duckdb_connection.py ]; then
-            python3 /app/superset_home/add_duckdb_connection.py || echo "⚠️ Could not auto-configure database connection"
+        # Try different permission strategies
+        if id superset >/dev/null 2>&1; then
+          echo 'Using superset user permissions';
+          # Create directories first, then change ownership of only what we can
+          mkdir -p /app/superset_home/.local /app/superset_home/.cache;
+          chown -R superset:superset /app/superset_home/.local /app/superset_home/.cache 2>/dev/null || echo 'Partial chown completed';
+          # Set permissions on the main directory for superset user access
+          chmod 755 /app/superset_home;
+          chmod -R 755 /app/superset_home/.local /app/superset_home/.cache 2>/dev/null || echo 'Permission setup completed';
+        else
+          echo 'Using root permissions with fallback';
+          mkdir -p /app/superset_home/.local /app/superset_home/.cache;
+          chmod -R 777 /app/superset_home;
         fi
+        
+        # Install packages system-wide since we're running as root initially
+        pip install --no-cache-dir psycopg2-binary duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 'sqlalchemy>=1.4.0' Pillow;
+        
+        echo "Initializing Superset database...";
+        superset db upgrade;
+        superset fab create-admin --username ${SUPERSET_ADMIN_USER:-admin} --firstname Admin --lastname User --email admin@example.com --password ${SUPERSET_ADMIN_PASSWORD} || true;
+        superset init;
+        
+        # Small delay to ensure database is fully initialized
+        sleep 2
+        
+        echo "Superset ready for manual configuration - see SUPERSET_DATABASE_SETUP.md"
         
         echo "Starting Superset webserver..."
         superset run -h 0.0.0.0 -p 8088 --with-threads --reload --debugger
@@ -461,10 +472,13 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-lakehouse}
       SUPERSET_WORKERS: ${SUPERSET_WORKERS:-4}
       SUPERSET_TIMEOUT: ${SUPERSET_TIMEOUT:-60}
+      # Ensure Python finds user-installed packages
+      PYTHONPATH: "${PYTHONPATH}:/app/superset_home/.local/lib/python3.9/site-packages:/app/superset_home/.local/lib/python3.10/site-packages:/app/superset_home/.local/lib/python3.11/site-packages"
     ports:
       - "9030:8088"
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/superset:/app/superset_home
+      - ./scripts:/host/scripts:ro
     networks:
       - lakehouse
     healthcheck:

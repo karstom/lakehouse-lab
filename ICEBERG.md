@@ -65,11 +65,13 @@ MinIO S3 settings are pre-configured:
 
 ```python
 .config("spark.hadoop.fs.s3a.endpoint", "http://minio:9000") \
-.config("spark.hadoop.fs.s3a.access.key", "minio") \
-.config("spark.hadoop.fs.s3a.secret.key", "minio123") \
+.config("spark.hadoop.fs.s3a.access.key", "admin") \
+.config("spark.hadoop.fs.s3a.secret.key", "YOUR_MINIO_PASSWORD") \
 .config("spark.hadoop.fs.s3a.path.style.access", "true") \
 .config("spark.hadoop.fs.s3a.connection.ssl.enabled", "false")
 ```
+
+🔐 **Get your MinIO password**: Run `./scripts/show-credentials.sh` to see your generated MinIO credentials.
 
 ## Usage Examples
 
@@ -214,7 +216,7 @@ docker compose logs jupyter
 
 - [Apache Iceberg Documentation](https://iceberg.apache.org/)
 - [Iceberg Spark Integration](https://iceberg.apache.org/docs/latest/spark-configuration/)
-- [Lakehouse Lab Repository](https://github.com/your-repo/lakehouse-lab)
+- [Lakehouse Lab Repository](https://github.com/karstom/lakehouse-lab)
 
 ---
 

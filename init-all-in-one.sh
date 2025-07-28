@@ -16,8 +16,5 @@ if [ ! -f "init-all-in-one-modular.sh" ]; then
     exit 1
 fi
 
-# Make sure the new script is executable
-chmod +x init-all-in-one-modular.sh
-
-# Forward all arguments to the new modular script
+# Run the modular initialization script
 exec ./init-all-in-one-modular.sh "$@"
