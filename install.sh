@@ -593,6 +593,19 @@ configure_environment() {
     else
         print_warning "scripts directory not found"
     fi
+    
+    # Generate secure credentials
+    print_step "🔐 Generating secure credentials..."
+    if [[ -f "scripts/generate-credentials.sh" ]]; then
+        ./scripts/generate-credentials.sh
+        print_success "Secure credentials generated"
+    else
+        print_warning "Credential generator not found, using existing .env"
+        if [[ ! -f .env ]]; then
+            print_warning "No .env file found, creating basic one"
+            cp .env.default .env 2>/dev/null || touch .env
+        fi
+    fi
 }
 
 start_services() {
