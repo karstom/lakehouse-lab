@@ -1,52 +1,182 @@
-            ("Date Range", "SELECT MIN(order_date), MAX(order_date) FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv')"),
-            ("Negative Amounts", "SELECT COUNT(*) FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv') WHERE total_amount < 0"),
-            ("Duplicate Orders", "SELECT COUNT(*) - COUNT(DISTINCT order_id) FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv')"),
-            ("Category Distribution", "SELECT product_category, COUNT(*) FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv') GROUP BY product_category"),
-        ]
-        
-        results = {}
-        failed_checks = 0
-        
-        for check_name, query in checks:
-            try:
-                result = conn.execute(query).fetchall()
-                results[check_name] = result
-                
-                # Define quality rules
-                if check_name == "Record Count" and (not result or result[0][0] == 0):
-                    logging.warning(f"⚠️ {check_name}: No data found")
-                    failed_checks += 1
-                elif check_name in ["Null Check - Order ID", "Null Check - Customer ID", "Negative Amounts", "Duplicate Orders"] and result and result[0][0] > 0:
-                    logging.warning(f"⚠️ {check_name}: Found {result[0][0]} issues")
-                    failed_checks += 1
-                else:
-                    logging.info(f"✅ {check_name}: {result}")
-                    
-            except Exception as e:
-                logging.error(f"❌ {check_name}: ERROR - {e}")
-                results[check_name] = f"ERROR: {e}"
-                failed_checks += 1
-        
-        # Summary
-        total_checks = len(checks)
-        passed_checks = total_checks - failed_checks
-        
-        logging.info(f"📊 Quality Check Summary: {passed_checks}/{total_checks} checks passed")
-        
-        if failed_checks > 0:
-            logging.warning(f"⚠️ {failed_checks} quality issues detected")
-        else:
-            logging.info("✅ All quality checks passed!")
-        
-        return results
-        
-    except ImportError as e:
-        logging.error(f"❌ Missing dependency: {e}")
-        raise
-    finally:
-        conn.close()
+"""
+PostgreSQL Streaming DAG
+Demonstrates streaming data processing with PostgreSQL for Lakehouse Lab
+"""
 
-quality_check_task = PythonOperator(
-    task_id='run_comprehensive_quality_checks',
-    python_callable=run_comprehensive_quality_checks,
-    dag=dag,
+from datetime import datetime, timedelta
+from airflow import DAG
+from airflow.operators.python_operator import PythonOperator
+import logging
+
+default_args = {
+    'owner': 'lakehouse-lab',
+    'depends_on_past': False,
+    'start_date': datetime(2024, 1, 1),
+    'email_on_failure': False,
+    'email_on_retry': False,
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5)
+}
+
+dag = DAG(
+    'postgres_streaming_dag',
+    default_args=default_args,
+    description='PostgreSQL streaming data processing pipeline',
+    schedule_interval=timedelta(hours=4),
+    catchup=False,
+    tags=['postgresql', 'streaming', 'real-time']
+)
+
+def simulate_streaming_data(**context):
+    """Simulate streaming data ingestion to PostgreSQL"""
+    try:
+        import psycopg2
+        from datetime import datetime
+        import random
+        
+        conn_params = {
+            'host': 'postgres',
+            'port': 5432,
+            'database': 'lakehouse',
+            'user': 'postgres',
+            'password': 'postgres'
+        }
+        
+        conn = psycopg2.connect(**conn_params)
+        cursor = conn.cursor()
+        
+        # Create streaming events table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS streaming_events (
+                id SERIAL PRIMARY KEY,
+                event_type VARCHAR(50),
+                event_data JSONB,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Simulate some streaming events
+        event_types = ['user_login', 'page_view', 'purchase', 'search']
+        
+        for i in range(10):
+            event_type = random.choice(event_types)
+            event_data = {
+                'user_id': random.randint(1, 1000),
+                'session_id': f"session_{random.randint(1, 100)}",
+                'value': random.uniform(1.0, 100.0)
+            }
+            
+            cursor.execute("""
+                INSERT INTO streaming_events (event_type, event_data) 
+                VALUES (%s, %s)
+            """, (event_type, psycopg2.extras.Json(event_data)))
+        
+        # Get streaming statistics
+        cursor.execute("""
+            SELECT event_type, COUNT(*) as event_count 
+            FROM streaming_events 
+            WHERE timestamp >= NOW() - INTERVAL '1 day'
+            GROUP BY event_type
+            ORDER BY event_count DESC
+        """)
+        
+        results = cursor.fetchall()
+        logging.info("📊 Streaming Events (last 24h):")
+        for event_type, count in results:
+            logging.info(f"   {event_type}: {count} events")
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        logging.info("✅ Streaming data simulation completed")
+        return "streaming_completed"
+        
+    except Exception as e:
+        logging.error(f"❌ Streaming simulation failed: {e}")
+        return "streaming_failed"
+
+def process_streaming_analytics(**context):
+    """Process streaming analytics"""
+    try:
+        import psycopg2
+        
+        conn_params = {
+            'host': 'postgres',
+            'port': 5432,
+            'database': 'lakehouse',
+            'user': 'postgres',
+            'password': 'postgres'
+        }
+        
+        conn = psycopg2.connect(**conn_params)
+        cursor = conn.cursor()
+        
+        # Create analytics summary table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS streaming_analytics (
+                id SERIAL PRIMARY KEY,
+                analysis_date DATE DEFAULT CURRENT_DATE,
+                total_events INTEGER,
+                unique_users INTEGER,
+                avg_session_events DECIMAL(10,2),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Calculate analytics from streaming events
+        cursor.execute("""
+            WITH daily_stats AS (
+                SELECT 
+                    COUNT(*) as total_events,
+                    COUNT(DISTINCT (event_data->>'user_id')::int) as unique_users,
+                    AVG(CASE WHEN (event_data->>'session_id') IS NOT NULL 
+                        THEN 1.0 ELSE 0.0 END) as avg_session_events
+                FROM streaming_events 
+                WHERE DATE(timestamp) = CURRENT_DATE
+            )
+            INSERT INTO streaming_analytics (total_events, unique_users, avg_session_events)
+            SELECT total_events, unique_users, avg_session_events 
+            FROM daily_stats
+            WHERE total_events > 0
+        """)
+        
+        # Get latest analytics
+        cursor.execute("""
+            SELECT total_events, unique_users, avg_session_events 
+            FROM streaming_analytics 
+            WHERE analysis_date = CURRENT_DATE
+            ORDER BY created_at DESC
+            LIMIT 1
+        """)
+        
+        result = cursor.fetchone()
+        if result:
+            total, users, avg_events = result
+            logging.info(f"📈 Today's Analytics: {total} events, {users} users, {avg_events:.2f} avg events")
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return "analytics_processed"
+        
+    except Exception as e:
+        logging.error(f"❌ Streaming analytics failed: {e}")
+        return "analytics_failed"
+
+# Define tasks
+simulate_task = PythonOperator(
+    task_id='simulate_streaming_data',
+    python_callable=simulate_streaming_data,
+    dag=dag
+)
+
+analytics_task = PythonOperator(
+    task_id='process_streaming_analytics',
+    python_callable=process_streaming_analytics,
+    dag=dag
+)
+
+# Set dependencies
+simulate_task >> analytics_task

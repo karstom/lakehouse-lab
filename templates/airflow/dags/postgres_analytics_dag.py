@@ -1,94 +1,126 @@
-                result = conn.execute("""
-                    SELECT 
-                        product_category,
-                        COUNT(*) as order_count,
-                        SUM(total_amount) as total_revenue,
-                        AVG(total_amount) as avg_order_value
-                    FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv')
-                    GROUP BY product_category
-                    ORDER BY total_revenue DESC
-                """).fetchall()
-                
-                logging.info("✅ Product category analysis:")
-                for row in result:
-                    logging.info(f"  📊 {row[0]}: {row[1]} orders, ${row[2]:.2f} revenue, ${row[3]:.2f} avg")
-                
-                return len(result)
-            else:
-                logging.info("ℹ️ No data to transform")
-                return 0
-                
-        except Exception as e:
-            logging.error(f"❌ Transformation failed: {e}")
-            raise
-            
-    finally:
-        conn.close()
+"""
+PostgreSQL Analytics DAG
+Demonstrates PostgreSQL integration for Lakehouse Lab
+"""
 
-def data_quality_check(**context):
-    """Run basic data quality checks"""
-    import duckdb
-    
-    conn = duckdb.connect()
-    
+from datetime import datetime, timedelta
+from airflow import DAG
+from airflow.operators.python_operator import PythonOperator
+import logging
+
+default_args = {
+    'owner': 'lakehouse-lab',
+    'depends_on_past': False,
+    'start_date': datetime(2024, 1, 1),
+    'email_on_failure': False,
+    'email_on_retry': False,
+    'retries': 1,
+    'retry_delay': timedelta(minutes=5)
+}
+
+dag = DAG(
+    'postgres_analytics_dag',
+    default_args=default_args,
+    description='PostgreSQL analytics and data processing',
+    schedule_interval=timedelta(hours=8),
+    catchup=False,
+    tags=['postgresql', 'analytics', 'sql']
+)
+
+def test_postgres_connection(**context):
+    """Test PostgreSQL connection"""
     try:
-        # Configure S3 access
-        conn.execute("INSTALL httpfs")
-        conn.execute("LOAD httpfs")
-        conn.execute("SET s3_endpoint='minio:9000'")
-        conn.execute("SET s3_access_key_id='minio'")
-        conn.execute("SET s3_secret_access_key='minio123'")
-        conn.execute("SET s3_use_ssl=false")
-        conn.execute("SET s3_url_style='path'")
+        import psycopg2
         
-        try:
-            # Basic quality checks
-            checks = [
-                ("Record Count", "SELECT COUNT(*) FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv')"),
-                ("Null Check", "SELECT COUNT(*) FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv') WHERE order_id IS NULL"),
-                ("Date Range", "SELECT MIN(order_date), MAX(order_date) FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv')"),
-            ]
-            
-            results = {}
-            for check_name, query in checks:
-                try:
-                    result = conn.execute(query).fetchone()
-                    results[check_name] = result
-                    logging.info(f"✅ {check_name}: {result}")
-                except Exception as e:
-                    logging.warning(f"⚠️ {check_name}: Could not execute - {e}")
-                    results[check_name] = f"ERROR: {e}"
-            
-            return results
-            
-        except Exception as e:
-            logging.warning(f"⚠️ Quality checks could not complete: {e}")
-            return {"status": "skipped", "reason": str(e)}
-            
-    finally:
+        # Connection parameters
+        conn_params = {
+            'host': 'postgres',
+            'port': 5432,
+            'database': 'lakehouse',
+            'user': 'postgres',
+            'password': 'postgres'
+        }
+        
+        # Test connection
+        conn = psycopg2.connect(**conn_params)
+        cursor = conn.cursor()
+        
+        # Test query
+        cursor.execute("SELECT version()")
+        version = cursor.fetchone()[0]
+        logging.info(f"✅ PostgreSQL connected: {version}")
+        
+        cursor.close()
         conn.close()
+        
+        return "postgres_connected"
+        
+    except Exception as e:
+        logging.error(f"❌ PostgreSQL connection failed: {e}")
+        logging.info("💡 This is normal if PostgreSQL is not fully initialized yet")
+        return "postgres_not_ready"
+
+def run_sample_analytics(**context):
+    """Run sample PostgreSQL analytics"""
+    try:
+        import psycopg2
+        
+        conn_params = {
+            'host': 'postgres',
+            'port': 5432,
+            'database': 'lakehouse',
+            'user': 'postgres',
+            'password': 'postgres'
+        }
+        
+        conn = psycopg2.connect(**conn_params)
+        cursor = conn.cursor()
+        
+        # Create a sample table if it doesn't exist
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS sample_analytics (
+                id SERIAL PRIMARY KEY,
+                metric_name VARCHAR(100),
+                metric_value DECIMAL(10,2),
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Insert sample data
+        cursor.execute("""
+            INSERT INTO sample_analytics (metric_name, metric_value) 
+            VALUES ('pipeline_runs', 1.0), ('data_quality_score', 98.5)
+            ON CONFLICT DO NOTHING
+        """)
+        
+        # Run analytics query
+        cursor.execute("SELECT COUNT(*) FROM sample_analytics")
+        count = cursor.fetchone()[0]
+        
+        logging.info(f"📊 Sample analytics table has {count} records")
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return "analytics_completed"
+        
+    except Exception as e:
+        logging.error(f"❌ PostgreSQL analytics failed: {e}")
+        return "analytics_failed"
 
 # Define tasks
-check_deps = PythonOperator(
-    task_id='check_dependencies',
-    python_callable=check_dependencies,
-    dag=dag,
+postgres_test_task = PythonOperator(
+    task_id='test_postgres_connection',
+    python_callable=test_postgres_connection,
+    dag=dag
 )
 
-configure_s3 = PythonOperator(
-    task_id='configure_s3',
-    python_callable=configure_duckdb_s3,
-    dag=dag,
+analytics_task = PythonOperator(
+    task_id='run_sample_analytics',
+    python_callable=run_sample_analytics,
+    dag=dag
 )
 
-extract_task = PythonOperator(
-    task_id='extract_data',
-    python_callable=extract_data,
-    dag=dag,
-)
-
-transform_task = PythonOperator(
-    task_id='transform_data',
-    python_callable=transform_data,
-    dag=dag,
-)
+# Set dependencies
+postgres_test_task >> analytics_task
