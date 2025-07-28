@@ -4,20 +4,33 @@ Get your complete data analytics environment running in 15 minutes!
 
 ## ⚡ 1. Quick Setup
 
-### **Standard Setup (Laptops/Small Servers)**
+> ⚠️ **Critical**: Always use `./install.sh` for new installations. Direct `docker compose up -d` will fail without proper credentials and initialization!
+
+### **Method 1: One-Command Install (Recommended)**
 ```bash
-git clone <your-repo>
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
+```
+
+### **Method 2: Git Clone + Install**
+```bash
+git clone https://github.com/karstom/lakehouse-lab.git
 cd lakehouse-lab
-docker compose up -d
+./install.sh
 ```
 
 ### **Fat Server Setup (32+ cores, 64GB+ RAM)**
 ```bash
-git clone <your-repo>
+git clone https://github.com/karstom/lakehouse-lab.git
 cd lakehouse-lab
-cp .env.fat-server .env
-docker compose up -d
+./install.sh --fat-server
 ```
+
+### **Why install.sh is Required**
+The installer handles critical setup that Docker Compose can't do alone:
+- 🔐 Generates secure credentials in `.env` file
+- 🔧 Sets proper script permissions  
+- 📊 Optimizes resources for your system
+- 🚀 Performs initialization and health checks
 
 ### **Monitor Progress**
 ```bash

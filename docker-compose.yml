@@ -1,3 +1,22 @@
+# ========================================
+# Lakehouse Lab Docker Compose Stack
+# ========================================
+# 
+# ⚠️  IMPORTANT: Do NOT run 'docker compose up -d' directly for new installations!
+# 
+# For new installations, use:
+#   ./install.sh
+# 
+# The installer generates secure credentials in .env file that this 
+# compose file requires. Running without install.sh will fail with
+# "variable not set" errors.
+# 
+# For existing installations (day-to-day operations):
+#   docker compose up -d     # Start services
+#   docker compose down      # Stop services
+#   docker compose restart   # Restart services
+# ========================================
+
 x-airflow-common: &airflow-common
   image: apache/airflow:2.10.3-python3.11
   environment: &airflow-common-env

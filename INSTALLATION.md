@@ -2,6 +2,8 @@
 
 Complete installation options for all platforms and use cases.
 
+> ⚠️ **Critical for New Users**: You **MUST** use `./install.sh` for first-time installation. Running `docker compose up -d` directly will fail because it requires secure credentials and proper initialization that only the installer provides.
+
 ## ⚡ One-Command Installation
 
 ### **Standard Installation (Recommended)**
