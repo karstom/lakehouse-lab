@@ -155,6 +155,10 @@ print_error() {
     echo -e "${RED}❌ $1${NC}"
 }
 
+print_info() {
+    echo -e "${BLUE}ℹ️  $1${NC}"
+}
+
 check_command() {
     if command -v "$1" &> /dev/null; then
         return 0
