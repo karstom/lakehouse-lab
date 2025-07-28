@@ -227,12 +227,12 @@ print()
 
 # Environment variables for convenience
 os.environ.setdefault('MINIO_ENDPOINT', 'http://minio:9000')
-os.environ.setdefault('MINIO_ACCESS_KEY', 'minio')
-os.environ.setdefault('MINIO_SECRET_KEY', 'minio123')
+os.environ.setdefault('MINIO_ACCESS_KEY', os.environ.get('MINIO_ROOT_USER', 'minio'))
+os.environ.setdefault('MINIO_SECRET_KEY', os.environ.get('MINIO_ROOT_PASSWORD', 'minio123'))
 os.environ.setdefault('POSTGRES_HOST', 'postgres')
-os.environ.setdefault('POSTGRES_USER', 'postgres')
-os.environ.setdefault('POSTGRES_PASSWORD', 'postgres')
-os.environ.setdefault('POSTGRES_DB', 'lakehouse')
+os.environ.setdefault('POSTGRES_USER', os.environ.get('POSTGRES_USER', 'postgres'))
+os.environ.setdefault('POSTGRES_PASSWORD', os.environ.get('POSTGRES_PASSWORD', 'postgres'))
+os.environ.setdefault('POSTGRES_DB', os.environ.get('POSTGRES_DB', 'lakehouse'))
 
 print("Environment variables configured for lakehouse access")
 EOF
@@ -259,8 +259,8 @@ def get_duckdb_connection():
     conn.execute("INSTALL httpfs")
     conn.execute("LOAD httpfs")
     conn.execute("SET s3_endpoint='minio:9000'")
-    conn.execute("SET s3_access_key_id='minio'")
-    conn.execute("SET s3_secret_access_key='minio123'")
+    conn.execute(f"SET s3_access_key_id='{os.environ.get('MINIO_ROOT_USER', 'minio')}'")
+    conn.execute(f"SET s3_secret_access_key='{os.environ.get('MINIO_ROOT_PASSWORD', 'minio123')}'")
     conn.execute("SET s3_use_ssl=false")
     conn.execute("SET s3_url_style='path'")
     
@@ -271,14 +271,17 @@ def get_s3_client():
     return boto3.client(
         's3',
         endpoint_url='http://minio:9000',
-        aws_access_key_id='minio',
-        aws_secret_access_key='minio123'
+        aws_access_key_id=os.environ.get('MINIO_ROOT_USER', 'minio'),
+        aws_secret_access_key=os.environ.get('MINIO_ROOT_PASSWORD', 'minio123')
     )
 
 def get_postgres_engine():
     """Get a SQLAlchemy engine for PostgreSQL"""
+    pg_user = os.environ.get('POSTGRES_USER', 'postgres')
+    pg_password = os.environ.get('POSTGRES_PASSWORD', 'postgres')
+    pg_db = os.environ.get('POSTGRES_DB', 'lakehouse')
     return create_engine(
-        'postgresql://postgres:postgres@postgres:5432/lakehouse'
+        f'postgresql://{pg_user}:{pg_password}@postgres:5432/{pg_db}'
     )
 
 def query_s3_csv(s3_path, limit=None):

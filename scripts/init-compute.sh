@@ -168,7 +168,7 @@ prepare_spark_config() {
     ensure_directory "$config_dir" "Spark configuration directory"
     
     # Create Spark defaults configuration with Iceberg settings
-    cat > "$config_dir/spark-defaults.conf" << 'EOF'
+    cat > "$config_dir/spark-defaults.conf" << EOF
 # Spark Configuration for Lakehouse Lab with Iceberg Support
 # ==========================================================
 
@@ -182,8 +182,8 @@ spark.sql.catalog.iceberg.warehouse=s3a://lakehouse/iceberg-warehouse/
 
 # S3/MinIO Configuration
 spark.hadoop.fs.s3a.endpoint=http://minio:9000
-spark.hadoop.fs.s3a.access.key=minio
-spark.hadoop.fs.s3a.secret.key=minio123
+spark.hadoop.fs.s3a.access.key=${MINIO_ROOT_USER:-minio}
+spark.hadoop.fs.s3a.secret.key=${MINIO_ROOT_PASSWORD:-minio123}
 spark.hadoop.fs.s3a.path.style.access=true
 spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
 

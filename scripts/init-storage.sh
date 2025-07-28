@@ -26,10 +26,15 @@ configure_minio() {
     # Configure MinIO client alias
     log_info "Setting up MinIO client alias 'lakehouse'..."
     
-    if mc alias set lakehouse http://minio:9000 minio minio123 >/dev/null 2>&1; then
+    # Use environment variables for credentials (from .env file)
+    local minio_user="${MINIO_ROOT_USER:-minio}"
+    local minio_password="${MINIO_ROOT_PASSWORD:-minio123}"
+    
+    if mc alias set lakehouse http://minio:9000 "$minio_user" "$minio_password" >/dev/null 2>&1; then
         log_success "MinIO client configured successfully"
     else
         log_error "Failed to configure MinIO client"
+        log_error "Credentials: user='$minio_user', password length=${#minio_password}"
         return 1
     fi
     
@@ -227,7 +232,7 @@ main() {
     log_success "Storage setup completed successfully"
     
     echo "🗄️  MinIO Storage Ready:"
-    echo "   • MinIO Console: http://localhost:9001 (minio/minio123)"
+    echo "   • MinIO Console: http://localhost:9001 (use ./scripts/show-credentials.sh for login)"
     echo "   • S3 Endpoint: http://minio:9000"
     echo "   • Buckets created: lakehouse, raw-data, processed-data, backup-data"
     echo "   • Directory structure established"
