@@ -282,6 +282,26 @@ cp .env.default .env
 docker compose up -d
 ```
 
+### 🧊 Apache Iceberg Support (Advanced Analytics)
+For advanced lakehouse analytics with time travel, schema evolution, and ACID transactions:
+
+```bash
+# Install with Iceberg support
+./install.sh --iceberg
+
+# Or manually start with Iceberg overlay
+docker compose -f docker-compose.yml -f docker-compose.iceberg.yml up -d
+```
+
+**Iceberg Features:**
+- ✅ **Time Travel**: Query data as it existed at any point in time
+- ✅ **Schema Evolution**: Add, drop, rename columns without breaking existing queries  
+- ✅ **Partition Evolution**: Change partitioning schemes without data migration
+- ✅ **ACID Transactions**: Full consistency for concurrent read/write operations
+- ✅ **Rollback & Branching**: Easily revert changes or create data branches
+
+**Use Cases:** Perfect for data warehousing, regulatory compliance, and production analytics where data lineage and consistency are critical.
+
 ### Remote Server Deployment 🌐
 
 When deploying on a remote server, the system automatically detects your server's IP address. For best results, you can explicitly set the HOST_IP:
