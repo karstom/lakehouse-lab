@@ -142,7 +142,7 @@ check_docker_services() {
     # Check if we're running inside a container (skip Docker checks)
     if [ -f /.dockerenv ] || grep -q docker /proc/1/cgroup 2>/dev/null || [ "$container" = "docker" ] || [ -n "$DOCKER_CONTAINER" ]; then
         log_info "Running inside container - skipping Docker service checks"
-        return 0
+        return 1  # Return 1 to skip the Docker checks block
     fi
     
     # Check if docker compose is available
