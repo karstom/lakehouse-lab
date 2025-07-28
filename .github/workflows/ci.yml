@@ -71,6 +71,12 @@ jobs:
           echo "Validating shell scripts..."
           shellcheck *.sh
         fi
+        
+        # Check modular scripts
+        if ls scripts/*.sh 1> /dev/null 2>&1; then
+          echo "Validating modular scripts..."
+          shellcheck scripts/*.sh
+        fi
     
     - name: Validate Docker Compose syntax
       run: |
@@ -427,7 +433,7 @@ jobs:
         required_files=(
           "docker-compose.yml"
           "docker-compose.iceberg.yml"
-          "init-all-in-one.sh"
+          "init-all-in-one-modular.sh"
           "start-lakehouse.sh"
           "install.sh"
           "README.md"

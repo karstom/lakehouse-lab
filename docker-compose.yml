@@ -1,3 +1,22 @@
+# ========================================
+# Lakehouse Lab Docker Compose Stack
+# ========================================
+# 
+# ⚠️  IMPORTANT: Do NOT run 'docker compose up -d' directly for new installations!
+# 
+# For new installations, use:
+#   ./install.sh
+# 
+# The installer generates secure credentials in .env file that this 
+# compose file requires. Running without install.sh will fail with
+# "variable not set" errors.
+# 
+# For existing installations (day-to-day operations):
+#   docker compose up -d     # Start services
+#   docker compose down      # Stop services
+#   docker compose restart   # Restart services
+# ========================================
+
 x-airflow-common: &airflow-common
   image: apache/airflow:2.10.3-python3.11
   environment: &airflow-common-env
@@ -110,10 +129,12 @@ services:
         condition: service_healthy
     entrypoint:
       - /bin/sh
-      - /host/init-all-in-one.sh
+      - -c
+      - "apk add --no-cache bash && /bin/bash /host/init-all-in-one-modular.sh"
     environment:
       INSTALL_SAMPLES: "true"
       LAKEHOUSE_ROOT: /mnt/lakehouse
+      DOCKER_CONTAINER: "true"
       # MinIO credentials for initialization
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
@@ -126,7 +147,9 @@ services:
       HOST_IP: ${HOST_IP:-}
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}:/mnt/lakehouse
-      - ./init-all-in-one.sh:/host/init-all-in-one.sh:ro
+      - ./init-all-in-one-modular.sh:/host/init-all-in-one-modular.sh:ro
+      - ./scripts:/host/scripts:ro
+      - ./templates:/host/templates:ro
     networks:
       - lakehouse
     restart: "no"
@@ -286,20 +309,63 @@ services:
       - -c
       - |
         set -e
-        echo 'Installing additional packages...'
+        echo '🚀 Starting Airflow initialization...'
+        
+        # Enhanced PostgreSQL readiness check with multiple validation steps
+        echo '⏳ Waiting for PostgreSQL to be fully ready...'
+        
+        # Step 1: Check if PostgreSQL service is responding
+        timeout 120 bash -c 'until pg_isready -h postgres -p 5432 -U postgres; do echo "Waiting for postgres service..."; sleep 3; done'
+        echo '✓ PostgreSQL service is responding'
+        
+        # Step 2: Wait for database to be accessible and accept connections
+        timeout 60 bash -c 'until psql -h postgres -p 5432 -U postgres -d airflow -c "SELECT 1;" >/dev/null 2>&1; do echo "Waiting for database accessibility..."; sleep 2; done'
+        echo '✓ PostgreSQL database is accessible'
+        
+        # Step 3: Additional safety delay to ensure full PostgreSQL initialization
+        echo '⏳ Adding safety delay for PostgreSQL full initialization...'
+        sleep 10
+        
+        echo '📦 Installing additional packages...'
         pip install --no-cache-dir duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 'sqlalchemy>=1.4.0'
         
-        echo 'Initializing Airflow database...'
-        airflow db init
+        echo '🗄️  Initializing Airflow database...'
+        # Retry database initialization if it fails initially
+        max_retries=3
+        retry_count=0
+        while [ $retry_count -lt $max_retries ]; do
+          if airflow db init; then
+            echo '✅ Airflow database initialized successfully'
+            break
+          else
+            retry_count=$((retry_count + 1))
+            if [ $retry_count -lt $max_retries ]; then
+              echo "⚠️  Database initialization attempt $retry_count failed, retrying in 10 seconds..."
+              sleep 10
+            else
+              echo '❌ Database initialization failed after $max_retries attempts'
+              exit 1
+            fi
+          fi
+        done
         
         echo 'Upgrading database schema...'
         airflow db upgrade
         
-        echo 'Creating admin user...'
-        airflow users create --username ${AIRFLOW_ADMIN_USER:-admin} --firstname Admin --lastname User --role Admin --email admin@example.com --password ${AIRFLOW_ADMIN_PASSWORD} || true
+        echo '👤 Creating admin user...'
+        airflow users create --username ${AIRFLOW_ADMIN_USER:-admin} --firstname Admin --lastname User --role Admin --email admin@example.com --password ${AIRFLOW_ADMIN_PASSWORD} || echo 'Admin user already exists'
         
-        echo 'Airflow initialization completed successfully'
+        echo '🔍 Verifying database initialization...'
+        airflow db check
+        
+        echo '✅ Airflow initialization completed successfully!'
     restart: "no"
+    healthcheck:
+      test: ["CMD-SHELL", "airflow db check || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
 
   # Airflow Scheduler
   airflow-scheduler:

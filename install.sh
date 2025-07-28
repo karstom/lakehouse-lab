@@ -155,6 +155,10 @@ print_error() {
     echo -e "${RED}❌ $1${NC}"
 }
 
+print_info() {
+    echo -e "${BLUE}ℹ️  $1${NC}"
+}
+
 check_command() {
     if command -v "$1" &> /dev/null; then
         return 0
@@ -559,24 +563,26 @@ configure_environment() {
     print_step "Configuring secure environment for $PROFILE profile..."
     
     # Make scripts executable first
-    chmod +x init-all-in-one.sh
-    chmod +x start-lakehouse.sh
+    chmod +x init-all-in-one.sh 2>/dev/null || true
+    chmod +x init-all-in-one-modular.sh 2>/dev/null || true
+    chmod +x start-lakehouse.sh 2>/dev/null || true
     chmod +x scripts/*.sh 2>/dev/null || true
     
     # Step 1: Generate secure credentials
     print_step "🔐 Generating secure credentials..."
     if [[ -f "scripts/generate-credentials.sh" ]]; then
         ./scripts/generate-credentials.sh
+        print_success "Secure credentials generated"
     else
         print_warning "Credential generator not found, creating basic .env"
-        cp .env.example .env 2>/dev/null || touch .env
+        cp .env.example .env 2>/dev/null || cp .env.default .env 2>/dev/null || touch .env
     fi
     
     # Step 2: Apply profile-specific resource configurations  
     print_step "⚙️  Applying $PROFILE profile resource settings..."
     
     # Create backup of generated credentials
-    cp .env .env.credentials.backup
+    cp .env .env.credentials.backup 2>/dev/null || true
     
     if [[ $PROFILE == "fat-server" && -f ".env.fat-server" ]]; then
         # Extract resource settings from profile file (skip credential lines)
@@ -589,7 +595,7 @@ configure_environment() {
     fi
     
     # Clean up backup 
-    rm -f .env.credentials.backup
+    rm -f .env.credentials.backup 2>/dev/null || true
     
     print_success "Environment configured: secure credentials + $PROFILE profile resources"
 }

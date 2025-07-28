@@ -83,7 +83,7 @@ def compose_files(project_root: Path) -> Dict[str, Path]:
 def script_files(project_root: Path) -> Dict[str, Path]:
     """Get paths to script files."""
     return {
-        'init': project_root / 'init-all-in-one.sh',
+        'init': project_root / 'init-all-in-one-modular.sh',
         'start': project_root / 'start-lakehouse.sh',
         'install': project_root / 'install.sh'
     }

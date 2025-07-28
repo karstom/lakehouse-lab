@@ -31,14 +31,41 @@ That's it! ☕ Grab a coffee while it sets up your entire lakehouse environment.
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --fat-server
 ```
 
-**Alternative traditional setup:**
+**Alternative setup with Git:**
 ```bash
 git clone https://github.com/karstom/lakehouse-lab.git
 cd lakehouse-lab
-docker compose up -d
+./install.sh
 ```
 
+> ⚠️ **Important**: Always use `./install.sh` for new installations. Running `docker compose up -d` directly will fail because it requires secure credentials and initialization that only the installer provides.
+
 Wait 3-5 minutes for initialization, then run `./scripts/show-credentials.sh` to see all service URLs with your detected IP address.
+
+## ⚠️ Installation vs Service Management
+
+### For New Installations (First Time)
+**Always use the installer:**
+```bash
+./install.sh
+```
+The installer handles:
+- ✅ Secure credential generation
+- ✅ Script permissions and dependencies  
+- ✅ Resource optimization for your system
+- ✅ Complete environment initialization
+- ✅ Service startup and health verification
+
+### For Existing Installations (Day-to-Day)
+**Use Docker Compose commands:**
+```bash
+docker compose up -d        # Start services
+docker compose down         # Stop services  
+docker compose restart     # Restart services
+docker compose logs -f     # View logs
+```
+
+> 💡 **Key Point**: `docker compose up -d` only works **after** running the installer at least once. The installer creates the required `.env` file with secure credentials that Docker Compose needs.
 
 ## 🔄 Upgrading Existing Installation
 
@@ -422,7 +449,9 @@ print(df.head())
 ```
 lakehouse-lab/
 ├── docker-compose.yml           # Main stack definition
-├── init-all-in-one.sh          # Initialization script
+├── init-all-in-one-modular.sh  # Modular initialization script
+├── scripts/                    # Initialization modules
+├── templates/                  # Configuration templates
 ├── .env.default                # Default configuration
 ├── .env.fat-server             # High-resource configuration
 ├── README.md                   # This file
