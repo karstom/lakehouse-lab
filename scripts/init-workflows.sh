@@ -238,8 +238,8 @@ verify_workflows_setup() {
         return 1
     fi
     
-    # Check if Airflow services are running (if Docker is up)
-    if check_docker_services; then
+    # Check if Airflow services are running (if Docker CLI is available)
+    if check_docker_cli_available; then
         if docker compose ps | grep -q "airflow-webserver.*Up"; then
             log_success "Airflow webserver is running"
         else

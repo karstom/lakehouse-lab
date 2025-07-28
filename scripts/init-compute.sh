@@ -139,8 +139,8 @@ verify_compute_setup() {
         log_info "Iceberg functionality will not be available"
     fi
     
-    # Check if Spark services are running (if Docker is up)
-    if check_docker_services; then
+    # Check if Spark services are running (if Docker CLI is available)
+    if check_docker_cli_available; then
         if docker compose ps | grep -q "spark-master.*Up"; then
             log_success "Spark Master service is running"
         else

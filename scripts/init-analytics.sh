@@ -359,8 +359,8 @@ verify_analytics_setup() {
         fi
     fi
     
-    # Check if Jupyter service is running (if Docker is up)
-    if check_docker_services; then
+    # Check if Jupyter service is running (if Docker CLI is available)
+    if check_docker_cli_available; then
         if docker compose ps | grep -q "jupyter.*Up"; then
             log_success "Jupyter service is running"
         else

@@ -338,8 +338,8 @@ verify_dashboards_setup() {
         log_warning "Dashboard configuration file not found"
     fi
     
-    # Check if dashboard services are running (if Docker is up)
-    if check_docker_services; then
+    # Check if dashboard services are running (if Docker CLI is available)
+    if check_docker_cli_available; then
         if docker compose ps | grep -q "superset.*Up"; then
             log_success "Superset service is running"
         else
