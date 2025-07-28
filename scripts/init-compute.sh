@@ -45,7 +45,7 @@ download_iceberg_jars() {
         # Determine the correct Maven path based on JAR name
         local maven_path
         if [[ "$jar_file" == *"spark-runtime"* ]]; then
-            maven_path="iceberg-spark/iceberg-spark-runtime-${spark_version}_${scala_version}/${iceberg_version}/$jar_file"
+            maven_path="iceberg-spark-runtime-${spark_version}_${scala_version}/${iceberg_version}/$jar_file"
         elif [[ "$jar_file" == *"aws"* ]]; then
             maven_path="iceberg-aws/${iceberg_version}/$jar_file"
         else
