@@ -319,7 +319,7 @@ services:
         echo '✓ PostgreSQL service is responding'
         
         # Step 2: Wait for database to be accessible and accept connections
-        timeout 60 bash -c 'until psql -h postgres -p 5432 -U postgres -d airflow -c "SELECT 1;" >/dev/null 2>&1; do echo "Waiting for database accessibility..."; sleep 2; done'
+        timeout 60 bash -c 'until psql -h postgres -p 5432 -U postgres -d ${POSTGRES_DB:-lakehouse} -c "SELECT 1;" >/dev/null 2>&1; do echo "Waiting for database accessibility..."; sleep 2; done'
         echo '✓ PostgreSQL database is accessible'
         
         # Step 3: Additional safety delay to ensure full PostgreSQL initialization
