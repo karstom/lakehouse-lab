@@ -18,7 +18,7 @@ download_iceberg_jars() {
     log_info "Downloading Apache Iceberg JAR files for Spark integration..."
     
     local iceberg_dir="$LAKEHOUSE_ROOT/iceberg-jars"
-    local iceberg_version="1.4.3"
+    local iceberg_version="1.5.0"
     local spark_version="3.5"
     local scala_version="2.12"
     
