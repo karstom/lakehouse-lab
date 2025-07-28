@@ -315,12 +315,19 @@ services:
         echo '⏳ Waiting for PostgreSQL to be fully ready...'
         
         # Step 1: Check if PostgreSQL service is responding
-        timeout 120 bash -c 'until pg_isready -h postgres -p 5432 -U postgres; do echo "Waiting for postgres service..."; sleep 3; done'
+        timeout 120 bash -c 'until pg_isready -h postgres -p 5432 -U ${POSTGRES_USER:-postgres}; do echo "Waiting for postgres service..."; sleep 3; done'
         echo '✓ PostgreSQL service is responding'
         
         # Step 2: Wait for database to be accessible and accept connections
-        timeout 60 bash -c 'until psql -h postgres -p 5432 -U postgres -d ${POSTGRES_DB:-lakehouse} -c "SELECT 1;" >/dev/null 2>&1; do echo "Waiting for database accessibility..."; sleep 2; done'
-        echo '✓ PostgreSQL database is accessible'
+        echo "Attempting to connect to database: ${POSTGRES_DB:-lakehouse} with user: ${POSTGRES_USER:-postgres}"
+        echo "Debug: Testing database connection..."
+        if PGPASSWORD=${POSTGRES_PASSWORD} psql -h postgres -p 5432 -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-lakehouse} -c "SELECT 1;" 2>&1; then
+          echo '✓ PostgreSQL database is accessible'
+        else
+          echo "Initial connection failed, waiting for database to be ready..."
+          timeout 120 bash -c 'until PGPASSWORD=${POSTGRES_PASSWORD} psql -h postgres -p 5432 -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-lakehouse} -c "SELECT 1;" >/dev/null 2>&1; do echo "Waiting for database accessibility... ($(date))"; sleep 5; done'
+          echo '✓ PostgreSQL database is accessible'
+        fi
         
         # Step 3: Additional safety delay to ensure full PostgreSQL initialization
         echo '⏳ Adding safety delay for PostgreSQL full initialization...'
