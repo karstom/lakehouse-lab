@@ -26,7 +26,7 @@ configure_minio() {
     # Configure MinIO client alias
     log_info "Setting up MinIO client alias 'lakehouse'..."
     
-    if mc alias set lakehouse http://localhost:9000 minio minio123 >/dev/null 2>&1; then
+    if mc alias set lakehouse http://minio:9000 minio minio123 >/dev/null 2>&1; then
         log_success "MinIO client configured successfully"
     else
         log_error "Failed to configure MinIO client"
@@ -228,7 +228,7 @@ main() {
     
     echo "🗄️  MinIO Storage Ready:"
     echo "   • MinIO Console: http://localhost:9001 (minio/minio123)"
-    echo "   • S3 Endpoint: http://localhost:9000"
+    echo "   • S3 Endpoint: http://minio:9000"
     echo "   • Buckets created: lakehouse, raw-data, processed-data, backup-data"
     echo "   • Directory structure established"
     echo ""
