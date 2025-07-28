@@ -333,17 +333,17 @@ services:
         # Retry database initialization if it fails initially
         max_retries=3
         retry_count=0
-        while [ $retry_count -lt $max_retries ]; do
+        while [ $$retry_count -lt $$max_retries ]; do
           if airflow db init; then
             echo '✅ Airflow database initialized successfully'
             break
           else
-            retry_count=$((retry_count + 1))
-            if [ $retry_count -lt $max_retries ]; then
-              echo "⚠️  Database initialization attempt $retry_count failed, retrying in 10 seconds..."
+            retry_count=$$((retry_count + 1))
+            if [ $$retry_count -lt $$max_retries ]; then
+              echo "⚠️  Database initialization attempt $$retry_count failed, retrying in 10 seconds..."
               sleep 10
             else
-              echo '❌ Database initialization failed after $max_retries attempts'
+              echo "❌ Database initialization failed after $$max_retries attempts"
               exit 1
             fi
           fi
