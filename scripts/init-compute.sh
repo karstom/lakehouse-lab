@@ -29,9 +29,11 @@ download_iceberg_jars() {
     local jar_files=(
         "iceberg-spark-runtime-${spark_version}_${scala_version}-${iceberg_version}.jar"
         "iceberg-aws-${iceberg_version}.jar"
+        "hadoop-aws-3.3.4.jar"
+        "aws-java-sdk-bundle-1.12.262.jar"
     )
     
-    local base_url="https://repo1.maven.org/maven2/org/apache/iceberg"
+    local base_maven_url="https://repo1.maven.org/maven2"
     
     for jar_file in "${jar_files[@]}"; do
         local jar_path="$iceberg_dir/$jar_file"
@@ -45,15 +47,19 @@ download_iceberg_jars() {
         # Determine the correct Maven path based on JAR name
         local maven_path
         if [[ "$jar_file" == *"spark-runtime"* ]]; then
-            maven_path="iceberg-spark-runtime-${spark_version}_${scala_version}/${iceberg_version}/$jar_file"
-        elif [[ "$jar_file" == *"aws"* ]]; then
-            maven_path="iceberg-aws/${iceberg_version}/$jar_file"
+            maven_path="org/apache/iceberg/iceberg-spark-runtime-${spark_version}_${scala_version}/${iceberg_version}/$jar_file"
+        elif [[ "$jar_file" == *"iceberg-aws"* ]]; then
+            maven_path="org/apache/iceberg/iceberg-aws/${iceberg_version}/$jar_file"
+        elif [[ "$jar_file" == *"hadoop-aws"* ]]; then
+            maven_path="org/apache/hadoop/hadoop-aws/3.3.4/$jar_file"
+        elif [[ "$jar_file" == *"aws-java-sdk-bundle"* ]]; then
+            maven_path="com/amazonaws/aws-java-sdk-bundle/1.12.262/$jar_file"
         else
             log_warning "Unknown JAR pattern: $jar_file"
             continue
         fi
         
-        local jar_url="$base_url/$maven_path"
+        local jar_url="$base_maven_url/$maven_path"
         
         log_info "Downloading: $jar_file"
         log_info "From: $jar_url"
