@@ -69,7 +69,7 @@ deploy_jupyter_notebooks() {
     fi
     
     # Copy the notebook package manager
-    local package_manager_source="$(dirname "$SCRIPT_DIR")/notebook_package_manager.py"
+    local package_manager_source="$(dirname "$SCRIPT_DIR")/templates/notebook_package_manager.py"
     local package_manager_target="$target_dir/notebook_package_manager.py"
     
     if [ -f "$package_manager_source" ]; then
