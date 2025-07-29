@@ -142,7 +142,8 @@ class NotebookPackageManager:
                             packages.append((name, version))
             
             if packages:
-                print(f"📋 Installed packages{f' (matching \"{pattern}\")' if pattern else ''}:")
+                pattern_msg = f' (matching "{pattern}")' if pattern else ""
+                print(f"📋 Installed packages{pattern_msg}:")
                 for name, version in packages:
                     print(f"   • {name} == {version}")
             else:
