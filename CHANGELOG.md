@@ -1,5 +1,47 @@
 # Changelog
 
+## [1.3.0] - 2025-07-29
+
+### 🚀 Dynamic Package Management System
+- **📦 Notebook Package Manager**: New interactive system for installing Python packages on-the-fly in Jupyter notebooks
+- **🎯 User-Level Installation**: Safe package installation to user directory without affecting base environment
+- **🔍 Package Discovery**: Built-in search and package information functions
+- **📚 Categorized Suggestions**: Curated lists of popular data science packages by use case
+- **🛠️ Comprehensive Management**: Install, uninstall, list, search, and check package availability
+- **⚡ Install & Import**: Convenience function to install and immediately import packages
+
+### 🏗️ Modular Architecture Enhancements  
+- **80% Code Reduction**: Streamlined initialization system with modular design
+- **🔧 Enhanced Error Handling**: Robust retry mechanisms for MinIO and service initialization
+- **📊 Dual-Engine Iceberg Support**: Both DuckDB and Spark engines with automatic fallback
+- **🎯 Dynamic JAR Management**: Automatic download and configuration of Iceberg dependencies
+- **🔄 Improved Service Dependencies**: Better Docker health checks and startup sequencing
+
+### 🧊 Apache Iceberg Integration Fixes
+- **✅ JAR Download Resolution**: Fixed Maven repository URLs and artifact paths  
+- **🔗 AWS SDK Compatibility**: Added both v1 and v2 SDK JARs for complete S3A support
+- **🦆 DuckDB Primary Engine**: DuckDB as recommended engine with Spark as advanced option
+- **⚙️ Automatic Configuration**: Self-configuring Iceberg setup with MinIO integration
+- **🎯 Enhanced Debugging**: Comprehensive logging for JAR detection and loading
+
+### 🐛 Critical Fixes
+- **Fixed MinIO initialization**: Added retry logic and authentication debugging for startup reliability
+- **Fixed PostgreSQL SQLAlchemy**: Updated to SQLAlchemy 2.0 syntax with text() wrapper for raw SQL
+- **Fixed notebook template corruption**: Resolved missing JSON structure in Jupyter notebooks  
+- **Fixed package manager deployment**: Proper file copying during analytics initialization
+- **Fixed f-string syntax errors**: Resolved Python syntax issues in package management code
+
+### 📚 New Documentation
+- **NOTEBOOK_PACKAGE_MANAGER.md**: Comprehensive user guide for dynamic package management
+- **Enhanced README**: Updated with latest features and package management capabilities
+- **Improved code documentation**: Better inline documentation and usage examples
+
+### 🔧 Developer Experience
+- **Automated deployment**: Package manager automatically deployed during clean installations
+- **Template organization**: Moved package manager to templates directory for better organization
+- **Git cleanup**: Removed obsolete development files and improved repository structure
+- **Enhanced testing**: Better integration testing and error reporting
+
 ## [1.2.0] - 2025-07-23
 
 ### 🔒 Major Security Overhaul
