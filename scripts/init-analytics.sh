@@ -33,6 +33,7 @@ deploy_jupyter_notebooks() {
     log_info "Copying notebook files from $template_dir to $target_dir"
     
     local notebook_files=(
+        "00_Package_Manager.ipynb"
         "01_Getting_Started.ipynb"
         "02_PostgreSQL_Analytics.ipynb"
         "03_Iceberg_Tables.ipynb"
@@ -65,6 +66,21 @@ deploy_jupyter_notebooks() {
     else
         log_error "No notebook files were deployed"
         return 1
+    fi
+    
+    # Copy the notebook package manager
+    local package_manager_source="$(dirname "$SCRIPT_DIR")/notebook_package_manager.py"
+    local package_manager_target="$target_dir/notebook_package_manager.py"
+    
+    if [ -f "$package_manager_source" ]; then
+        if cp "$package_manager_source" "$package_manager_target"; then
+            log_success "Deployed package manager: notebook_package_manager.py"
+            chmod 644 "$package_manager_target"
+        else
+            log_warning "Failed to copy package manager (notebooks will still work)"
+        fi
+    else
+        log_warning "Package manager not found: $package_manager_source"
     fi
 }
 
