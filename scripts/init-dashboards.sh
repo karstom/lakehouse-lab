@@ -115,19 +115,19 @@ try:
             database_config = {
                 "database_name": "DuckDB-S3",
                 "sqlalchemy_uri": "duckdb:///tmp/lakehouse.duckdb",
-                "extra": """{
-                    "engine_params": {
-                        "connect_args": {
-                            "config": {
+                "extra": f"""{{
+                    "engine_params": {{
+                        "connect_args": {{
+                            "config": {{
                                 "s3_endpoint": "minio:9000",
-                                "s3_access_key_id": "minio", 
-                                "s3_secret_access_key": "minio123",
+                                "s3_access_key_id": "{os.environ.get('MINIO_ROOT_USER', 'minio')}", 
+                                "s3_secret_access_key": "{os.environ.get('MINIO_ROOT_PASSWORD', 'minio123')}",
                                 "s3_use_ssl": "false",
                                 "s3_url_style": "path"
-                            }
-                        }
-                    }
-                }"""
+                            }}
+                        }}
+                    }}
+                }}"""
             }
             
             # Check if database already exists
@@ -236,11 +236,8 @@ show_dashboard_info() {
     echo "  ☁️  MinIO (Object Storage):     http://localhost:9001"
     echo "  ⚡ Spark Master (Processing):  http://localhost:8080"
     echo ""
-    echo -e "${GREEN}Default Credentials:${NC}"
-    echo "  Superset:  admin/admin"
-    echo "  Airflow:   admin/admin" 
-    echo "  JupyterLab: token 'lakehouse'"
-    echo "  MinIO:     minio/minio123"
+    echo -e "${GREEN}Generated Credentials:${NC}"
+    echo "  All services: use ./scripts/show-credentials.sh for login credentials"
     echo ""
 }
 
@@ -341,8 +338,8 @@ verify_dashboards_setup() {
         log_warning "Dashboard configuration file not found"
     fi
     
-    # Check if dashboard services are running (if Docker is up)
-    if check_docker_services; then
+    # Check if dashboard services are running (if Docker CLI is available)
+    if check_docker_cli_available; then
         if docker compose ps | grep -q "superset.*Up"; then
             log_success "Superset service is running"
         else

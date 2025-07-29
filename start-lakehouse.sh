@@ -169,29 +169,38 @@ start_with_dependencies() {
         "debug")
             echo -e "${YELLOW}🔍 Starting in debug mode (services one by one)...${NC}"
             
+            # Check if Iceberg support should be enabled
+            local compose_files="docker-compose.yml"
+            if [[ "${ENABLE_ICEBERG_OVERRIDE:-}" == "true" ]] || [[ -f ".iceberg-enabled" ]]; then
+                echo -e "${BLUE}🧊 Iceberg support detected - using enhanced configuration...${NC}"
+                compose_files="docker-compose.yml -f docker-compose.iceberg.yml"
+                # Create marker file for future starts
+                touch .iceberg-enabled
+            fi
+            
             # Layer 1: Storage
             echo -e "${BLUE}Layer 1: Storage services${NC}"
-            docker compose up -d postgres minio
+            docker compose -f $compose_files up -d postgres minio
             check_service_health "MinIO" "http://localhost:9000/minio/health/live"
             
             # Layer 2: Processing
             echo -e "${BLUE}Layer 2: Compute engines${NC}"
-            docker compose up -d spark-master spark-worker
+            docker compose -f $compose_files up -d spark-master spark-worker
             check_service_health "Spark Master" "http://localhost:8080" 15
             
             # Layer 3: Initialization
             echo -e "${BLUE}Layer 3: Data initialization${NC}"
-            docker compose up lakehouse-init
+            docker compose -f $compose_files up lakehouse-init
             
             # Layer 4: Applications
             echo -e "${BLUE}Layer 4: User applications${NC}"
-            docker compose up -d jupyter airflow-init
+            docker compose -f $compose_files up -d jupyter airflow-init
             sleep 30  # Give airflow-init time to complete
-            docker compose up -d airflow-scheduler airflow-webserver
+            docker compose -f $compose_files up -d airflow-scheduler airflow-webserver
             
             # Layer 5: BI and monitoring
             echo -e "${BLUE}Layer 5: BI and monitoring${NC}"
-            docker compose up -d superset portainer
+            docker compose -f $compose_files up -d superset portainer
             
             # Optional services
             echo -e "${BLUE}Layer 6: Optional services${NC}"
@@ -201,8 +210,22 @@ start_with_dependencies() {
         "normal"|*)
             echo -e "${YELLOW}📦 Starting all services...${NC}"
             
+            # Check if Iceberg support should be enabled
+            if [[ "${ENABLE_ICEBERG_OVERRIDE:-}" == "true" ]] || [[ -f ".iceberg-enabled" ]]; then
+                echo -e "${BLUE}🧊 Iceberg support detected - using enhanced configuration...${NC}"
+                # Try Iceberg startup first
+                if docker compose -f docker-compose.yml -f docker-compose.iceberg.yml up -d; then
+                    echo -e "${GREEN}✅ All services with Iceberg support started successfully${NC}"
+                    # Create marker file for future starts
+                    touch .iceberg-enabled
+                else
+                    echo -e "${YELLOW}⚠️  Iceberg startup failed, falling back to standard configuration...${NC}"
+                    if docker compose up -d; then
+                        echo -e "${GREEN}✅ Standard services started successfully${NC}"
+                    fi
+                fi
             # Try normal startup first
-            if docker compose up -d; then
+            elif docker compose up -d; then
                 echo -e "${GREEN}✅ All services started successfully${NC}"
                 
                 # Check key services
@@ -248,6 +271,17 @@ start_with_dependencies() {
     echo -e "  ☁️  MinIO Console:     ${GREEN}http://${HOST_IP}:9001${NC} (use ./scripts/show-credentials.sh for login)"
     echo -e "  ⚡ Spark Master:      ${GREEN}http://${HOST_IP}:8080${NC}"
     echo -e "  🏠 Service Links:     ${GREEN}http://${HOST_IP}:9061${NC} (optional Homer)"
+    
+    # Show Iceberg status if enabled
+    if [[ -f ".iceberg-enabled" ]] || [[ "${ENABLE_ICEBERG_OVERRIDE:-}" == "true" ]]; then
+        echo ""
+        echo -e "${BLUE}🧊 Iceberg Features Enabled:${NC}"
+        echo -e "  • Time travel and versioning"
+        echo -e "  • Schema evolution"  
+        echo -e "  • ACID transactions"
+        echo -e "  • Try the '03_Iceberg_Tables.ipynb' notebook!"
+    fi
+    
     echo ""
     echo -e "${YELLOW}💡 Tip: Use Portainer (${HOST_IP}:9060) for container management and monitoring${NC}"
     echo -e "${YELLOW}⚠️  IMPORTANT: Set up Portainer admin account within 5 minutes or you'll be locked out!${NC}"

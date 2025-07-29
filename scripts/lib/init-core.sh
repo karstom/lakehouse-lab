@@ -139,10 +139,10 @@ wait_for_minio_api() {
 check_docker_services() {
     log_info "Checking Docker services status..."
     
-    # Check if we're running inside a container (skip Docker checks)
+    # Check if we're running inside a container (assume services are ready)
     if [ -f /.dockerenv ] || grep -q docker /proc/1/cgroup 2>/dev/null || [ "$container" = "docker" ] || [ -n "$DOCKER_CONTAINER" ]; then
-        log_info "Running inside container - skipping Docker service checks"
-        return 0
+        log_info "Running inside container - assuming Docker services are ready"
+        return 0  # Services should be ready when init container runs
     fi
     
     # Check if docker compose is available
@@ -164,6 +164,25 @@ check_docker_services() {
     fi
     
     log_success "Docker services check passed"
+    return 0
+}
+
+# Check if Docker CLI is available for service status reporting
+check_docker_cli_available() {
+    # Check if we're running inside a container (Docker CLI not available)
+    if [ -f /.dockerenv ] || grep -q docker /proc/1/cgroup 2>/dev/null || [ "$container" = "docker" ] || [ -n "$DOCKER_CONTAINER" ]; then
+        return 1  # Docker CLI not available in container
+    fi
+    
+    # Check if docker compose is available
+    if ! command -v docker &> /dev/null; then
+        return 1
+    fi
+    
+    if ! docker compose version &> /dev/null; then
+        return 1
+    fi
+    
     return 0
 }
 
@@ -298,7 +317,7 @@ print_separator() {
 # Export functions so they can be used by sourcing scripts
 export -f log log_error log_success log_warning log_info
 export -f cleanup wait_for_service wait_for_minio_api
-export -f check_docker_services validate_environment
+export -f check_docker_services check_docker_cli_available validate_environment
 export -f ensure_directory create_init_marker check_already_initialized
 export -f handle_error print_separator
 

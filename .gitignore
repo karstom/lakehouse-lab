@@ -14,6 +14,9 @@ lakehouse-data/
 !.env.example
 .credentials-summary.txt
 
+# Installation marker files (environment-specific)
+.iceberg-enabled
+
 # Docker volumes and temp files
 docker-compose.override.yml
 

@@ -18,7 +18,7 @@ download_iceberg_jars() {
     log_info "Downloading Apache Iceberg JAR files for Spark integration..."
     
     local iceberg_dir="$LAKEHOUSE_ROOT/iceberg-jars"
-    local iceberg_version="1.5.0"
+    local iceberg_version="1.9.2"
     local spark_version="3.5"
     local scala_version="2.12"
     
@@ -29,9 +29,13 @@ download_iceberg_jars() {
     local jar_files=(
         "iceberg-spark-runtime-${spark_version}_${scala_version}-${iceberg_version}.jar"
         "iceberg-aws-${iceberg_version}.jar"
+        "hadoop-aws-3.3.4.jar"
+        "aws-java-sdk-bundle-1.12.262.jar"
+        "bundle-2.17.295.jar"
+        "url-connection-client-2.17.295.jar"
     )
     
-    local base_url="https://repo1.maven.org/maven2/org/apache/iceberg"
+    local base_maven_url="https://repo1.maven.org/maven2"
     
     for jar_file in "${jar_files[@]}"; do
         local jar_path="$iceberg_dir/$jar_file"
@@ -45,15 +49,23 @@ download_iceberg_jars() {
         # Determine the correct Maven path based on JAR name
         local maven_path
         if [[ "$jar_file" == *"spark-runtime"* ]]; then
-            maven_path="iceberg-spark/iceberg-spark-runtime-${spark_version}_${scala_version}/${iceberg_version}/$jar_file"
-        elif [[ "$jar_file" == *"aws"* ]]; then
-            maven_path="iceberg-aws/${iceberg_version}/$jar_file"
+            maven_path="org/apache/iceberg/iceberg-spark-runtime-${spark_version}_${scala_version}/${iceberg_version}/$jar_file"
+        elif [[ "$jar_file" == *"iceberg-aws"* ]]; then
+            maven_path="org/apache/iceberg/iceberg-aws/${iceberg_version}/$jar_file"
+        elif [[ "$jar_file" == *"hadoop-aws"* ]]; then
+            maven_path="org/apache/hadoop/hadoop-aws/3.3.4/$jar_file"
+        elif [[ "$jar_file" == *"aws-java-sdk-bundle"* ]]; then
+            maven_path="com/amazonaws/aws-java-sdk-bundle/1.12.262/$jar_file"
+        elif [[ "$jar_file" == "bundle-"* ]]; then
+            maven_path="software/amazon/awssdk/bundle/2.17.295/$jar_file"
+        elif [[ "$jar_file" == "url-connection-client-"* ]]; then
+            maven_path="software/amazon/awssdk/url-connection-client/2.17.295/$jar_file"
         else
             log_warning "Unknown JAR pattern: $jar_file"
             continue
         fi
         
-        local jar_url="$base_url/$maven_path"
+        local jar_url="$base_maven_url/$maven_path"
         
         log_info "Downloading: $jar_file"
         log_info "From: $jar_url"
@@ -139,8 +151,8 @@ verify_compute_setup() {
         log_info "Iceberg functionality will not be available"
     fi
     
-    # Check if Spark services are running (if Docker is up)
-    if check_docker_services; then
+    # Check if Spark services are running (if Docker CLI is available)
+    if check_docker_cli_available; then
         if docker compose ps | grep -q "spark-master.*Up"; then
             log_success "Spark Master service is running"
         else
@@ -168,7 +180,7 @@ prepare_spark_config() {
     ensure_directory "$config_dir" "Spark configuration directory"
     
     # Create Spark defaults configuration with Iceberg settings
-    cat > "$config_dir/spark-defaults.conf" << 'EOF'
+    cat > "$config_dir/spark-defaults.conf" << EOF
 # Spark Configuration for Lakehouse Lab with Iceberg Support
 # ==========================================================
 
@@ -182,8 +194,8 @@ spark.sql.catalog.iceberg.warehouse=s3a://lakehouse/iceberg-warehouse/
 
 # S3/MinIO Configuration
 spark.hadoop.fs.s3a.endpoint=http://minio:9000
-spark.hadoop.fs.s3a.access.key=minio
-spark.hadoop.fs.s3a.secret.key=minio123
+spark.hadoop.fs.s3a.access.key=${MINIO_ROOT_USER:-minio}
+spark.hadoop.fs.s3a.secret.key=${MINIO_ROOT_PASSWORD:-minio123}
 spark.hadoop.fs.s3a.path.style.access=true
 spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem
 

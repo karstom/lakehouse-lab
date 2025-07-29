@@ -9,8 +9,8 @@ services:
   # Spark Master with Iceberg support
   spark-master:
     environment:
-      # Add Iceberg JAR to Spark classpath
-      - SPARK_CLASSPATH=/opt/bitnami/spark/jars/iceberg-spark-runtime-3.5_2.12-1.4.3.jar
+      # Add Iceberg and S3A JARs to Spark classpath
+      - SPARK_CLASSPATH=/opt/bitnami/spark/jars/iceberg:/opt/bitnami/spark/jars/iceberg/*
       
       # S3/MinIO configuration for Iceberg (uses generated credentials)
       - SPARK_CONF_spark_hadoop_fs_s3a_endpoint=http://minio:9000
@@ -40,8 +40,8 @@ services:
   # Spark Worker with Iceberg support
   spark-worker:
     environment:
-      # Add Iceberg JAR to Spark classpath
-      - SPARK_CLASSPATH=/opt/bitnami/spark/jars/iceberg-spark-runtime-3.5_2.12-1.4.3.jar
+      # Add Iceberg and S3A JARs to Spark classpath
+      - SPARK_CLASSPATH=/opt/bitnami/spark/jars/iceberg:/opt/bitnami/spark/jars/iceberg/*
       
       # S3/MinIO configuration for Iceberg (uses generated credentials)
       - SPARK_CONF_spark_hadoop_fs_s3a_endpoint=http://minio:9000
@@ -73,7 +73,7 @@ services:
   jupyter:
     environment:
       # Add Iceberg configurations for Jupyter Spark sessions
-      - SPARK_OPTS=--jars /home/jovyan/work/iceberg-jars/iceberg-spark-runtime-3.5_2.12-1.4.3.jar
+      - SPARK_OPTS=--jars /home/jovyan/work/iceberg-jars/iceberg-spark-runtime-3.5_2.12-1.9.2.jar,/home/jovyan/work/iceberg-jars/iceberg-aws-1.9.2.jar,/home/jovyan/work/iceberg-jars/hadoop-aws-3.3.4.jar,/home/jovyan/work/iceberg-jars/aws-java-sdk-bundle-1.12.262.jar,/home/jovyan/work/iceberg-jars/bundle-2.17.295.jar,/home/jovyan/work/iceberg-jars/url-connection-client-2.17.295.jar
       
       # S3/MinIO configuration for Jupyter Iceberg sessions (uses generated credentials)
       - MINIO_ROOT_USER=${MINIO_ROOT_USER:-admin}

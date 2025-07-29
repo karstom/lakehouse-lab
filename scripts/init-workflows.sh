@@ -160,7 +160,7 @@ def main():
     create_connection(
         conn_id='minio_s3',
         conn_type='aws',
-        extra='{"aws_access_key_id": "minio", "aws_secret_access_key": "minio123", "endpoint_url": "http://minio:9000"}'
+        extra=f'{{"aws_access_key_id": "{os.environ.get(\"MINIO_ROOT_USER\", \"minio\")}", "aws_secret_access_key": "{os.environ.get(\"MINIO_ROOT_PASSWORD\", \"minio123\")}", "endpoint_url": "http://minio:9000"}}'
     )
     
     # PostgreSQL Connection
@@ -168,10 +168,10 @@ def main():
         conn_id='postgres_default',
         conn_type='postgres',
         host='postgres',
-        login='postgres',
-        password='postgres',
+        login=os.environ.get('POSTGRES_USER', 'postgres'),
+        password=os.environ.get('POSTGRES_PASSWORD', 'postgres'),
         port=5432,
-        schema='lakehouse'
+        schema=os.environ.get('POSTGRES_DB', 'lakehouse')
     )
     
     # DuckDB Connection (for local processing)
@@ -238,8 +238,8 @@ verify_workflows_setup() {
         return 1
     fi
     
-    # Check if Airflow services are running (if Docker is up)
-    if check_docker_services; then
+    # Check if Airflow services are running (if Docker CLI is available)
+    if check_docker_cli_available; then
         if docker compose ps | grep -q "airflow-webserver.*Up"; then
             log_success "Airflow webserver is running"
         else
