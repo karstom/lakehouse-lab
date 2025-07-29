@@ -73,7 +73,7 @@ services:
   jupyter:
     environment:
       # Add Iceberg configurations for Jupyter Spark sessions
-      - SPARK_OPTS=--jars /home/jovyan/work/iceberg-jars/iceberg-spark-runtime-3.5_2.12-1.9.2.jar,/home/jovyan/work/iceberg-jars/iceberg-aws-1.9.2.jar,/home/jovyan/work/iceberg-jars/hadoop-aws-3.3.4.jar,/home/jovyan/work/iceberg-jars/aws-java-sdk-bundle-1.12.262.jar
+      - SPARK_OPTS=--jars /home/jovyan/work/iceberg-jars/iceberg-spark-runtime-3.5_2.12-1.9.2.jar,/home/jovyan/work/iceberg-jars/iceberg-aws-1.9.2.jar,/home/jovyan/work/iceberg-jars/hadoop-aws-3.3.4.jar,/home/jovyan/work/iceberg-jars/aws-java-sdk-bundle-1.12.262.jar,/home/jovyan/work/iceberg-jars/bundle-2.17.295.jar,/home/jovyan/work/iceberg-jars/url-connection-client-2.17.295.jar
       
       # S3/MinIO configuration for Jupyter Iceberg sessions (uses generated credentials)
       - MINIO_ROOT_USER=${MINIO_ROOT_USER:-admin}

@@ -31,6 +31,8 @@ download_iceberg_jars() {
         "iceberg-aws-${iceberg_version}.jar"
         "hadoop-aws-3.3.4.jar"
         "aws-java-sdk-bundle-1.12.262.jar"
+        "bundle-2.17.295.jar"
+        "url-connection-client-2.17.295.jar"
     )
     
     local base_maven_url="https://repo1.maven.org/maven2"
@@ -54,6 +56,10 @@ download_iceberg_jars() {
             maven_path="org/apache/hadoop/hadoop-aws/3.3.4/$jar_file"
         elif [[ "$jar_file" == *"aws-java-sdk-bundle"* ]]; then
             maven_path="com/amazonaws/aws-java-sdk-bundle/1.12.262/$jar_file"
+        elif [[ "$jar_file" == "bundle-"* ]]; then
+            maven_path="software/amazon/awssdk/bundle/2.17.295/$jar_file"
+        elif [[ "$jar_file" == "url-connection-client-"* ]]; then
+            maven_path="software/amazon/awssdk/url-connection-client/2.17.295/$jar_file"
         else
             log_warning "Unknown JAR pattern: $jar_file"
             continue
