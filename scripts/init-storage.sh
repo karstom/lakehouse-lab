@@ -30,11 +30,53 @@ configure_minio() {
     local minio_user="${MINIO_ROOT_USER:-minio}"
     local minio_password="${MINIO_ROOT_PASSWORD:-minio123}"
     
-    if mc alias set lakehouse http://minio:9000 "$minio_user" "$minio_password" >/dev/null 2>&1; then
-        log_success "MinIO client configured successfully"
+    # Debug information
+    log_info "Debug: MINIO_ROOT_USER environment variable: '${MINIO_ROOT_USER:-<not set>}'"
+    log_info "Debug: Using MinIO user: '$minio_user'"
+    log_info "Debug: Password length: ${#minio_password}"
+    
+    # Try to test MinIO connection first
+    log_info "Testing MinIO API connectivity..."
+    if curl -f -s http://minio:9000/minio/health/live >/dev/null 2>&1; then
+        log_info "✅ MinIO API health check passed"
     else
-        log_error "Failed to configure MinIO client"
+        log_warning "⚠️ MinIO API health check failed, but continuing..."
+    fi
+    
+    # Try setting the alias with retry mechanism
+    log_info "Attempting to set MinIO alias with retry..."
+    local max_retries=5
+    local retry_count=0
+    local success=false
+    
+    while [ $retry_count -lt $max_retries ] && [ "$success" = false ]; do
+        retry_count=$((retry_count + 1))
+        log_info "Attempt $retry_count/$max_retries to configure MinIO client..."
+        
+        if mc alias set lakehouse http://minio:9000 "$minio_user" "$minio_password" 2>&1; then
+            log_success "MinIO client configured successfully on attempt $retry_count"
+            success=true
+        else
+            if [ $retry_count -lt $max_retries ]; then
+                log_warning "Attempt $retry_count failed, waiting 3 seconds before retry..."
+                sleep 3
+            fi
+        fi
+    done
+    
+    if [ "$success" = false ]; then
+        log_error "Failed to configure MinIO client after $max_retries attempts"
         log_error "Credentials: user='$minio_user', password length=${#minio_password}"
+        
+        # Additional debugging - try to see what MinIO is actually expecting
+        log_info "Final debug attempt..."
+        echo "Debug: Last attempt with full output:"
+        mc alias set lakehouse http://minio:9000 "$minio_user" "$minio_password" 2>&1 || true
+        
+        # Try to check if the MinIO service itself is working
+        log_info "Checking MinIO service status..."
+        curl -v http://minio:9000/ 2>&1 || true
+        
         return 1
     fi
     
