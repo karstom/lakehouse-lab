@@ -25,6 +25,8 @@ MODULES=(
     "workflows"
     "analytics"
     "dashboards"
+    "vizro"
+    "lancedb"
 )
 
 # Module script mapping
@@ -35,6 +37,8 @@ declare -A MODULE_SCRIPTS=(
     ["workflows"]="$SCRIPT_DIR/scripts/init-workflows.sh"
     ["analytics"]="$SCRIPT_DIR/scripts/init-analytics.sh"
     ["dashboards"]="$SCRIPT_DIR/scripts/init-dashboards.sh"
+    ["vizro"]="$SCRIPT_DIR/scripts/init-vizro.sh"
+    ["lancedb"]="$SCRIPT_DIR/scripts/init-lancedb.sh"
 )
 
 # ==============================================================================
@@ -159,6 +163,8 @@ main() {
     echo "   • MinIO Console:     http://localhost:9001 (minio/minio123)"
     echo "   • Spark Master:      http://localhost:8080"
     echo "   • Homer Dashboard:   http://localhost:9061"
+    echo "   • Vizro Dashboard:   http://localhost:9050 (interactive visualizations)"
+    echo "   • LanceDB API:       http://localhost:9080 (vector database)"
     echo ""
     echo "📊 What's Ready:"
     echo "   ✅ Complete directory structure in: $LAKEHOUSE_ROOT/"
@@ -166,13 +172,17 @@ main() {
     echo "   ✅ Airflow DAGs for data processing workflows"
     echo "   ✅ Jupyter notebooks for interactive analysis"
     echo "   ✅ Superset dashboards for business intelligence"
+    echo "   ✅ Vizro interactive dashboards with modern visualizations"
+    echo "   ✅ LanceDB vector database for AI/ML workflows"
     echo "   ✅ Apache Iceberg support for advanced table formats"
     echo ""
     echo "🚀 Quick Start:"
     echo "   1. Visit Superset → SQL Lab → Run sample queries"
     echo "   2. Visit Airflow → Enable 'sample_duckdb_pipeline' DAG"
     echo "   3. Visit JupyterLab → Open '01_Getting_Started.ipynb'"
-    echo "   4. For Iceberg: docker compose -f docker-compose.yml -f docker-compose.iceberg.yml up -d"
+    echo "   4. Visit Vizro → Explore interactive dashboards and visualizations"
+    echo "   5. Visit LanceDB API docs → http://localhost:9080/docs for vector operations"
+    echo "   6. For Iceberg: docker compose -f docker-compose.yml -f docker-compose.iceberg.yml up -d"
     echo ""
     echo "📖 Documentation:"
     echo "   • README.md - Complete setup guide"

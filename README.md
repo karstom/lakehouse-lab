@@ -100,6 +100,8 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 | **Airflow** | Workflow Orchestration | Auto-detected IP:9020 | 🔐 Generated securely |
 | **MinIO Console** | Object Storage | Auto-detected IP:9001 | 🔐 Generated securely |
 | **Spark Master** | Distributed Computing | Auto-detected IP:8080 | N/A |
+| **Vizro** | Modern Interactive Dashboards | Auto-detected IP:9050 | N/A |
+| **LanceDB** | Vector Database API | Auto-detected IP:9080 | N/A |
 | **Homer** | Service Links (Optional) | Auto-detected IP:9061 | N/A |
 | **PostgreSQL** | Analytics Database | Auto-detected IP:5432 | 🔐 Generated securely |
 

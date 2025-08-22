@@ -535,6 +535,89 @@ services:
         reservations:
           memory: 64M
 
+  # Vizro Dashboard Framework
+  vizro:
+    image: python:3.11-slim
+    container_name: vizro
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      lakehouse-init:
+        condition: service_completed_successfully
+    ports:
+      - "9050:8050"
+    environment:
+      VIZRO_SECRET_KEY: ${VIZRO_SECRET_KEY:-vizro-dev-secret}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-lakehouse}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ENDPOINT: http://minio:9000
+    working_dir: /app
+    command: >
+      bash -c "
+      pip install --no-cache-dir vizro[default] pandas plotly psycopg2-binary boto3 duckdb pyarrow
+      cd /app/dashboards && python app.py
+      "
+    volumes:
+      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/vizro:/app/dashboards
+    networks:
+      - lakehouse
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8050"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: ${VIZRO_MEMORY_LIMIT:-2G}
+        reservations:
+          memory: ${VIZRO_MEMORY_RESERVATION:-512M}
+
+  # LanceDB Vector Database Service
+  lancedb:
+    image: python:3.11-slim
+    container_name: lancedb
+    restart: unless-stopped
+    depends_on:
+      minio:
+        condition: service_healthy
+      lakehouse-init:
+        condition: service_completed_successfully
+    ports:
+      - "9080:8000"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ENDPOINT: http://minio:9000
+      LANCE_DATA_DIR: /app/data
+    working_dir: /app
+    command: >
+      bash -c "
+      pip install --no-cache-dir lancedb pyarrow pandas fastapi uvicorn boto3 numpy
+      python /app/service/lancedb_service.py
+      "
+    volumes:
+      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/lancedb:/app
+    networks:
+      - lakehouse
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: ${LANCEDB_MEMORY_LIMIT:-3G}
+        reservations:
+          memory: ${LANCEDB_MEMORY_RESERVATION:-1G}
+
 volumes:
   portainer_data:
     driver: local
