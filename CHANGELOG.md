@@ -1,5 +1,82 @@
 # Changelog
 
+## [2.0.0] - 2025-08-23
+
+### 🏢 Enterprise Authentication & Team Collaboration
+- **🔐 Optional Federated Authentication**: Complete OAuth integration with Google, Microsoft, and GitHub
+- **🎯 Role-Based Access Control**: Four user roles (data_viewer, data_analyst, data_engineer, admin) with granular permissions
+- **🛡️ Authentication Proxy**: Service access control with audit logging and permission checking
+- **🏠 Preserve One-Click Install**: Original simple installation completely unchanged and preserved
+- **⚡ Flexible Deployment**: Can start simple and add authentication later, or install with full security
+
+### 🤖 AI-Powered Data API (MCP Server)
+- **🧠 Model Context Protocol Server**: AI-powered data access with natural language capabilities
+- **🔍 Intelligent Query Assistant**: Convert natural language to SQL and data insights
+- **🔒 Security Integrated**: Full authentication and authorization for AI operations
+- **📊 Multi-Source Access**: Unified API for PostgreSQL, MinIO, DuckDB, and LanceDB
+- **📋 Audit & Compliance**: Complete audit trail for all AI-assisted data operations
+
+### 📊 Modern Interactive Dashboards (Vizro)
+- **🎨 Vizro Dashboard Framework**: Low-code interactive dashboard creation
+- **🔗 Lakehouse Integration**: Direct connection to PostgreSQL and MinIO data sources
+- **📈 Sample Dashboards**: Pre-built examples with sales analytics and business metrics
+- **🎯 Configuration-Based**: JSON/YAML dashboard definitions with hot-reload
+- **📱 Modern UI**: Responsive, interactive dashboards with Plotly integration
+
+### 🗄️ High-Performance Vector Database (LanceDB)
+- **⚡ LanceDB Integration**: High-performance vector operations for AI/ML workloads
+- **🔍 Semantic Search**: Vector similarity search with TF-IDF and custom embeddings
+- **📊 REST API**: FastAPI-based service for vector operations and management
+- **📈 Analytics Ready**: Integration with clustering, UMAP, and ML workflows
+- **🎯 Production Ready**: Persistent storage with backup and recovery capabilities
+
+### 🎛️ Advanced Service Configuration System  
+- **⚙️ Interactive Configuration Wizard**: Easy service selection with resource estimates
+- **📋 Preset Configurations**: Minimal (8GB), Analytics (14GB), ML/AI (16GB), Full (20GB), Secure (22GB)
+- **🔧 Docker Compose Override**: Automatic service enable/disable via compose profiles
+- **📊 Resource Planning**: RAM usage estimates and system recommendations
+- **🔄 Runtime Reconfiguration**: Change service configurations without rebuilding
+
+### 📚 Comprehensive Learning Resources
+- **📓 Advanced Example Notebooks**: Three new comprehensive tutorials showcasing modern capabilities
+  - `04_Vizro_Interactive_Dashboards.ipynb`: Complete Vizro dashboard development guide
+  - `05_LanceDB_Vector_Search.ipynb`: Vector database and semantic search tutorial  
+  - `06_Advanced_Analytics_Vizro_LanceDB.ipynb`: Combined AI-powered analytics workflows
+- **🤖 LLM Development Guide**: Complete metadata guide for AI/LLM developers (`LAKEHOUSE_LLM_GUIDE.md`)
+- **⚙️ Configuration Documentation**: Comprehensive service configuration guide (`CONFIGURATION.md`)
+
+### 🚀 Installation & User Experience
+- **📦 Multiple Installation Paths**:
+  - `install.sh` - Original one-click install (unchanged)
+  - `install-with-auth.sh` - New secure team installation
+  - `scripts/enable-auth.sh` - Add authentication to existing installations
+- **🎯 Setup Wizards**: Interactive configuration for OAuth providers and service selection
+- **📋 Enhanced Documentation**: Updated README with all new capabilities and architecture
+- **🔧 Backward Compatibility**: All existing installations continue to work unchanged
+
+### 🏗️ Architecture Enhancements
+- **🏢 Triple Analytics Architecture**: Data Lake (DuckDB) + Data Warehouse (PostgreSQL) + Vector Database (LanceDB)
+- **🔒 Security-First Design**: Authentication, authorization, audit, and monitoring built-in
+- **📊 Microservices Pattern**: Optional authentication services with health checks and monitoring
+- **🐳 Container Orchestration**: Enhanced Docker Compose with profiles and service dependencies
+- **📈 Production Ready**: Resource limits, health checks, and enterprise-grade configurations
+
+### 🛡️ Security & Compliance
+- **🔐 OAuth 2.0/OIDC**: Standards-compliant authentication with popular identity providers
+- **📋 Comprehensive Audit Logging**: All user actions logged with timestamps and details
+- **🎯 Permission Matrix**: Granular operation-level permissions per user role
+- **🔒 JWT Security**: Secure session management with configurable expiration
+- **📊 Security Monitoring**: Built-in anomaly detection and security event logging
+
+### 🔧 Developer Experience
+- **🎯 Zero-Config for Development**: Local authentication fallback requires no OAuth setup
+- **🔧 Gradual Complexity**: Start simple, add features as needed
+- **📚 Complete Code Examples**: Full implementation patterns for all services
+- **🤖 AI-Friendly**: Comprehensive metadata for LLM-assisted development
+- **🔄 Hot Reload**: Configuration changes without service rebuilds
+
+This release transforms Lakehouse Lab from a development-focused data platform into a production-ready, team-collaboration platform while preserving the simplicity that made it popular for individual developers and learners.
+
 ## [1.3.0] - 2025-07-29
 
 ### 🚀 Dynamic Package Management System
