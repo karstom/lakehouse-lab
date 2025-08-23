@@ -210,22 +210,30 @@ start_with_dependencies() {
         "normal"|*)
             echo -e "${YELLOW}📦 Starting all services...${NC}"
             
+            # Check for service configuration override
+            local compose_files="docker-compose.yml"
+            if [[ -f "docker-compose.override.yml" ]]; then
+                log_info "Using service configuration override"
+                compose_files="docker-compose.yml docker-compose.override.yml"
+            fi
+            
             # Check if Iceberg support should be enabled
             if [[ "${ENABLE_ICEBERG_OVERRIDE:-}" == "true" ]] || [[ -f ".iceberg-enabled" ]]; then
                 echo -e "${BLUE}🧊 Iceberg support detected - using enhanced configuration...${NC}"
+                compose_files="$compose_files docker-compose.iceberg.yml"
                 # Try Iceberg startup first
-                if docker compose -f docker-compose.yml -f docker-compose.iceberg.yml up -d; then
+                if docker compose -f $compose_files up -d; then
                     echo -e "${GREEN}✅ All services with Iceberg support started successfully${NC}"
                     # Create marker file for future starts
                     touch .iceberg-enabled
                 else
                     echo -e "${YELLOW}⚠️  Iceberg startup failed, falling back to standard configuration...${NC}"
-                    if docker compose up -d; then
+                    if docker compose -f docker-compose.yml up -d; then
                         echo -e "${GREEN}✅ Standard services started successfully${NC}"
                     fi
                 fi
             # Try normal startup first
-            elif docker compose up -d; then
+            elif docker compose -f $compose_files up -d; then
                 echo -e "${GREEN}✅ All services started successfully${NC}"
                 
                 # Check key services
@@ -268,9 +276,18 @@ start_with_dependencies() {
     echo -e "  📈 Superset BI:       ${GREEN}http://${HOST_IP}:9030${NC} (use ./scripts/show-credentials.sh for login)"
     echo -e "  📋 Airflow:           ${GREEN}http://${HOST_IP}:9020${NC} (use ./scripts/show-credentials.sh for login)"
     echo -e "  📓 JupyterLab:        ${GREEN}http://${HOST_IP}:9040${NC} (use ./scripts/show-credentials.sh for token)"
+    echo -e "  📊 Vizro Dashboards:  ${GREEN}http://${HOST_IP}:9050${NC}"
+    echo -e "  🤖 LanceDB API:       ${GREEN}http://${HOST_IP}:9080${NC} (docs: /docs)"
     echo -e "  ☁️  MinIO Console:     ${GREEN}http://${HOST_IP}:9001${NC} (use ./scripts/show-credentials.sh for login)"
     echo -e "  ⚡ Spark Master:      ${GREEN}http://${HOST_IP}:8080${NC}"
     echo -e "  🏠 Service Links:     ${GREEN}http://${HOST_IP}:9061${NC} (optional Homer)"
+    
+    # Show only enabled services if override exists
+    if [[ -f "docker-compose.override.yml" ]]; then
+        echo ""
+        echo -e "${BLUE}💡 Note: Some services may be disabled via configuration${NC}"
+        echo -e "    Use './scripts/configure-services.sh show' to see current settings"
+    fi
     
     # Show Iceberg status if enabled
     if [[ -f ".iceberg-enabled" ]] || [[ "${ENABLE_ICEBERG_OVERRIDE:-}" == "true" ]]; then

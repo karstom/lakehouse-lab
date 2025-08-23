@@ -575,10 +575,10 @@ EOF
 # ==============================================================================
 
 main() {
-    log_section "INITIALIZING LANCEDB VECTOR DATABASE"
+    print_separator "🗄️ INITIALIZING LANCEDB VECTOR DATABASE"
     
     # Check prerequisites
-    check_lakehouse_root
+    log_info "Setting up LanceDB in: $LAKEHOUSE_ROOT"
     
     # Create directory structure
     create_lancedb_directories

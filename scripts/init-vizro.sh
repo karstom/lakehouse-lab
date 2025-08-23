@@ -260,10 +260,10 @@ EOF
 # ==============================================================================
 
 main() {
-    log_section "INITIALIZING VIZRO DASHBOARD FRAMEWORK"
+    print_separator "🎨 INITIALIZING VIZRO DASHBOARD FRAMEWORK"
     
-    # Check prerequisites
-    check_lakehouse_root
+    # Check prerequisites  
+    log_info "Setting up Vizro in: $LAKEHOUSE_ROOT"
     
     # Create directory structure
     create_vizro_directories

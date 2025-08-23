@@ -15,6 +15,10 @@
 #   docker compose up -d     # Start services
 #   docker compose down      # Stop services
 #   docker compose restart   # Restart services
+# 
+# 🔧 Service Configuration:
+#   Use './scripts/configure-services.sh' to enable/disable services
+#   This creates a docker-compose.override.yml file to control which services run
 # ========================================
 
 x-airflow-common: &airflow-common
@@ -556,11 +560,12 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       MINIO_ENDPOINT: http://minio:9000
     working_dir: /app
-    command: >
-      bash -c "
-      pip install --no-cache-dir vizro[default] pandas plotly psycopg2-binary boto3 duckdb pyarrow
-      cd /app/dashboards && python app.py
-      "
+    command: 
+      - bash
+      - -c
+      - |
+        pip install --no-cache-dir vizro[default] pandas plotly psycopg2-binary boto3 duckdb pyarrow sqlalchemy
+        cd /app/dashboards && python app.py
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/vizro:/app/dashboards
     networks:
@@ -596,11 +601,12 @@ services:
       MINIO_ENDPOINT: http://minio:9000
       LANCE_DATA_DIR: /app/data
     working_dir: /app
-    command: >
-      bash -c "
-      pip install --no-cache-dir lancedb pyarrow pandas fastapi uvicorn boto3 numpy
-      python /app/service/lancedb_service.py
-      "
+    command:
+      - bash
+      - -c
+      - |
+        pip install --no-cache-dir lancedb pyarrow pandas fastapi uvicorn boto3 numpy
+        python /app/service/lancedb_service.py
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/lancedb:/app
     networks:
