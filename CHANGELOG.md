@@ -12,6 +12,8 @@
 ### 🤖 AI-Powered Data API (MCP Server)
 - **🧠 Model Context Protocol Server**: AI-powered data access with natural language capabilities
 - **🔍 Intelligent Query Assistant**: Convert natural language to SQL and data insights
+- **🎨 Vizro Integration**: Generate interactive dashboards from SQL queries via natural language
+- **📊 Smart Chart Creation**: Automatic chart type selection based on data analysis
 - **🔒 Security Integrated**: Full authentication and authorization for AI operations
 - **📊 Multi-Source Access**: Unified API for PostgreSQL, MinIO, DuckDB, and LanceDB
 - **📋 Audit & Compliance**: Complete audit trail for all AI-assisted data operations
@@ -74,6 +76,14 @@
 - **📚 Complete Code Examples**: Full implementation patterns for all services
 - **🤖 AI-Friendly**: Comprehensive metadata for LLM-assisted development
 - **🔄 Hot Reload**: Configuration changes without service rebuilds
+
+### 📚 Comprehensive Documentation Overhaul
+- **📖 README.md**: Complete rewrite with enterprise features, comparison tables, and updated architecture
+- **🚀 QUICKSTART.md**: New v2.0.0 walkthrough with AI features, authentication, and modern dashboards
+- **⚙️ INSTALLATION.md**: Enterprise installation paths, OAuth setup, and configuration-based requirements
+- **🔧 CONFIGURATION.md**: Updated service presets including secure configuration option
+- **🤖 LAKEHOUSE_LLM_GUIDE.md**: Enhanced with AI layer architecture and MCP server integration
+- **🎯 User Experience**: Clear separation between individual developer and enterprise team workflows
 
 This release transforms Lakehouse Lab from a development-focused data platform into a production-ready, team-collaboration platform while preserving the simplicity that made it popular for individual developers and learners.
 

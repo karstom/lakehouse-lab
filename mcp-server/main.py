@@ -30,6 +30,14 @@ import pandas as pd
 import duckdb
 import lancedb
 
+# Visualization imports
+import plotly.graph_objects as go
+import plotly.express as px
+from vizro import Vizro
+from vizro.models import Dashboard, Page, Graph, Card
+from vizro.tables import dash_data_table
+import json
+
 # Configuration
 from config import Settings, get_settings
 
@@ -131,6 +139,20 @@ class DataInsightRequest(BaseModel):
     table: str = Field(..., description="Table to analyze")
     analysis_type: str = Field(default="summary", description="Type of analysis")
 
+class VizroDashboardRequest(BaseModel):
+    title: str = Field(..., description="Dashboard title")
+    data_query: str = Field(..., description="SQL query to get dashboard data")
+    chart_types: List[str] = Field(default=["bar"], description="Types of charts to create")
+    description: Optional[str] = Field(default=None, description="Natural language description of desired dashboard")
+
+class VizroChartRequest(BaseModel):
+    chart_type: str = Field(..., description="Type of chart (bar, line, scatter, etc.)")
+    data_query: str = Field(..., description="SQL query to get chart data") 
+    x_column: str = Field(..., description="X-axis column")
+    y_column: str = Field(..., description="Y-axis column")
+    title: Optional[str] = Field(default=None, description="Chart title")
+    color_column: Optional[str] = Field(default=None, description="Column for color grouping")
+
 class User(BaseModel):
     id: int
     email: str
@@ -191,6 +213,7 @@ def check_permission(user: User, operation: str, resource: str = None) -> bool:
             'analyze_s3_data': True,
             'write_data': False,
             'create_tables': False,
+            'create_dashboards': False,
             'admin_operations': False
         },
         'data_analyst': {
@@ -199,6 +222,7 @@ def check_permission(user: User, operation: str, resource: str = None) -> bool:
             'analyze_s3_data': True,
             'write_data': True,
             'create_tables': False,
+            'create_dashboards': True,
             'admin_operations': False
         },
         'data_engineer': {
@@ -207,6 +231,7 @@ def check_permission(user: User, operation: str, resource: str = None) -> bool:
             'analyze_s3_data': True,
             'write_data': True,
             'create_tables': True,
+            'create_dashboards': True,
             'admin_operations': False
         }
     }
@@ -481,12 +506,97 @@ async def generate_insights_endpoint(
         user, request.table, request.analysis_type
     )
 
+@app.post("/tools/create-vizro-dashboard")
+async def create_vizro_dashboard(
+    request: VizroDashboardRequest,
+    user: User = Depends(verify_token)
+):
+    """Create a Vizro dashboard from SQL query and specifications"""
+    if not check_permission(user, 'create_dashboards'):
+        raise HTTPException(status_code=403, detail="Insufficient permissions for dashboard creation")
+    
+    await audit_log(user, "create_vizro_dashboard", request.title, True)
+    
+    try:
+        # Execute the data query
+        async with async_session() as session:
+            result = await session.execute(text(request.data_query))
+            data = result.fetchall()
+            columns = result.keys()
+        
+        # Convert to DataFrame
+        df = pd.DataFrame(data, columns=columns)
+        
+        # Generate dashboard configuration
+        dashboard_config = await generate_vizro_dashboard_config(
+            df, request.title, request.chart_types, request.description
+        )
+        
+        # Save dashboard config to filesystem
+        config_path = f"/app/config/dashboards/{request.title.lower().replace(' ', '_')}_dashboard.json"
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        
+        with open(config_path, 'w') as f:
+            json.dump(dashboard_config, f, indent=2)
+        
+        return {
+            'dashboard_id': request.title.lower().replace(' ', '_'),
+            'config_path': config_path,
+            'config': dashboard_config,
+            'preview_url': f"/vizro/dashboard/{request.title.lower().replace(' ', '_')}",
+            'rows_processed': len(df)
+        }
+        
+    except Exception as e:
+        await audit_log(user, "create_vizro_dashboard", request.title, False, {'error': str(e)})
+        raise HTTPException(status_code=500, detail=f"Dashboard creation failed: {str(e)}")
+
+@app.post("/tools/create-vizro-chart")
+async def create_vizro_chart(
+    request: VizroChartRequest,
+    user: User = Depends(verify_token)
+):
+    """Create a single Vizro chart from SQL query"""
+    if not check_permission(user, 'create_dashboards'):
+        raise HTTPException(status_code=403, detail="Insufficient permissions for dashboard creation")
+    
+    await audit_log(user, "create_vizro_chart", request.chart_type, True)
+    
+    try:
+        # Execute the data query
+        async with async_session() as session:
+            result = await session.execute(text(request.data_query))
+            data = result.fetchall()
+            columns = result.keys()
+        
+        # Convert to DataFrame  
+        df = pd.DataFrame(data, columns=columns)
+        
+        # Generate chart configuration
+        chart_config = await generate_vizro_chart_config(
+            df, request.chart_type, request.x_column, request.y_column, 
+            request.title, request.color_column
+        )
+        
+        return {
+            'chart_config': chart_config,
+            'data_summary': {
+                'rows': len(df),
+                'columns': list(df.columns),
+                'x_values': df[request.x_column].unique().tolist()[:10] if request.x_column in df.columns else []
+            }
+        }
+        
+    except Exception as e:
+        await audit_log(user, "create_vizro_chart", request.chart_type, False, {'error': str(e)})
+        raise HTTPException(status_code=500, detail=f"Chart creation failed: {str(e)}")
+
 @app.get("/user/permissions")
 async def get_user_permissions(user: User = Depends(verify_token)):
     """Get current user permissions"""
     
     operations = ['query_postgres', 'search_vectors', 'analyze_s3_data', 
-                 'write_data', 'create_tables', 'admin_operations']
+                 'write_data', 'create_tables', 'admin_operations', 'create_dashboards']
     
     permissions = {
         op: check_permission(user, op) for op in operations
@@ -495,6 +605,138 @@ async def get_user_permissions(user: User = Depends(verify_token)):
     return {
         'user': user.dict(),
         'permissions': permissions
+    }
+
+# Vizro helper functions
+async def generate_vizro_dashboard_config(
+    df: pd.DataFrame, 
+    title: str, 
+    chart_types: List[str], 
+    description: Optional[str] = None
+) -> Dict[str, Any]:
+    """Generate Vizro dashboard configuration from DataFrame"""
+    
+    # Analyze DataFrame to suggest appropriate visualizations
+    numeric_columns = df.select_dtypes(include=['number']).columns.tolist()
+    categorical_columns = df.select_dtypes(include=['object', 'category']).columns.tolist()
+    
+    charts = []
+    
+    for i, chart_type in enumerate(chart_types):
+        chart_id = f"chart_{i+1}"
+        
+        if chart_type == "bar" and len(categorical_columns) > 0 and len(numeric_columns) > 0:
+            chart_config = {
+                "id": chart_id,
+                "type": "bar_chart",
+                "data_frame": "df",
+                "x": categorical_columns[0],
+                "y": numeric_columns[0],
+                "title": f"{chart_type.title()} Chart - {categorical_columns[0]} vs {numeric_columns[0]}"
+            }
+        elif chart_type == "line" and len(numeric_columns) >= 2:
+            chart_config = {
+                "id": chart_id,
+                "type": "line_chart", 
+                "data_frame": "df",
+                "x": numeric_columns[0],
+                "y": numeric_columns[1] if len(numeric_columns) > 1 else numeric_columns[0],
+                "title": f"{chart_type.title()} Chart - Trend Analysis"
+            }
+        elif chart_type == "scatter" and len(numeric_columns) >= 2:
+            chart_config = {
+                "id": chart_id,
+                "type": "scatter_chart",
+                "data_frame": "df", 
+                "x": numeric_columns[0],
+                "y": numeric_columns[1],
+                "title": f"{chart_type.title()} Chart - Correlation Analysis"
+            }
+        else:
+            # Default to simple bar chart
+            chart_config = {
+                "id": chart_id,
+                "type": "bar_chart",
+                "data_frame": "df",
+                "x": df.columns[0],
+                "y": df.columns[1] if len(df.columns) > 1 else df.columns[0],
+                "title": f"Chart {i+1}"
+            }
+        
+        charts.append(chart_config)
+    
+    # Generate dashboard configuration
+    dashboard_config = {
+        "pages": [
+            {
+                "title": title,
+                "components": [
+                    {
+                        "type": "graph",
+                        "figure": chart
+                    } for chart in charts
+                ]
+            }
+        ],
+        "data_sources": {
+            "df": {
+                "type": "pandas",
+                "data": df.to_dict('records'),
+                "columns": df.columns.tolist()
+            }
+        },
+        "metadata": {
+            "title": title,
+            "description": description or f"Dashboard generated from {len(df)} rows of data",
+            "created_at": datetime.utcnow().isoformat(),
+            "data_summary": {
+                "rows": len(df),
+                "columns": len(df.columns),
+                "numeric_columns": numeric_columns,
+                "categorical_columns": categorical_columns
+            }
+        }
+    }
+    
+    return dashboard_config
+
+async def generate_vizro_chart_config(
+    df: pd.DataFrame,
+    chart_type: str,
+    x_column: str, 
+    y_column: str,
+    title: Optional[str] = None,
+    color_column: Optional[str] = None
+) -> Dict[str, Any]:
+    """Generate Vizro chart configuration"""
+    
+    chart_config = {
+        "type": f"{chart_type}_chart",
+        "data_frame": "df", 
+        "x": x_column,
+        "y": y_column,
+        "title": title or f"{chart_type.title()} Chart: {x_column} vs {y_column}"
+    }
+    
+    if color_column:
+        chart_config["color"] = color_column
+    
+    # Add chart-specific configurations
+    if chart_type == "scatter":
+        chart_config["size"] = None  # Could be configured based on data
+        chart_config["hover_data"] = df.columns.tolist()[:5]  # First 5 columns for hover
+    elif chart_type == "line":
+        chart_config["markers"] = True
+    elif chart_type == "bar":
+        chart_config["orientation"] = "v"  # Vertical bars by default
+        
+    return {
+        "chart": chart_config,
+        "data": {
+            "type": "pandas",
+            "data": df.to_dict('records'),
+            "columns": df.columns.tolist()
+        }
     }
 
 # Initialize MCP Server
