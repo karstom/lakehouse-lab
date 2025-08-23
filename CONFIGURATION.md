@@ -1,6 +1,6 @@
 # 🔧 Lakehouse Lab Configuration Guide
 
-This guide explains how to configure which services are enabled in your Lakehouse Lab installation.
+**Version 2.0.0** - This guide explains how to configure which services are enabled in your Lakehouse Lab installation, including enterprise authentication and AI-powered services.
 
 ## Overview
 
@@ -26,8 +26,11 @@ The easiest way to configure services is using presets:
 # ML/AI focus (16GB RAM) - Jupyter + LanceDB + Airflow
 ./scripts/configure-services.sh preset ml
 
-# Full installation (20GB RAM) - All services enabled
+# Full installation (20GB RAM) - All data services enabled  
 ./scripts/configure-services.sh preset full
+
+# Secure installation (22GB RAM) - Full platform + enterprise authentication
+./scripts/configure-services.sh preset secure
 ```
 
 ### Interactive Configuration

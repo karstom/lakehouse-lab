@@ -2,22 +2,33 @@
 
 > **Comprehensive metadata and development guide for Large Language Models working with Lakehouse Lab**
 
-This document provides LLMs and AI developers with complete system understanding, code patterns, configuration details, and best practices for working with the Lakehouse Lab environment.
+**Version 2.0.0** - This document provides LLMs and AI developers with complete system understanding, code patterns, configuration details, and best practices for working with the modern Lakehouse Lab environment, including the integrated MCP Server, authentication system, and AI-powered capabilities.
 
 ## 🏗️ System Architecture Overview
 
 ### Core Infrastructure
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                 LAKEHOUSE LAB ECOSYSTEM                     │
-├─────────────────┬─────────────────┬─────────────────────────┤
-│  STORAGE LAYER  │ PROCESSING LAYER│    INTERFACE LAYER      │
-├─────────────────┼─────────────────┼─────────────────────────┤
-│ • PostgreSQL    │ • Apache Spark  │ • JupyterLab            │
-│ • MinIO (S3)    │ • Apache Airflow│ • Apache Superset       │
-│ • LanceDB       │ • DuckDB        │ • Vizro Dashboards      │
-│                 │                 │ • Portainer             │
-└─────────────────┴─────────────────┴─────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                    LAKEHOUSE LAB ECOSYSTEM v2.0                     │
+├─────────────────┬─────────────────┬─────────────────┬───────────────┤
+│  STORAGE LAYER  │ PROCESSING LAYER│  INTERFACE LAYER│   AI LAYER    │
+├─────────────────┼─────────────────┼─────────────────┼───────────────┤
+│ • PostgreSQL    │ • Apache Spark  │ • JupyterLab    │ • MCP Server  │
+│ • MinIO (S3)    │ • Apache Airflow│ • Apache Superset│ • LanceDB API │
+│ • LanceDB       │ • DuckDB        │ • Vizro Dashboards│ • Vector Search│
+│                 │                 │ • Portainer     │               │
+│                 │                 │ • Auth Portal   │               │
+└─────────────────┴─────────────────┴─────────────────┴───────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                    AUTHENTICATION LAYER (OPTIONAL)                  │
+├─────────────────┬─────────────────┬─────────────────┬───────────────┤
+│  AUTH SERVICES  │   ACCESS CONTROL │   AUDIT & LOG   │   PROVIDERS   │
+├─────────────────┼─────────────────┼─────────────────┼───────────────┤
+│ • Auth Service  │ • Auth Proxy    │ • Audit Service │ • Google OAuth│
+│ • JWT Manager   │ • Role Enforcer │ • Activity Log  │ • Microsoft   │
+│ • User Manager  │ • Permission Mgr│ • Compliance    │ • GitHub      │
+└─────────────────┴─────────────────┴─────────────────┴───────────────┘
 ```
 
 ### Service Communication Matrix
@@ -35,6 +46,15 @@ Vizro           | 8050          | 9050          | vizro                 | HTTP:8
 LanceDB         | 8000          | 9080          | lancedb               | /health
 Portainer       | 9000          | 9060          | portainer             | HTTP:9060
 Homer           | 8080          | 9061          | homer                 | HTTP:8080
+
+# AI & MCP Services
+MCP Server      | 8090          | 9090          | mcp-server            | /health
+Vector Search   | 8000          | 9080          | lancedb               | /health
+
+# Authentication Services (Optional)
+Auth Service    | 8080          | 9091          | auth-service          | /health
+Auth Proxy      | 8080          | 9092          | auth-proxy            | /health
+Audit Service   | 8080          | -             | audit-service         | /health
 ```
 
 ## 🔐 Environment Configuration

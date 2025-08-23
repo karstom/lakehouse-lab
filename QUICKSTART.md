@@ -1,28 +1,51 @@
 # 🚀 Lakehouse Lab - 15-Minute Quickstart Guide
 
-Get your complete data analytics environment running in 15 minutes!
+**Version 2.0.0** - Get your complete enterprise-ready data analytics environment running in 15 minutes! Choose between simple individual setup or secure team collaboration.
 
 ## ⚡ 1. Quick Setup
 
 > ⚠️ **Critical**: Always use `./install.sh` for new installations. Direct `docker compose up -d` will fail without proper credentials and initialization!
 
-### **Method 1: One-Command Install (Recommended)**
+### 🏠 **Individual Developer Setup (Simple & Fast)**
+
+**One-Command Install - Perfect for Learning:**
 ```bash
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
 ```
 
-### **Method 2: Git Clone + Install**
+### 🏢 **Enterprise Team Setup (Secure & Collaborative)**
+
+**Secure Installation with Team Authentication:**
 ```bash
-git clone https://github.com/karstom/lakehouse-lab.git
-cd lakehouse-lab
-./install.sh
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install-with-auth.sh | bash
 ```
 
-### **Fat Server Setup (32+ cores, 64GB+ RAM)**
+### **Alternative: Git Clone Method**
 ```bash
 git clone https://github.com/karstom/lakehouse-lab.git
 cd lakehouse-lab
+
+# Individual setup
+./install.sh
+
+# OR Enterprise setup  
+./install-with-auth.sh
+
+# OR Fat server setup (32+ cores, 64GB+ RAM)
 ./install.sh --fat-server
+```
+
+### 🎯 **Interactive Setup Wizard (Recommended)**
+```bash
+# Configure services and choose your deployment mode
+./scripts/setup-wizard.sh
+
+# Or use presets
+./scripts/setup-wizard.sh --minimal    # 8GB RAM
+./scripts/setup-wizard.sh --analytics  # 14GB RAM  
+./scripts/setup-wizard.sh --ml         # 16GB RAM
+./scripts/setup-wizard.sh --full       # 20GB RAM
+./scripts/setup-wizard.sh --secure     # 22GB RAM (with auth)
 ```
 
 ### **Why install.sh is Required**
@@ -49,14 +72,30 @@ docker compose logs -f lakehouse-init
 
 Once startup completes, access these URLs:
 
+### 🏠 **Core Data Services (Always Available)**
 | Service | URL | Purpose | Credentials |
 |---------|-----|---------|-------------|
 | **Portainer** | http://localhost:9060 | Container Management | Create admin user |
-| **Superset** | http://localhost:9030 | BI & Dashboards | 🔐 Generated |
-| **JupyterLab** | http://localhost:9040 | Data Science | 🔐 Generated |
-| **Airflow** | http://localhost:9020 | Orchestration | 🔐 Generated |
-| **MinIO** | http://localhost:9001 | File Storage | 🔐 Generated |
-| **Spark** | http://localhost:8080 | Processing Engine | N/A |
+| **JupyterLab** | http://localhost:9040 | Data Science Notebooks | 🔐 Generated |
+| **MinIO Console** | http://localhost:9001 | Object Storage | 🔐 Generated |
+| **Spark Master** | http://localhost:8080 | Processing Engine | N/A |
+| **PostgreSQL** | localhost:5432 | Analytics Database | 🔐 Generated |
+
+### 📊 **Optional Analytics Services (If Enabled)**
+| Service | URL | Purpose | Credentials |
+|---------|-----|---------|-------------|
+| **Apache Superset** | http://localhost:9030 | BI & Dashboards | 🔐 Generated |
+| **Apache Airflow** | http://localhost:9020 | Workflow Orchestration | 🔐 Generated |
+| **Vizro Dashboards** | http://localhost:9050 | Interactive Dashboards | 🔐 Generated |
+| **LanceDB API** | http://localhost:9080 | Vector Database | API Access |
+| **Homer Dashboard** | http://localhost:9061 | Service Links | N/A |
+
+### 🔐 **Enterprise Authentication Services (If Enabled)**
+| Service | URL | Purpose | Credentials |
+|---------|-----|---------|-------------|
+| **Auth Portal** | http://localhost:9091 | Login & User Management | OAuth/Local |
+| **Secure Access** | http://localhost:9092 | Authenticated Service Access | Via Auth Portal |
+| **MCP Data API** | http://localhost:9090 | AI-Powered Data Queries | API Key |
 
 ## 🔒 Getting Your Login Credentials
 
@@ -155,7 +194,119 @@ GROUP BY product_category
 
 ---
 
-## 🔬 5. Interactive Data Science - FIXED!
+## 🤖 5. AI-Powered Data Queries (NEW!)
+
+### **Step 1: Access the MCP Server**
+✨ **NEW**: Natural language data queries with AI assistance!
+
+1. Get MCP API URL: Run `./scripts/show-credentials.sh`
+2. The MCP Server provides AI-powered data access at http://localhost:9090
+
+### **Step 2: Query Data with Natural Language**
+```python
+import requests
+
+# Natural language query
+response = requests.post('http://localhost:9090/api/query', json={
+    "query": "Show me the top 5 product categories by revenue from the sample data",
+    "limit": 5
+})
+print(response.json())
+
+# Vector similarity search
+response = requests.post('http://localhost:9090/api/vector-search', json={
+    "text": "find products similar to electronics",
+    "limit": 10
+})
+similar_items = response.json()
+```
+
+### **Step 3: Advanced AI Features**
+```python
+# Semantic data discovery
+response = requests.post('http://localhost:9090/api/discover', json={
+    "description": "customer purchase patterns during holidays"
+})
+
+# Automated insights
+response = requests.post('http://localhost:9090/api/insights', json={
+    "table": "sample_orders",
+    "focus": "anomaly_detection"
+})
+```
+
+---
+
+## 📊 6. Modern Interactive Dashboards (NEW!)
+
+### **Step 1: Access Vizro Dashboards**
+✨ **NEW**: Modern, responsive dashboard framework!
+
+1. Visit http://localhost:9050
+2. Get credentials: Run `./scripts/show-credentials.sh`
+3. Explore pre-built sample dashboards
+
+### **Step 2: Interactive Features**
+- **Sample Dashboard**: `/sample-dashboard` with sales analytics
+- **Real-time Updates**: Live data from PostgreSQL and MinIO  
+- **Interactive Filtering**: Dynamic filters and drill-down capabilities
+- **Responsive Design**: Works on desktop, tablet, and mobile
+
+### **Step 3: Create Custom Dashboards**
+```bash
+# Edit dashboard configuration
+nano config/dashboards/custom-dashboard.yaml
+```
+
+```yaml
+# Example Vizro dashboard configuration
+pages:
+  - title: "Sales Analytics"
+    components:
+      - title: "Revenue Trends"
+        type: "graph"
+        figure:
+          data: "SELECT * FROM analytics.daily_sales"
+          x: "date"
+          y: "revenue"
+```
+
+---
+
+## 🔍 7. Vector Database & Semantic Search (NEW!)
+
+### **Step 1: Access LanceDB**
+✨ **NEW**: High-performance vector operations for AI/ML!
+
+1. API available at http://localhost:9080
+2. Pre-loaded with sample embeddings and vectors
+
+### **Step 2: Semantic Search Examples**
+```python
+import requests
+import numpy as np
+
+# Store vectors
+vectors = np.random.rand(100, 128).tolist()  # Sample embeddings
+response = requests.post('http://localhost:9080/api/vectors', json={
+    "table": "product_embeddings",
+    "vectors": vectors,
+    "metadata": [{"product_id": i, "category": "electronics"} for i in range(100)]
+})
+
+# Semantic similarity search
+query_vector = np.random.rand(128).tolist()
+response = requests.post('http://localhost:9080/api/search', json={
+    "table": "product_embeddings", 
+    "vector": query_vector,
+    "limit": 5
+})
+similar_products = response.json()
+```
+
+---
+
+## 🔬 8. Interactive Data Science - Enhanced!
 
 ### **Step 1: Open JupyterLab**
 ✅ **FIXED**: DuckDB packages are now pre-installed in Jupyter
@@ -209,7 +360,40 @@ print(f"DuckDB version: {duckdb.__version__}")  # Should show 1.3.2
 
 ---
 
-## ⚙️ 6. Workflow Orchestration - FIXED!
+## 🔐 9. Enterprise Authentication & Team Access (NEW!)
+
+### **Step 1: Access Authentication Portal (If Enabled)**
+✨ **NEW**: Enterprise-grade authentication with role-based access!
+
+1. Visit http://localhost:9091 (Auth Portal)
+2. Choose login method:
+   - **Local Login**: admin@localhost (development)
+   - **OAuth**: Google, Microsoft, GitHub (production)
+
+### **Step 2: Configure OAuth Providers**
+```bash
+# Interactive OAuth setup wizard
+./scripts/setup-auth.sh
+
+# Add authentication to existing installation
+./scripts/enable-auth.sh
+```
+
+### **Step 3: User Roles & Permissions**
+- **data_viewer**: Read-only dashboard access
+- **data_analyst**: Query data, create charts  
+- **data_engineer**: ETL pipelines, data modeling
+- **admin**: Full system access, user management
+
+### **Step 4: Secure Service Access**
+All services are protected via http://localhost:9092 when authentication is enabled:
+- Automatic JWT token validation
+- Complete audit logging of all actions
+- Role-based service access control
+
+---
+
+## ⚙️ 10. Workflow Orchestration - Enhanced!
 
 ### **Step 1: Open Airflow**
 ✅ **FIXED**: DuckDB import errors resolved - DAGs now work!
@@ -230,7 +414,7 @@ print(f"DuckDB version: {duckdb.__version__}")  # Should show 1.3.2
 
 ---
 
-## 💾 7. Manage Your Data
+## 💾 11. Manage Your Data
 
 ### **Step 1: Access MinIO Console**
 1. Visit http://localhost:9001
@@ -252,7 +436,7 @@ print(f"DuckDB version: {duckdb.__version__}")  # Should show 1.3.2
 
 ---
 
-## 🐳 8. Monitor Everything
+## 🐳 12. Monitor Everything
 
 ### **Step 1: Container Management**
 1. Visit http://localhost:9060 (Portainer)
@@ -278,7 +462,7 @@ docker compose logs -f jupyter
 
 ---
 
-## 🔧 9. Advanced Patterns
+## 🔧 13. Advanced Patterns
 
 ### **Multi-File Analytics (Now Works Perfectly!)**
 ```sql
@@ -307,7 +491,7 @@ ORDER BY month;
 
 ---
 
-## 🚨 10. Troubleshooting
+## 🚨 14. Troubleshooting
 
 ### **Fixed Issues:**
 ✅ **Issue #1**: Superset S3 configuration now persists  
@@ -342,24 +526,41 @@ If you need to manually update the Superset DuckDB connection:
 
 ## 🎓 What You've Accomplished
 
-After completing this quickstart with the fixes:
+After completing this Version 2.0.0 quickstart:
 
-✅ **Complete Data Stack** - Storage, processing, analytics, visualization  
+✅ **Enterprise-Ready Data Platform** - Complete analytics stack with optional security  
+✅ **AI-Powered Data API** - Natural language queries via MCP Server  
+✅ **Modern Interactive Dashboards** - Vizro framework with live data  
+✅ **Vector Database Integration** - LanceDB for semantic search and AI/ML  
 ✅ **Fixed S3 Integration** - Persistent DuckDB S3 configuration  
-✅ **Working Airflow DAGs** - No more import errors  
-✅ **Latest Technology** - DuckDB 1.3.2 with all modern features  
-✅ **Reliable Datasets** - Single-query dataset creation  
-✅ **Production Patterns** - Modern lakehouse architecture  
+✅ **Working Airflow DAGs** - No more import errors, enhanced capabilities  
+✅ **Latest Technology** - DuckDB 1.3.2 + Vector database + AI integration  
+✅ **Enterprise Security** - Optional OAuth with role-based access control  
+✅ **Triple Analytics Architecture** - Data lake + warehouse + vector database  
+✅ **Production Patterns** - Modern lakehouse with team collaboration  
 
 ## 🚀 Next Steps
 
+### **Individual Developers**
 - **Add Your Data**: Upload CSV/Parquet files to MinIO
-- **Build Pipelines**: Create custom Airflow DAGs
-- **Advanced Analytics**: Use DuckDB 1.3.2's latest features
-- **Scale Up**: Use fat-server configuration for larger workloads
+- **Build ML Models**: Use LanceDB for vector embeddings and semantic search
+- **Create Dashboards**: Build interactive Vizro dashboards
+- **AI Integration**: Experiment with natural language data queries
+
+### **Enterprise Teams** 
+- **Setup OAuth**: Configure Google/Microsoft/GitHub authentication
+- **Manage Users**: Assign roles and permissions for team members
+- **Enable Audit**: Monitor all data access and operations
+- **Scale Infrastructure**: Use fat-server configuration for production workloads
+
+### **Advanced Use Cases**
+- **Custom MCP Tools**: Extend the AI data API with custom functions
+- **Vector Search**: Build recommendation systems and semantic search
+- **Real-time Analytics**: Create streaming dashboards with live data
+- **Multi-tenant**: Configure separate environments for different teams
 
 ---
 
-**Happy Data Engineering!** 🚀
+**Happy Data Engineering in the AI Era!** 🚀🤖
 
-The lakehouse is now fully functional with all issues resolved!
+Your enterprise-ready lakehouse is now fully functional with cutting-edge AI capabilities!

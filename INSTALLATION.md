@@ -1,31 +1,52 @@
 # 🚀 Lakehouse Lab Installation Guide
 
-Complete installation options for all platforms and use cases.
+**Version 2.0.0** - Complete installation options for all platforms and use cases, from individual development to enterprise team collaboration.
 
 > ⚠️ **Critical for New Users**: You **MUST** use `./install.sh` for first-time installation. Running `docker compose up -d` directly will fail because it requires secure credentials and proper initialization that only the installer provides.
 
 ## ⚡ One-Command Installation
 
-### **Standard Installation (Recommended)**
+### 🏠 **Individual Developer Installation (Simple & Fast)**
+
+**Standard Installation (Recommended for Learning):**
 ```bash
-# For laptops, workstations, small servers (16GB RAM, 4+ cores)
+# For laptops, workstations, small servers (8-16GB RAM)
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
+```
+
+**High-Performance Installation:**
+```bash
+# For powerful servers (32+ cores, 64GB+ RAM)
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --fat-server
+```
+
+### 🏢 **Enterprise Team Installation (Secure & Collaborative)**
+
+**Secure Installation with Authentication:**
+```bash
+# Complete secure installation with team authentication
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install-with-auth.sh | bash
+```
+
+### 🎯 **Interactive Setup Wizard (Recommended)**
+
+**Configure Services and Choose Deployment:**
+```bash
+# Interactive installation with service selection
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --wizard
+
+# Or use presets
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --preset minimal
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --preset analytics
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --preset ml
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --preset full
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --preset secure
 ```
 
 **Windows WSL or macOS users** (if piping fails):
 ```bash
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh
-```
-
-### **High-Performance Installation**
-```bash
-# For powerful servers (64GB+ RAM, 16+ cores)
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --fat-server
-```
-
-**Windows WSL or macOS users:**
-```bash
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh --fat-server
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install-with-auth.sh -o /tmp/install-with-auth.sh && bash /tmp/install-with-auth.sh
 ```
 
 ### **Unattended Installation (CI/CD)**
@@ -111,11 +132,52 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 | **Starting fresh** | Replace | Removes all old data |
 | **After failed initial install** | Replace | Cleans up any partial state |
 
+## 🔐 Enterprise Authentication Setup
+
+### **Add Authentication to Existing Installation**
+```bash
+# Enable authentication on existing installation
+./scripts/enable-auth.sh
+
+# Configure OAuth providers
+./scripts/setup-auth.sh
+```
+
+### **OAuth Provider Configuration**
+```bash
+# Google Workspace
+./scripts/setup-auth.sh --provider google
+
+# Microsoft Azure AD  
+./scripts/setup-auth.sh --provider microsoft
+
+# GitHub Enterprise
+./scripts/setup-auth.sh --provider github
+
+# Configure all providers interactively
+./scripts/setup-auth.sh
+```
+
+### **Service Configuration Presets**
+```bash
+# Configure which services to enable
+./scripts/configure-services.sh
+
+# Use presets
+./scripts/configure-services.sh preset minimal     # 8GB RAM
+./scripts/configure-services.sh preset analytics  # 14GB RAM  
+./scripts/configure-services.sh preset ml         # 16GB RAM
+./scripts/configure-services.sh preset full       # 20GB RAM
+./scripts/configure-services.sh preset secure     # 22GB RAM (with auth)
+```
+
 ## 🔧 Installation Options
 
 | Option | Description | Example |
 |--------|-------------|---------|
-| `--fat-server` | High-performance config (64GB+ RAM) | `--fat-server` |
+| `--fat-server` | High-performance config (32+ cores, 64GB+ RAM) | `--fat-server` |
+| `--wizard` | Interactive service selection wizard | `--wizard` |
+| `--preset NAME` | Use configuration preset (minimal/analytics/ml/full/secure) | `--preset secure` |
 | `--no-start` | Download only, don't start services | `--no-start` |
 | `--unattended` | No prompts, assume yes to all | `--unattended` |
 | `--skip-deps` | Skip dependency installation | `--skip-deps` |
@@ -183,18 +245,27 @@ cd lakehouse-lab
 
 ## 📋 System Requirements
 
-### **Minimum Requirements**
-- **OS**: Linux, macOS, or Windows with WSL2
-- **RAM**: 8GB (16GB recommended)
-- **CPU**: 2 cores (4+ recommended)
-- **Storage**: 20GB free space (50GB recommended)
-- **Docker**: Auto-installed if missing
+### **Configuration-Based Requirements**
 
-### **Recommended for Fat Server**
-- **RAM**: 64GB+
-- **CPU**: 16+ cores
-- **Storage**: 500GB+ SSD
-- **Network**: Gigabit connection
+| Configuration | RAM Needed | CPU Cores | Storage | Use Case |
+|---------------|------------|-----------|---------|----------|
+| **Minimal** | 8GB | 2+ | 20GB | Core services + Jupyter |
+| **Analytics** | 14GB | 4+ | 50GB | BI dashboards + visualization |
+| **ML/AI** | 16GB | 6+ | 100GB | Vector database + ML workflows |
+| **Full** | 20GB | 8+ | 200GB | All data services |
+| **Secure** | 22GB | 8+ | 250GB | Full platform + authentication |
+| **Fat Server** | 64GB+ | 16+ | 500GB+ | High-performance deployment |
+
+### **Base System Requirements**
+- **OS**: Linux, macOS, or Windows with WSL2
+- **Docker**: Auto-installed if missing during setup
+- **Network**: Internet connection for installation
+- **Ports**: 8080, 9001, 9020-9092 available
+
+### **Enterprise Authentication Requirements**
+- **OAuth Setup**: Google/Microsoft/GitHub developer account (optional)
+- **SSL Certificates**: For production OAuth callbacks (optional)
+- **Domain/DNS**: For OAuth redirect URIs (production only)
 
 ## 🛡️ Security Considerations
 

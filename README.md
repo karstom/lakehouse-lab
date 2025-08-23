@@ -4,14 +4,47 @@
 [![Docker Compose](https://img.shields.io/badge/docker--compose-ready-blue)](https://docs.docker.com/compose/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Enterprise Auth](https://img.shields.io/badge/Enterprise-Authentication-green)](CONFIGURATION.md)
+[![AI Ready](https://img.shields.io/badge/AI-Ready-purple)](LAKEHOUSE_LLM_GUIDE.md)
 
-> **Complete Open Source Data Analytics Stack in 15 Minutes**
+> **🚀 Enterprise-Ready Data Analytics Platform in 15 Minutes**  
+> **🔒 Optional Team Authentication • 🤖 AI-Powered API • 📊 Modern Dashboards**
 
-A production-ready lakehouse environment using modern open source tools. Perfect for learning, development, and small-to-medium production workloads. **Now with configurable services, Vizro dashboards, LanceDB vector search, and DuckDB + S3 analytics!**
+**Version 2.0.0** - A complete lakehouse environment that scales from individual learning to enterprise team collaboration. **Features enterprise authentication, AI-powered data API, modern interactive dashboards, vector search, and configurable service deployment.**
+
+### 🎯 Choose Your Experience
+
+| **🏠 Individual Developer** | **🏢 Enterprise Team** |
+|----------------------------|------------------------|
+| **One-click install** | **Secure team collaboration** |
+| No setup complexity | OAuth with Google/Microsoft/GitHub |
+| Perfect for learning | Role-based access control |
+| Local development | Audit logging & compliance |
+| ⚡ 15-minute setup | 🔒 Production-ready security |
+
+Both experiences use the **same powerful data platform** underneath!
 
 ## ⚡ Ultra-Quick Start
 
-### 🎯 Interactive Setup Wizard (Recommended)
+### 🏠 Individual Developer (Simple & Fast)
+
+**One-click install - no authentication setup needed:**
+
+```bash
+# Simple installation for individual use
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
+```
+
+### 🏢 Enterprise Team (Secure & Collaborative)
+
+**Secure installation with team authentication:**
+
+```bash
+# Enterprise installation with authentication
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install-with-auth.sh | bash
+```
+
+### 🎯 Interactive Setup Wizard (Recommended for Both)
 
 **Configure your services and get running with the interactive installer:**
 
@@ -152,6 +185,14 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 | **LanceDB** | Vector Database API | :9080 | 3GB | AI/ML, semantic search |
 | **Homer** | Service Links Dashboard | :9061 | 0.1GB | Easy service access |
 
+### 🔒 Enterprise Authentication Services (Optional)
+| Service | Purpose | URL | RAM | Use Case |
+|---------|---------|-----|-----|----------|
+| **Auth Service** | OAuth & Local Authentication | :9091 | 1GB | User management, federated login |
+| **Auth Proxy** | Service Access Control | :9092 | 0.5GB | Role-based access, audit logging |
+| **MCP Server** | AI-Powered Data API | :9090 | 2GB | Natural language data queries |
+| **Audit Service** | Compliance & Monitoring | - | 0.5GB | Activity logging, security monitoring |
+
 📋 **Get exact URLs**: Run `./scripts/show-credentials.sh` to see service URLs with your detected IP address.
 
 ### 🎛️ Service Configurations Available
@@ -160,6 +201,7 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 - **📊 Analytics** (14GB): BI-focused with Superset + Vizro dashboards  
 - **🤖 ML/AI** (16GB): Machine learning with LanceDB vector search
 - **🚀 Full** (20GB): Complete data platform with all services
+- **🔒 Secure** (22GB): Full platform + enterprise authentication
 
 Configure services with: `./scripts/configure-services.sh` or use the setup wizard.
 
@@ -192,6 +234,80 @@ Configure services with: `./scripts/configure-services.sh` or use the setup wiza
 
 **⚠️ Important**: Your credentials are stored in the `.env` file. Back it up securely and never commit it to version control.
 
+## 🔐 Enterprise Authentication & Team Collaboration
+
+### 🎯 Authentication Options
+
+**Hybrid Mode (Default for Enterprise)**
+- **Local Authentication**: Simple admin@localhost login for development
+- **Federated OAuth**: Google, Microsoft, GitHub for team access
+- **Role-Based Access Control**: Four user roles with granular permissions
+
+### 🚀 Quick Enterprise Setup
+
+**Option 1: Secure Installation from Start**
+```bash
+# Complete secure installation with authentication
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install-with-auth.sh | bash
+```
+
+**Option 2: Add Authentication to Existing Installation**
+```bash
+# Enable authentication on existing installation
+./scripts/enable-auth.sh
+```
+
+### ⚙️ Configure OAuth Providers
+
+**Setup OAuth integration with popular providers:**
+```bash
+# Interactive OAuth configuration wizard
+./scripts/setup-auth.sh
+```
+
+**Supported Providers:**
+- **Google Workspace**: Perfect for organizations using Gmail/Google
+- **Microsoft Azure AD**: Ideal for Office 365 environments  
+- **GitHub**: Great for development teams
+- **Custom OIDC**: Support for any OpenID Connect provider
+
+### 👥 User Roles & Permissions
+
+| Role | Permissions | Use Case |
+|------|-------------|----------|
+| **data_viewer** | Read-only access to dashboards and reports | Executives, stakeholders |
+| **data_analyst** | Query data, create charts, basic analysis | Business analysts |
+| **data_engineer** | ETL pipelines, data modeling, advanced queries | Data engineers |
+| **admin** | Full system access, user management | IT administrators |
+
+### 📊 Authentication Architecture
+
+**Service Access Control:**
+- **Authentication Service** (port 9091): OAuth login, user management
+- **Authentication Proxy** (port 9092): Secure access to all services
+- **Audit Logging**: Complete activity monitoring and compliance
+- **Role Enforcement**: Granular permissions per service and operation
+
+### 🔄 Migration from Simple to Secure
+
+**Seamless upgrade path:**
+```bash
+# Your existing data and configuration are preserved
+./scripts/enable-auth.sh
+```
+
+**What stays the same:**
+- ✅ All your existing data and notebooks
+- ✅ Service URLs and functionality  
+- ✅ Docker Compose workflow
+- ✅ One-click install still available
+
+**What gets enhanced:**
+- 🔐 OAuth login with federated providers
+- 👥 Multi-user access with roles
+- 📋 Complete audit trail
+- 🛡️ Secure service access control
+
 ## 📖 Documentation
 
 - [🚀 **Quick Start**](QUICKSTART.md) - Get running in 15 minutes
@@ -206,10 +322,20 @@ Configure services with: `./scripts/configure-services.sh` or use the setup wiza
 
 ```mermaid
 graph TB
+    subgraph "🔐 Authentication Layer (Optional)"
+        AU[Auth Service<br/>OAuth & Local Login]
+        AP[Auth Proxy<br/>Access Control]
+        AD[Audit Service<br/>Activity Logging]
+    end
+    
     subgraph "Data Sources"
         DS1[CSV Files]
-        DS2[APIs]
+        DS2[APIs] 
         DS3[Databases]
+    end
+    
+    subgraph "🤖 AI-Powered Data API"
+        MCP[MCP Server<br/>Natural Language<br/>Data Queries]
     end
     
     subgraph "Processing Layer"
@@ -221,12 +347,14 @@ graph TB
     subgraph "Storage Layer"
         MI[MinIO<br/>S3-Compatible<br/>Object Storage]
         PG[PostgreSQL<br/>Analytics Database]
+        LD[LanceDB<br/>Vector Database]
     end
     
     subgraph "Query Engine"
         DU[DuckDB + S3<br/>Data Lake Analytics]
         SS[Spark SQL<br/>Distributed Queries]
         PA[PostgreSQL<br/>Structured Analytics]
+        VS[Vector Search<br/>Semantic Similarity]
     end
     
     subgraph "Visualization"
@@ -235,15 +363,21 @@ graph TB
         JD[Jupyter<br/>Data Science]
     end
     
-    subgraph "AI/ML"
-        LD[LanceDB<br/>Vector Database]
-        VS[Vector Search<br/>Semantic Similarity]
-    end
-    
     subgraph "Management"
         PO[Portainer<br/>Container Management]
+        HO[Homer<br/>Service Dashboard]
     end
     
+    %% Authentication flows
+    AU --> AP
+    AP --> AF
+    AP --> SU
+    AP --> VZ
+    AP --> JU
+    AP --> MCP
+    AU --> AD
+    
+    %% Data flows
     DS1 --> AF
     DS2 --> AF
     DS3 --> AF
@@ -251,41 +385,56 @@ graph TB
     AF --> JU
     SP --> MI
     SP --> PG
+    SP --> LD
     JU --> MI
     JU --> PG
+    JU --> LD
     MI --> DU
     MI --> SS
     PG --> PA
+    LD --> VS
     DU --> SU
     DU --> VZ
     DU --> JD
+    DU --> MCP
     SS --> SU
     SS --> VZ
     SS --> JD
     PA --> SU
     PA --> VZ
     PA --> JD
-    DU --> PG
-    JU --> LD
-    LD --> VS
+    PA --> MCP
     VS --> JD
+    VS --> MCP
+    DU --> PG
+    
+    %% Management connections
     PO -.-> AF
     PO -.-> SP
     PO -.-> JU
     PO -.-> MI
     PO -.-> PG
     PO -.-> LD
+    PO -.-> AU
+    PO -.-> AP
+    HO -.-> AF
+    HO -.-> SU
+    HO -.-> VZ
+    HO -.-> JU
     
     classDef storage fill:#e1f5fe
     classDef processing fill:#f3e5f5
     classDef visualization fill:#e8f5e8
     classDef management fill:#fff3e0
+    classDef security fill:#ffebee
+    classDef ai fill:#f3e5f5
     
-    class MI,PG storage
+    class MI,PG,LD storage
     class AF,SP,JU processing
     class SU,VZ,JD visualization
-    class LD,VS aiml
-    class PO management
+    class PO,HO management
+    class AU,AP,AD security
+    class MCP,VS ai
     class DU,SS,PA storage
 ```
 
@@ -293,41 +442,47 @@ graph TB
 
 | **Layer** | **Components** | **Purpose** |
 |-----------|----------------|-------------|
+| **Authentication** | Auth Service, Auth Proxy, Audit Service | OAuth/local login, access control, compliance |
+| **AI-Powered API** | MCP Server | Natural language data queries, AI-assisted analytics |
 | **Data Sources** | CSV Files, APIs, Databases | Raw data ingestion from various sources |
 | **Processing** | Apache Airflow, Apache Spark, Jupyter | ETL workflows, distributed processing, analysis |
-| **Storage** | MinIO (S3-compatible), PostgreSQL | Object storage + analytics database |
-| **Query Engine** | DuckDB + S3, Spark SQL, PostgreSQL | Data lake analytics + structured queries |
+| **Storage** | MinIO (S3-compatible), PostgreSQL, LanceDB | Object storage + analytics database + vector database |
+| **Query Engine** | DuckDB + S3, Spark SQL, PostgreSQL, Vector Search | Data lake + structured + semantic analytics |
 | **Visualization** | Apache Superset, Vizro, Jupyter | BI dashboards, interactive dashboards, analysis |
-| **AI/ML** | LanceDB, Vector Search | High-performance vector operations, semantic search |
-| **Management** | Portainer, Docker Compose, Homer | Container orchestration, monitoring, service links |
+| **Management** | Portainer, Homer, Docker Compose | Container orchestration, monitoring, service links |
 
 ### **Data Flow**
 
-1. **Ingest** → Upload data files to MinIO or connect external sources
-2. **Process** → Transform data using Spark jobs orchestrated by Airflow  
-3. **Store** → Save processed data to MinIO (data lake) and PostgreSQL (analytics warehouse)
-4. **Analyze** → Query data with DuckDB (data lake), PostgreSQL (structured), or Spark SQL (distributed)
-5. **AI/ML** → Store vectors in LanceDB for semantic search and similarity matching
-6. **Visualize** → Create dashboards in Superset/Vizro or notebooks in Jupyter from all data sources
-7. **Monitor** → Manage and monitor all services through Portainer
+1. **Authenticate** → Login via OAuth providers or local authentication (optional)
+2. **Ingest** → Upload data files to MinIO or connect external sources
+3. **Process** → Transform data using Spark jobs orchestrated by Airflow  
+4. **Store** → Save processed data to MinIO (data lake), PostgreSQL (warehouse), and LanceDB (vectors)
+5. **Analyze** → Query data with DuckDB (data lake), PostgreSQL (structured), or natural language (MCP)
+6. **AI/ML** → Perform semantic search, vector similarity, and embedding operations via LanceDB
+7. **Visualize** → Create dashboards in Superset/Vizro or notebooks in Jupyter from all data sources
+8. **Monitor** → Manage services through Portainer, track access via audit logs
 
 **Triple Analytics Architecture:**
 - **Data Lake (DuckDB + MinIO)**: Direct file queries, multi-format support, schema-on-read
-- **Data Warehouse (PostgreSQL)**: Structured analytics, ACID transactions, optimized performance
+- **Data Warehouse (PostgreSQL)**: Structured analytics, ACID transactions, optimized performance  
 - **Vector Database (LanceDB)**: High-performance vector operations, semantic search, AI/ML workflows
+- **AI Data API (MCP)**: Natural language queries, intelligent data discovery, automated insights
 
 ### **Key Architectural Benefits**
 
+- **🔐 Enterprise Security**: Optional OAuth authentication with role-based access control
+- **🤖 AI-Powered API**: Natural language data queries via Model Context Protocol (MCP)
 - **🚀 S3-Native Analytics**: Query files directly without data movement
-- **🏗️ Triple Analytics**: Data lake (DuckDB) + warehouse (PostgreSQL) + vector (LanceDB)
-- **📊 Multi-Format Support**: CSV, Parquet, JSON, and more
+- **🏗️ Quadruple Analytics**: Data lake (DuckDB) + warehouse (PostgreSQL) + vector (LanceDB) + AI (MCP)
+- **📊 Multi-Format Support**: CSV, Parquet, JSON, and more with seamless access
 - **🔄 Scalable Processing**: Spark scales from single machine to cluster
-- **🤖 AI/ML Ready**: Vector search, embeddings, and semantic similarity
-- **📈 Interactive Dashboards**: Modern Vizro framework for dynamic visualizations
+- **🤖 AI/ML Ready**: Vector search, embeddings, semantic similarity, and LLM integration
+- **📈 Modern Dashboards**: Interactive Vizro framework + traditional Superset BI
+- **👥 Team Collaboration**: Multi-user access with granular permissions and audit logging
 - **🎛️ Configurable Services**: Enable only what you need to save resources
-- **🎯 Modern Lakehouse**: Combines data lake flexibility with warehouse performance
-- **🐳 Container-Based**: Consistent deployment across environments
-- **📈 Production-Ready**: Health checks, monitoring, and orchestration included
+- **🎯 Production-Ready**: Health checks, monitoring, orchestration, and compliance
+- **🐳 Container-Based**: Consistent deployment across environments with Docker Compose
+- **🔄 Flexible Deployment**: Start simple, add features incrementally as needs grow
 
 ## 🎛️ Service Configuration Options
 
@@ -368,7 +523,13 @@ Use the configuration wizard to select which services to run:
 **Full Configuration (20GB RAM):**
 ```bash
 ./scripts/configure-services.sh preset full
-# Includes: All services enabled
+# Includes: All data services enabled (no authentication)
+```
+
+**Secure Configuration (22GB RAM):**
+```bash
+./scripts/configure-services.sh preset secure
+# Includes: All services + enterprise authentication + audit logging
 ```
 
 ### 🖥️ Resource Configuration
@@ -559,7 +720,42 @@ df = pd.read_sql("""
 print(df.head())
 ```
 
-### 5. **Build Dashboards**
+### 5. **AI-Powered Data API (MCP Server)**
+**Natural language queries with the MCP Server** - Get your service URL from `./scripts/show-credentials.sh`:
+
+**Example natural language queries:**
+```bash
+# Query via REST API (if authentication enabled, include JWT token)
+curl -X POST http://localhost:9090/api/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "Show me the top 5 product categories by revenue", "limit": 5}'
+
+# Vector similarity search
+curl -X POST http://localhost:9090/api/vector-search \
+  -H "Content-Type: application/json" \
+  -d '{"text": "find products similar to electronics", "limit": 10}'
+```
+
+**In Python (Jupyter):**
+```python
+import requests
+
+# Natural language data query
+response = requests.post('http://localhost:9090/api/query', json={
+    "query": "What were the sales trends last month?",
+    "source": "postgres"  # or "duckdb"
+})
+print(response.json())
+
+# Vector search for semantic similarity
+response = requests.post('http://localhost:9090/api/vector-search', json={
+    "text": "customer complaints about delivery",
+    "limit": 5
+})
+similar_records = response.json()
+```
+
+### 6. **Build Dashboards**
 1. **Get Superset URL**: Run `./scripts/show-credentials.sh` to see your service URLs and login credentials
 2. **Choose your database connection:**
    - **"DuckDB-S3"** - For data lake queries with persistent S3 access
@@ -570,7 +766,15 @@ print(df.head())
 4. **Advanced features**: Both connections support CREATE, INSERT, UPDATE, DELETE operations
 5. See the [Superset Database Setup Guide](SUPERSET_DATABASE_SETUP.md) for detailed configuration
 
-### 6. **Orchestrate with Airflow**
+### 7. **Modern Interactive Dashboards (Vizro)**
+**Get Vizro URL**: Run `./scripts/show-credentials.sh` to see your service URLs
+
+1. **Pre-built Examples**: Access `/sample-dashboard` for sales analytics demo
+2. **Configuration-Based**: Modify YAML/JSON files in `/config/dashboards/`
+3. **Live Data**: Dashboards automatically update with fresh data from PostgreSQL and MinIO
+4. **Interactive Features**: Filtering, drilling, real-time updates with modern UI
+
+### 8. **Orchestrate with Airflow**
 1. **Get Airflow URL**: Run `./scripts/show-credentials.sh` to see your service URLs and login credentials
 2. **Available DAGs:**
    - **`sample_duckdb_pipeline`** - DuckDB ETL pipeline with S3 data processing
@@ -766,13 +970,19 @@ Built with these amazing open source projects:
 
 ## 🌟 Key Features
 
-- ✅ **15-minute setup** - Complete lakehouse in minutes
-- ✅ **S3-native analytics** - Query files directly with DuckDB
-- ✅ **Multi-file processing** - Wildcard queries across datasets
-- ✅ **Production patterns** - Learn real-world data engineering
-- ✅ **Container monitoring** - Full observability with Portainer
-- ✅ **Scalable architecture** - From laptop to enterprise server
-- ✅ **Educational focus** - Perfect for learning modern data stack
+- ✅ **15-minute setup** - Complete lakehouse in minutes with one-click install
+- ✅ **Enterprise-ready security** - Optional OAuth authentication with federated providers
+- ✅ **AI-powered data API** - Natural language queries via Model Context Protocol (MCP)
+- ✅ **S3-native analytics** - Query files directly with DuckDB without data movement
+- ✅ **Modern interactive dashboards** - Vizro framework for dynamic, responsive visualizations
+- ✅ **Vector database integration** - LanceDB for semantic search and AI/ML workflows
+- ✅ **Multi-file processing** - Wildcard queries across datasets with format auto-detection
+- ✅ **Role-based access control** - Granular permissions for team collaboration
+- ✅ **Triple analytics architecture** - Data lake + warehouse + vector database unified
+- ✅ **Production patterns** - Learn real-world data engineering with enterprise features
+- ✅ **Container monitoring** - Full observability with Portainer and audit logging
+- ✅ **Scalable architecture** - From individual laptops to enterprise team deployments
+- ✅ **Configurable deployment** - Enable only the services you need to optimize resources
 
 ---
 
