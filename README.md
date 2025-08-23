@@ -7,14 +7,56 @@
 
 > **Complete Open Source Data Analytics Stack in 15 Minutes**
 
-A production-ready lakehouse environment using modern open source tools. Perfect for learning, development, and small-to-medium production workloads. **Now with DuckDB + S3 for powerful multi-file analytics!**
+A production-ready lakehouse environment using modern open source tools. Perfect for learning, development, and small-to-medium production workloads. **Now with configurable services, Vizro dashboards, LanceDB vector search, and DuckDB + S3 analytics!**
 
 ## ⚡ Ultra-Quick Start
 
-**Get your complete data analytics stack running with a single command:**
+### 🎯 Interactive Setup Wizard (Recommended)
+
+**Configure your services and get running with the interactive installer:**
 
 ```bash
+# Download and run setup wizard
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
+```
+
+**Or use the setup wizard directly:**
+```bash
+git clone https://github.com/karstom/lakehouse-lab.git
+cd lakehouse-lab
+./scripts/setup-wizard.sh
+```
+
+### 🚀 Quick Installation Modes
+
+**Choose your installation mode:**
+
+```bash
+# Minimal setup (8GB RAM) - Core + Jupyter only
+./scripts/setup-wizard.sh --minimal
+
+# Analytics focus (14GB RAM) - BI and dashboards
+./scripts/setup-wizard.sh --analytics
+
+# ML/AI focus (16GB RAM) - Vector search and ML workflows
+./scripts/setup-wizard.sh --ml
+
+# Full installation (20GB RAM) - All services
+./scripts/setup-wizard.sh --full
+```
+
+### 🔧 Service Configuration
+
+**Configure which services to enable:**
+```bash
+# Interactive service selection
+./scripts/configure-services.sh
+
+# Use presets
+./scripts/configure-services.sh preset minimal
+./scripts/configure-services.sh preset analytics
+./scripts/configure-services.sh preset ml
+./scripts/configure-services.sh preset full
 ```
 
 **For Windows WSL or macOS users** (if you get piping issues):
@@ -24,7 +66,7 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 
 **⚠️ WSL users:** If Docker is installed during setup, restart your terminal and re-run the installer to complete the process.
 
-That's it! ☕ Grab a coffee while it sets up your entire lakehouse environment.
+That's it! ☕ Grab a coffee while it sets up your customized lakehouse environment.
 
 **For high-performance servers (64GB+ RAM):**
 ```bash
@@ -38,7 +80,7 @@ cd lakehouse-lab
 ./install.sh
 ```
 
-> ⚠️ **Important**: Always use `./install.sh` for new installations. Running `docker compose up -d` directly will fail because it requires secure credentials and initialization that only the installer provides.
+> ⚠️ **Important**: Always use the installer or setup wizard for new installations. Running `docker compose up -d` directly will fail because it requires secure credentials and initialization that only the installer provides.
 
 Wait 3-5 minutes for initialization, then run `./scripts/show-credentials.sh` to see all service URLs with your detected IP address.
 
@@ -92,20 +134,34 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 
 ## 🎯 What You Get
 
+### 🏗️ Core Services (Always Enabled)
 | Service | Purpose | URL | Credentials |
 |---------|---------|-----|-------------|
-| **Portainer** | Container Management | Auto-detected IP:9060 | Create admin user |
-| **Superset** | BI & Visualization | Auto-detected IP:9030 | 🔐 Generated securely |
-| **JupyterLab** | Data Science Notebooks | Auto-detected IP:9040 | 🔐 Generated securely |
-| **Airflow** | Workflow Orchestration | Auto-detected IP:9020 | 🔐 Generated securely |
+| **PostgreSQL** | Analytics Database | Auto-detected IP:5432 | 🔐 Generated securely |
 | **MinIO Console** | Object Storage | Auto-detected IP:9001 | 🔐 Generated securely |
 | **Spark Master** | Distributed Computing | Auto-detected IP:8080 | N/A |
-| **Vizro** | Modern Interactive Dashboards | Auto-detected IP:9050 | N/A |
-| **LanceDB** | Vector Database API | Auto-detected IP:9080 | N/A |
-| **Homer** | Service Links (Optional) | Auto-detected IP:9061 | N/A |
-| **PostgreSQL** | Analytics Database | Auto-detected IP:5432 | 🔐 Generated securely |
+| **Portainer** | Container Management | Auto-detected IP:9060 | Create admin user |
+
+### 📊 Optional Services (Configurable)
+| Service | Purpose | URL | RAM | Use Case |
+|---------|---------|-----|-----|----------|
+| **Apache Airflow** | Workflow Orchestration | :9020 | 4GB | Data pipelines, ETL |
+| **Apache Superset** | BI & Visualization | :9030 | 4GB | Business dashboards |
+| **JupyterLab** | Data Science Notebooks | :9040 | 8GB | Analysis, ML development |
+| **Vizro** | Interactive Dashboards | :9050 | 2GB | Modern visualizations |
+| **LanceDB** | Vector Database API | :9080 | 3GB | AI/ML, semantic search |
+| **Homer** | Service Links Dashboard | :9061 | 0.1GB | Easy service access |
 
 📋 **Get exact URLs**: Run `./scripts/show-credentials.sh` to see service URLs with your detected IP address.
+
+### 🎛️ Service Configurations Available
+
+- **🔍 Minimal** (8GB): Core services + Jupyter only
+- **📊 Analytics** (14GB): BI-focused with Superset + Vizro dashboards  
+- **🤖 ML/AI** (16GB): Machine learning with LanceDB vector search
+- **🚀 Full** (20GB): Complete data platform with all services
+
+Configure services with: `./scripts/configure-services.sh` or use the setup wizard.
 
 ## 🔒 Secure Credential Management
 
@@ -139,7 +195,9 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 ## 📖 Documentation
 
 - [🚀 **Quick Start**](QUICKSTART.md) - Get running in 15 minutes
+- [🔧 **Configuration Guide**](CONFIGURATION.md) - Service configuration and presets
 - [📚 **Installation Guide**](INSTALLATION.md) - Complete installation options
+- [🤖 **AI/ML Integration**](LAKEHOUSE_LLM_GUIDE.md) - LLM development and vector search
 - [☁️ **Cloud Deployment**](CLOUD_DEPLOYMENT.md) - AWS, GCP, Azure deployment guides
 - [🤝 **Contributing**](CONTRIBUTING.md) - How to contribute
 - [📋 **Changelog**](CHANGELOG.md) - Version history
@@ -173,7 +231,13 @@ graph TB
     
     subgraph "Visualization"
         SU[Superset<br/>BI Dashboards]
+        VZ[Vizro<br/>Interactive Dashboards]
         JD[Jupyter<br/>Data Science]
+    end
+    
+    subgraph "AI/ML"
+        LD[LanceDB<br/>Vector Database]
+        VS[Vector Search<br/>Semantic Similarity]
     end
     
     subgraph "Management"
@@ -193,17 +257,24 @@ graph TB
     MI --> SS
     PG --> PA
     DU --> SU
+    DU --> VZ
     DU --> JD
     SS --> SU
+    SS --> VZ
     SS --> JD
     PA --> SU
+    PA --> VZ
     PA --> JD
     DU --> PG
+    JU --> LD
+    LD --> VS
+    VS --> JD
     PO -.-> AF
     PO -.-> SP
     PO -.-> JU
     PO -.-> MI
     PO -.-> PG
+    PO -.-> LD
     
     classDef storage fill:#e1f5fe
     classDef processing fill:#f3e5f5
@@ -212,7 +283,8 @@ graph TB
     
     class MI,PG storage
     class AF,SP,JU processing
-    class SU,JD visualization
+    class SU,VZ,JD visualization
+    class LD,VS aiml
     class PO management
     class DU,SS,PA storage
 ```
@@ -225,8 +297,9 @@ graph TB
 | **Processing** | Apache Airflow, Apache Spark, Jupyter | ETL workflows, distributed processing, analysis |
 | **Storage** | MinIO (S3-compatible), PostgreSQL | Object storage + analytics database |
 | **Query Engine** | DuckDB + S3, Spark SQL, PostgreSQL | Data lake analytics + structured queries |
-| **Visualization** | Apache Superset, Jupyter | BI dashboards and interactive analysis |
-| **Management** | Portainer, Docker Compose | Container orchestration and monitoring |
+| **Visualization** | Apache Superset, Vizro, Jupyter | BI dashboards, interactive dashboards, analysis |
+| **AI/ML** | LanceDB, Vector Search | High-performance vector operations, semantic search |
+| **Management** | Portainer, Docker Compose, Homer | Container orchestration, monitoring, service links |
 
 ### **Data Flow**
 
@@ -234,54 +307,93 @@ graph TB
 2. **Process** → Transform data using Spark jobs orchestrated by Airflow  
 3. **Store** → Save processed data to MinIO (data lake) and PostgreSQL (analytics warehouse)
 4. **Analyze** → Query data with DuckDB (data lake), PostgreSQL (structured), or Spark SQL (distributed)
-5. **Visualize** → Create dashboards in Superset or notebooks in Jupyter from both data sources
-6. **Monitor** → Manage and monitor all services through Portainer
+5. **AI/ML** → Store vectors in LanceDB for semantic search and similarity matching
+6. **Visualize** → Create dashboards in Superset/Vizro or notebooks in Jupyter from all data sources
+7. **Monitor** → Manage and monitor all services through Portainer
 
-**Dual Analytics Approach:**
+**Triple Analytics Architecture:**
 - **Data Lake (DuckDB + MinIO)**: Direct file queries, multi-format support, schema-on-read
 - **Data Warehouse (PostgreSQL)**: Structured analytics, ACID transactions, optimized performance
+- **Vector Database (LanceDB)**: High-performance vector operations, semantic search, AI/ML workflows
 
 ### **Key Architectural Benefits**
 
 - **🚀 S3-Native Analytics**: Query files directly without data movement
-- **🏗️ Dual Analytics**: Data lake (DuckDB) + warehouse (PostgreSQL) for different use cases
+- **🏗️ Triple Analytics**: Data lake (DuckDB) + warehouse (PostgreSQL) + vector (LanceDB)
 - **📊 Multi-Format Support**: CSV, Parquet, JSON, and more
 - **🔄 Scalable Processing**: Spark scales from single machine to cluster
+- **🤖 AI/ML Ready**: Vector search, embeddings, and semantic similarity
+- **📈 Interactive Dashboards**: Modern Vizro framework for dynamic visualizations
+- **🎛️ Configurable Services**: Enable only what you need to save resources
 - **🎯 Modern Lakehouse**: Combines data lake flexibility with warehouse performance
 - **🐳 Container-Based**: Consistent deployment across environments
 - **📈 Production-Ready**: Health checks, monitoring, and orchestration included
 
-## 🎛️ Configuration Options
+## 🎛️ Service Configuration Options
 
-### Standard Setup (Default)
-Perfect for laptops, development machines, and small servers:
-- **Memory**: ~16GB total allocation
+### 🔧 Interactive Configuration (Recommended)
+Use the configuration wizard to select which services to run:
+
+```bash
+# Interactive service selection with resource estimates
+./scripts/configure-services.sh
+
+# View current configuration
+./scripts/configure-services.sh show
+
+# Get system recommendations
+./scripts/configure-services.sh recommend
+```
+
+### 📋 Preset Configurations
+
+**Minimal Configuration (8GB RAM):**
+```bash
+./scripts/configure-services.sh preset minimal
+# Includes: Core services + JupyterLab + Portainer
+```
+
+**Analytics Configuration (14GB RAM):**
+```bash
+./scripts/configure-services.sh preset analytics  
+# Includes: Core + JupyterLab + Superset + Vizro + Homer
+```
+
+**ML/AI Configuration (16GB RAM):**
+```bash
+./scripts/configure-services.sh preset ml
+# Includes: Core + JupyterLab + Airflow + LanceDB + Homer
+```
+
+**Full Configuration (20GB RAM):**
+```bash
+./scripts/configure-services.sh preset full
+# Includes: All services enabled
+```
+
+### 🖥️ Resource Configuration
+
+**Standard Setup (Default):**
+Perfect for laptops and development machines:
+- **Memory**: 8-20GB depending on enabled services
 - **CPU**: 4-8 cores recommended
 - **Storage**: 50GB+ recommended
 
-```bash
-# Use default settings
-docker compose up -d
-```
-
-### Fat Server Setup
+**Fat Server Setup:**
 Optimized for powerful hardware (32+ cores, 64GB+ RAM):
-- **Memory**: ~100GB+ total allocation  
-- **CPU**: 16+ cores utilized
-- **Storage**: 500GB+ recommended
-
 ```bash
-# Copy fat-server environment config
+# Install with fat server configuration
+./install.sh --fat-server
+
+# Or copy fat-server environment config
 cp .env.fat-server .env
-docker compose up -d
 ```
 
-### Custom Configuration
+**Custom Resource Configuration:**
 ```bash
 # Copy and edit default settings
 cp .env.default .env
 # Edit .env with your preferred settings
-docker compose up -d
 ```
 
 ### 🧊 Apache Iceberg Support (Advanced Analytics)
