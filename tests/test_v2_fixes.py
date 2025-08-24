@@ -255,17 +255,17 @@ class TestDockerComposeValidation:
         # If docker/docker-compose is not available, skip this test
         if result.returncode == 127:  # Command not found
             pytest.skip("Docker Compose not available for testing")
-        
+
         assert result.returncode == 0, f"Docker Compose validation failed: {result.stderr}"
-    
+
     def test_auth_compose_syntax_valid(self, project_root):
         """Test that docker-compose.auth.yml has valid syntax."""
         auth_compose_file = project_root / "docker-compose.auth.yml"
         main_compose_file = project_root / "docker-compose.yml"
-        
+
         if not auth_compose_file.exists():
             pytest.skip("docker-compose.auth.yml not found")
-        
+
         # Test combined compose files
         result = subprocess.run(
             ['docker', 'compose', '-f', str(main_compose_file), '-f', str(auth_compose_file), 'config'],
