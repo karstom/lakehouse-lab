@@ -273,17 +273,17 @@ class TestDockerComposeValidation:
             text=True,
             cwd=str(project_root)
         )
-        
+
         if result.returncode == 127:  # Command not found
             pytest.skip("Docker Compose not available for testing")
-        
+
         assert result.returncode == 0, f"Combined Docker Compose validation failed: {result.stderr}"
 
 
-@pytest.mark.integration 
+@pytest.mark.integration
 class TestEndToEndFixes:
     """End-to-end tests for the fixes."""
-    
+
     def test_enable_auth_workflow(self, project_root, temp_dir):
         """Test that enable-auth.sh workflow completes without configuration errors."""
         # This is a more complex test that would require mocking
