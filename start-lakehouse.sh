@@ -18,6 +18,23 @@ STARTUP_MODE="${1:-normal}"  # normal, debug, minimal
 MAX_RETRIES=2
 RETRY_COUNT=0
 
+# Logging functions
+log_info() {
+    echo -e "${BLUE}ℹ️  $1${NC}"
+}
+
+log_success() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
+
+log_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+log_error() {
+    echo -e "${RED}❌ $1${NC}"
+}
+
 # Function to detect host IP address (runs on HOST, not in container)
 detect_host_ip() {
     local detected_ip

@@ -34,6 +34,7 @@ declare -A SERVICE_DESCRIPTIONS
 declare -A SERVICE_DEPENDENCIES
 declare -A SERVICE_PORTS
 declare -A SERVICE_RESOURCES
+declare -A SERVICE_CONFIG  # Store service configuration state
 
 # Core services (cannot be disabled)
 CORE_SERVICES=("postgres" "minio" "spark-master" "spark-worker" "lakehouse-init")
@@ -113,13 +114,23 @@ homer=true"
 
 # Function to load existing configuration
 load_config() {
+    # Initialize all services to true by default
+    for service in "${!SERVICES[@]}"; do
+        SERVICE_CONFIG["$service"]="true"
+    done
+    
     if [[ -f "$CONFIG_FILE" ]]; then
         log_info "Loading existing configuration from $CONFIG_FILE"
-        source "$CONFIG_FILE"
+        # Parse config file manually to handle service names with hyphens
+        while IFS='=' read -r service value; do
+            # Skip empty lines and comments
+            [[ -z "$service" || "$service" =~ ^[[:space:]]*# ]] && continue
+            
+            # Store in associative array
+            SERVICE_CONFIG["$service"]="$value"
+        done < <(grep -E '^[a-zA-Z0-9_-]+=' "$CONFIG_FILE" || true)
     else
         log_info "No existing configuration found, using defaults"
-        # Set default values
-        eval "$DEFAULT_CONFIG"
     fi
 }
 
@@ -134,8 +145,7 @@ save_config() {
 EOF
     
     for service in "${!SERVICES[@]}"; do
-        local var_name="${service}"
-        local value="${!var_name:-true}"
+        local value="${SERVICE_CONFIG[$service]:-true}"
         echo "${service}=${value}" >> "$CONFIG_FILE"
     done
     
@@ -152,8 +162,7 @@ show_config() {
     local enabled_count=0
     
     for service in "${!SERVICES[@]}"; do
-        local var_name="${service}"
-        local enabled="${!var_name:-true}"
+        local enabled="${SERVICE_CONFIG[$service]:-true}"
         local status_icon="❌"
         local status_text="DISABLED"
         
@@ -252,8 +261,7 @@ EOF
     
     # Check each service and add to override if disabled
     for service in "${!SERVICES[@]}"; do
-        local var_name="${service}"
-        local enabled="${!var_name:-true}"
+        local enabled="${SERVICE_CONFIG[$service]:-true}"
         
         if [[ "$enabled" == "false" ]]; then
             # Disable the service by setting replicas to 0
@@ -416,7 +424,7 @@ EOF
     esac
     
     # Load and apply the preset
-    source "$CONFIG_FILE"
+    load_config
     generate_compose_override
     log_success "Applied '$preset' preset configuration"
 }
@@ -493,7 +501,7 @@ main() {
         "reset")
             log_warning "Resetting to default configuration..."
             echo "$DEFAULT_CONFIG" > "$CONFIG_FILE"
-            source "$CONFIG_FILE"
+            load_config
             generate_compose_override
             log_success "Reset to default configuration"
             ;;

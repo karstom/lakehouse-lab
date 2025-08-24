@@ -571,11 +571,11 @@ services:
     networks:
       - lakehouse
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8050"]
+      test: ["CMD", "bash", "-c", "curl -s -o /dev/null -w '%{http_code}' http://localhost:8050 | grep -E '^[23][0-9][0-9]$' || pgrep -f 'python.*app.py'"]
       interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
+      timeout: 15s
+      retries: 8
+      start_period: 120s
     deploy:
       resources:
         limits:

@@ -357,26 +357,25 @@ class TestServiceHealth(unittest.TestCase):
                         ['docker', 'logs', '--tail', '50', container],
                         capture_output=True, text=True, timeout=10
                     )
-                    
                     logs = logs_result.stdout + logs_result.stderr
-                    
+
                     # Check for critical errors
                     for pattern in critical_error_patterns:
                         if pattern in logs:
                             critical_errors.append(f"{container}: {pattern}")
-                            
+
                 except subprocess.TimeoutExpired:
                     continue
                 except Exception:
                     continue
-            
+
             if critical_errors:
                 print(f"⚠️  Critical errors found: {critical_errors}")
                 # Don't fail the test for log errors, just warn
                 print("⚠️  Warning: Some services have critical errors in logs")
             else:
                 print("✅ No critical errors found in service logs")
-                
+
         except Exception as e:
             print(f"⚠️  Could not check service logs: {e}")
 

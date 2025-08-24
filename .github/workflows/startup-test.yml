@@ -6,6 +6,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Create minimal .env file
+        run: |
+          cat > .env << EOF
+          # Minimal environment for testing
+          POSTGRES_PASSWORD=testpassword
+          MINIO_ROOT_USER=minioadmin
+          MINIO_ROOT_PASSWORD=minioadmin
+          COMPOSE_PROJECT_NAME=lakehouse-test
+          EOF
       - name: Test basic service startup
         run: |
           # Start core services only
