@@ -9,10 +9,7 @@ Tests the fixes for:
 
 import pytest
 import subprocess
-import tempfile
 import os
-from pathlib import Path
-from unittest.mock import patch, Mock
 
 
 class TestStartLakehouseScript:
