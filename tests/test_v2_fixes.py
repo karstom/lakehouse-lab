@@ -289,15 +289,15 @@ class TestEndToEndFixes:
         # This is a more complex test that would require mocking
         # For now, just test that the scripts can be executed in dry-run mode
         enable_auth_script = project_root / "scripts" / "enable-auth.sh"
-        
+
         # Test that script can be parsed and functions are callable
         result = subprocess.run(['bash', '-n', str(enable_auth_script)], capture_output=True)
         assert result.returncode == 0
-    
+
     def test_service_configuration_workflow(self, project_root):
         """Test the complete service configuration workflow."""
         configure_script = project_root / "scripts" / "configure-services.sh"
-        
+
         # Test help command
         result = subprocess.run(
             ['bash', str(configure_script), 'help'],
@@ -305,7 +305,7 @@ class TestEndToEndFixes:
             text=True,
             cwd=str(project_root)
         )
-        
+
         # Should complete successfully and show help
         assert result.returncode == 0
         assert 'Usage:' in result.stdout
