@@ -620,6 +620,26 @@ Sample datasets and notebooks are automatically created:
 - Check `/notebooks/` for Jupyter examples
 - MinIO contains sample CSV files in `lakehouse/raw-data/`
 
+#### 📔 **Available Jupyter Notebooks**
+
+**Getting Started & Core Analytics:**
+- `00_Package_Manager.ipynb` - Automated dependency management
+- `01_Getting_Started.ipynb` - Platform overview and first steps  
+- `02_PostgreSQL_Analytics.ipynb` - Structured data analysis
+- `03_Iceberg_Tables.ipynb` - Advanced table formats
+
+**Interactive Dashboards & AI:**
+- `04_Vizro_Interactive_Dashboards.ipynb` - Modern dashboard creation
+- `05_LanceDB_Vector_Search.ipynb` - Vector database and semantic search
+- `06_Advanced_Analytics_Vizro_LanceDB.ipynb` - AI-powered analytics combining dashboards + vectors
+- `07_Interactive_Dashboard_Development.ipynb` - Dashboard development template
+
+**✨ Highlight: Dashboard Development**
+- 🎨 **Interactive charts** that work in any environment (no network setup required)
+- 🤖 **AI-powered clustering** and semantic similarity analysis  
+- 📊 **Professional dashboards** with hover, zoom, and filtering
+- 🚀 **Ready-to-use templates** for business intelligence and ML analytics
+
 ### 3. **Query Data with DuckDB + S3 (Persistent Setup)**
 **In Superset** - Get your service URL from `./scripts/show-credentials.sh`:
 
@@ -769,6 +789,25 @@ similar_records = response.json()
 ### 7. **Modern Interactive Dashboards (Vizro)**
 **Get Vizro URL**: Run `./scripts/show-credentials.sh` to see your service URLs
 
+**🎨 Dashboard Development Options:**
+1. **Notebook-Based Development** (Recommended):
+   - Open `04_Vizro_Interactive_Dashboards.ipynb` in JupyterLab
+   - Interactive development with immediate chart preview
+   - AI-powered analytics combining Vizro + LanceDB vector search
+   - Professional templates for business intelligence
+
+2. **Advanced Analytics Dashboard**:
+   - Open `06_Advanced_Analytics_Vizro_LanceDB.ipynb` for AI-powered dashboards
+   - Semantic similarity analysis and clustering
+   - Vector-based recommendation systems
+   - Multi-modal analytics visualization
+
+3. **Ready-to-Use Templates**:
+   - `07_Interactive_Dashboard_Development.ipynb` - Complete development template
+   - Works in any environment (no network setup required) 
+   - Professional charts with hover, zoom, pan, and filtering
+
+**🚀 Production Dashboards:**
 1. **Pre-built Examples**: Access `/sample-dashboard` for sales analytics demo
 2. **Configuration-Based**: Modify YAML/JSON files in `/config/dashboards/`
 3. **Live Data**: Dashboards automatically update with fresh data from PostgreSQL and MinIO

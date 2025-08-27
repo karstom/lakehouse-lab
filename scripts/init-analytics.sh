@@ -37,6 +37,10 @@ deploy_jupyter_notebooks() {
         "01_Getting_Started.ipynb"
         "02_PostgreSQL_Analytics.ipynb"
         "03_Iceberg_Tables.ipynb"
+        "04_Vizro_Interactive_Dashboards.ipynb"
+        "05_LanceDB_Vector_Search.ipynb"
+        "06_Advanced_Analytics_Vizro_LanceDB.ipynb"
+        "07_Interactive_Dashboard_Development.ipynb"
     )
     
     local copied_count=0
@@ -82,6 +86,32 @@ deploy_jupyter_notebooks() {
     else
         log_warning "Package manager not found: $package_manager_source"
     fi
+    
+    # Copy dashboard support files
+    local dashboard_source_dir="$(dirname "$SCRIPT_DIR")/templates/jupyter"
+    local dashboard_files=(
+        "simple_working_dashboard.py"
+        "DASHBOARD_DEVELOPMENT_README.md"
+    )
+    
+    for dashboard_file in "${dashboard_files[@]}"; do
+        local dashboard_source="$dashboard_source_dir/$dashboard_file"
+        local dashboard_target="$LAKEHOUSE_ROOT/shared-notebooks/$dashboard_file"
+        
+        # Ensure target directory exists
+        ensure_directory "$LAKEHOUSE_ROOT/shared-notebooks" "Shared notebooks directory"
+        
+        if [ -f "$dashboard_source" ]; then
+            if cp "$dashboard_source" "$dashboard_target"; then
+                log_success "Deployed dashboard support: $dashboard_file"
+                chmod 644 "$dashboard_target"
+            else
+                log_warning "Failed to copy dashboard support: $dashboard_file"
+            fi
+        else
+            log_warning "Dashboard support file not found: $dashboard_file"
+        fi
+    done
 }
 
 # ==============================================================================
