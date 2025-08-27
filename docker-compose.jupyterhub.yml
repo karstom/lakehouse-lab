@@ -1,0 +1,65 @@
+services:
+  # Replace single-user Jupyter with JupyterHub
+  jupyter:
+    build: 
+      context: ./jupyterhub
+      dockerfile: Dockerfile.simple
+    depends_on:
+      postgres:
+        condition: service_healthy
+      spark-master:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      # Database connection
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      JUPYTERHUB_DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/lakehouse
+      
+      # Docker configuration
+      DOCKER_NETWORK_NAME: lakehouse-lab_lakehouse
+      
+      # Spark configuration for user notebooks
+      SPARK_MASTER: spark://spark-master:7077
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      
+      # API token for user provisioning
+      JUPYTERHUB_API_TOKEN: ${JWT_SECRET:-lakehouse-admin-token}
+      
+      # Resource limits
+      JUPYTER_SPARK_DRIVER_MEMORY: ${JUPYTER_SPARK_DRIVER_MEMORY:-2g}
+      JUPYTER_SPARK_EXECUTOR_MEMORY: ${JUPYTER_SPARK_EXECUTOR_MEMORY:-2g}
+      JUPYTER_SPARK_EXECUTOR_CORES: ${JUPYTER_SPARK_EXECUTOR_CORES:-2}
+    ports:
+      - "9041:8000"
+    volumes:
+      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/jupyterhub:/srv/jupyterhub/users
+      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/notebooks:/srv/shared:ro           # Original shared notebooks
+      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/shared-notebooks:/srv/shared-notebooks  # New collaborative space
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+    networks:
+      - lakehouse
+    privileged: true
+    user: root
+    command: ["jupyterhub", "-f", "/srv/jupyterhub/jupyterhub_config.py"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/hub/api"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: ${JUPYTER_MEMORY_LIMIT:-8G}
+        reservations:
+          memory: ${JUPYTER_MEMORY_RESERVATION:-2G}
+
+volumes:
+  # Additional volumes for JupyterHub
+  lakehouse-data-jupyterhub:
+    driver: local
+  lakehouse-data-shared:
+    driver: local
