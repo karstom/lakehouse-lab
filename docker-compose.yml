@@ -67,6 +67,9 @@ services:
       POSTGRES_DEFAULT_STATISTICS_TARGET: ${POSTGRES_DEFAULT_STATISTICS_TARGET:-100}
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/postgres:/var/lib/postgresql/data
+    # Uncomment to expose PostgreSQL to host (for external tools like pgAdmin, DBeaver, etc.)
+    # ports:
+    #   - "5432:5432"
     command: >
       postgres
       -c shared_buffers=${POSTGRES_SHARED_BUFFERS:-256MB}

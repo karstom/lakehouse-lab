@@ -783,6 +783,38 @@ df = pd.read_sql("""
 print(df.head())
 ```
 
+### **PostgreSQL Database Access**
+
+**PostgreSQL runs within the Docker network for security. Access methods:**
+
+**Option 1: From within Docker containers (Recommended)**
+```bash
+# Direct access from PostgreSQL container
+docker exec -it lakehouse-lab-postgres-1 psql -U postgres -d lakehouse
+
+# Or from any other container in the stack
+docker exec -it lakehouse-lab-jupyter-1 bash
+psql -h postgres -p 5432 -U postgres -d lakehouse
+```
+
+**Option 2: Enable external access (for pgAdmin, DBeaver, etc.)**
+```bash
+# Edit docker-compose.yml and uncomment the PostgreSQL ports section:
+# ports:
+#   - "5432:5432"
+
+# Restart PostgreSQL service
+docker compose restart postgres
+
+# Now connect externally using credentials from: ./scripts/show-credentials.sh
+```
+
+**Connection Details:**
+- **Internal Host**: `postgres:5432` (from within Docker network)
+- **External Host**: `localhost:5432` (if port mapping enabled)
+- **Database**: `lakehouse`
+- **Username/Password**: Run `./scripts/show-credentials.sh`
+
 ### 5. **AI-Powered Data API (MCP Server)**
 **Natural language queries with the MCP Server** - Get your service URL from `./scripts/show-credentials.sh`:
 
