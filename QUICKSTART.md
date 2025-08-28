@@ -1,6 +1,6 @@
 # 🚀 Lakehouse Lab - 15-Minute Quickstart Guide
 
-**Version 2.0.0** - Get your complete enterprise-ready data analytics environment running in 15 minutes! Choose between simple individual setup or secure team collaboration.
+**Version 2.1.0** - Get your complete enterprise-ready data analytics environment running in 15 minutes! Choose between simple individual setup, secure team collaboration, or multi-user JupyterHub environments.
 
 ## ⚡ 1. Quick Setup
 
@@ -48,6 +48,28 @@ cd lakehouse-lab
 ./scripts/setup-wizard.sh --secure     # 22GB RAM (with auth)
 ```
 
+### 👥 **Multi-User JupyterHub Setup (Team Collaboration)**
+
+**For team environments, replace single-user Jupyter with multi-user JupyterHub:**
+
+```bash
+# After installation, enable multi-user JupyterHub
+docker compose -f docker-compose.yml -f docker-compose.jupyterhub.yml up -d
+
+# Provision team members
+./scripts/provision-user.sh john.doe john.doe@company.com SecurePass123 analyst
+./scripts/provision-user.sh jane.smith jane.smith@company.com AnotherPass456 admin
+```
+
+**JupyterHub Features:**
+- 👥 **Multi-user environment** with containerized isolation per user
+- 🔗 **Spark integration** automatically configured for all users
+- 📁 **Shared notebooks** (readonly templates + collaborative workspace)
+- 🔐 **User authentication** with role-based access control
+- 📊 **Resource management** with per-user CPU and memory limits
+
+**Access JupyterHub:** http://localhost:9041
+
 ### **Why install.sh is Required**
 The installer handles critical setup that Docker Compose can't do alone:
 - 🔐 Generates secure credentials in `.env` file
@@ -76,7 +98,8 @@ Once startup completes, access these URLs:
 | Service | URL | Purpose | Credentials |
 |---------|-----|---------|-------------|
 | **Portainer** | http://localhost:9060 | Container Management | Create admin user |
-| **JupyterLab** | http://localhost:9040 | Data Science Notebooks | 🔐 Generated |
+| **JupyterLab** | http://localhost:9040 | Single-User Notebooks | 🔐 Generated |
+| **JupyterHub** | http://localhost:9041 | Multi-User Notebooks | User accounts |
 | **MinIO Console** | http://localhost:9001 | Object Storage | 🔐 Generated |
 | **Spark Master** | http://localhost:8080 | Processing Engine | N/A |
 | **PostgreSQL** | localhost:5432 | Analytics Database | 🔐 Generated |
@@ -356,6 +379,28 @@ plt.show()
 
 # Check versions
 print(f"DuckDB version: {duckdb.__version__}")  # Should show 1.3.2
+```
+
+### **Step 3: Enhanced Example Notebooks**
+✨ **NEW**: Comprehensive tutorial notebooks with AI-powered analytics!
+
+**Available Notebooks:**
+- `04_Vizro_Interactive_Dashboards.ipynb` - Modern dashboard creation and component architecture
+- `05_LanceDB_Vector_Search.ipynb` - Vector database, semantic search, and clustering
+- `06_Advanced_Analytics_Vizro_LanceDB.ipynb` - Combined AI-powered analytics with interactive dashboards
+- `simple_working_dashboard.py` - Bulletproof dashboard solution that works in any environment
+
+**Key Features:**
+- 🎨 **Interactive Dashboards**: Professional charts with hover, zoom, and filtering
+- 🤖 **AI-Powered Analytics**: Semantic clustering, UMAP visualization, and TF-IDF analysis
+- 📊 **Business Intelligence**: Revenue trends, customer analysis, and product metrics
+- 🚀 **Production-Ready**: Robust error handling with multiple fallback strategies
+
+**Quick Start:**
+```python
+# In any Jupyter notebook, run the dashboard demo:
+exec(open('/shared-notebooks/simple_working_dashboard.py').read())
+display_dashboard()
 ```
 
 ---

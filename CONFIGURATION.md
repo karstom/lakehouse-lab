@@ -1,6 +1,6 @@
 # 🔧 Lakehouse Lab Configuration Guide
 
-**Version 2.0.0** - This guide explains how to configure which services are enabled in your Lakehouse Lab installation, including enterprise authentication and AI-powered services.
+**Version 2.1.0** - This guide explains how to configure which services are enabled in your Lakehouse Lab installation, including enterprise authentication, AI-powered services, and multi-user JupyterHub environments.
 
 ## Overview
 
@@ -61,7 +61,8 @@ These services cannot be disabled as they form the foundation of the lakehouse:
 |---------|-------------|------|-----|----------|
 | **Apache Airflow** | Workflow orchestration and scheduling | 9020 | 4GB | Data pipelines, ETL automation |
 | **Apache Superset** | Modern BI and data visualization | 9030 | 4GB | Business dashboards, reporting |
-| **JupyterLab** | Interactive data science environment | 9040 | 8GB | Data analysis, ML development |
+| **JupyterLab** | Single-user data science environment | 9040 | 8GB | Individual data analysis, ML development |
+| **JupyterHub** | Multi-user notebook environment | 9041 | 8GB | Team collaboration, user management |
 | **Vizro** | Low-code dashboard framework | 9050 | 2GB | Interactive visualizations |
 | **LanceDB** | High-performance vector database | 9080 | 3GB | AI/ML, semantic search |
 | **Portainer** | Docker container management | 9060 | 0.5GB | System monitoring |
@@ -196,6 +197,60 @@ The startup script automatically detects and uses your configuration:
 ```
 
 Disabled services will not start, saving system resources.
+
+## 👥 Multi-User Configuration
+
+### **Enabling JupyterHub for Team Environments**
+
+**Replace single-user Jupyter with multi-user JupyterHub:**
+
+```bash
+# Use Docker Compose overlay to enable JupyterHub
+docker compose -f docker-compose.yml -f docker-compose.jupyterhub.yml up -d
+```
+
+### **User Provisioning**
+
+**Provision users across all lakehouse services with unified role management:**
+
+```bash
+# Provision users with different roles
+./scripts/provision-user.sh john.doe john.doe@company.com SecurePass123 analyst
+./scripts/provision-user.sh jane.admin jane.admin@company.com AdminPass456 admin
+./scripts/provision-user.sh bob.viewer bob.viewer@company.com ViewPass789 viewer
+```
+
+### **JupyterHub Configuration**
+
+**Key features of the multi-user environment:**
+
+- **Container Isolation**: Each user gets their own containerized environment
+- **Resource Limits**: Per-user CPU and memory allocation
+- **Shared Data Access**: Unified access to MinIO, PostgreSQL, and LanceDB
+- **Spark Integration**: Automatic Spark configuration for all users
+- **Notebook Templates**: Shared readonly templates and collaborative workspace
+
+### **Role-Based Access Control**
+
+| Role | JupyterHub Access | Resource Limits | Shared Notebooks |
+|------|------------------|-----------------|------------------|
+| **admin** | Full sudo access | Unlimited | Read/Write all |
+| **analyst** | Standard user | 4GB RAM, 2 CPU | Read-only templates, personal workspace |
+| **viewer** | Standard user | 2GB RAM, 1 CPU | Read-only access only |
+
+### **Managing Multi-User Environment**
+
+```bash
+# Monitor JupyterHub users
+docker exec jupyterhub-container jupyterhub token --help
+
+# View user containers
+docker ps --filter "name=jupyter-"
+
+# Scale user resources (edit docker-compose.jupyterhub.yml)
+# Then restart JupyterHub:
+docker compose -f docker-compose.yml -f docker-compose.jupyterhub.yml restart jupyterhub
+```
 
 ## Troubleshooting
 

@@ -1,6 +1,6 @@
 # 🚀 Lakehouse Lab Installation Guide
 
-**Version 2.0.0** - Complete installation options for all platforms and use cases, from individual development to enterprise team collaboration.
+**Version 2.1.0** - Complete installation options for all platforms and use cases, from individual development to enterprise team collaboration with multi-user JupyterHub environments.
 
 > ⚠️ **Critical for New Users**: You **MUST** use `./install.sh` for first-time installation. Running `docker compose up -d` directly will fail because it requires secure credentials and proper initialization that only the installer provides.
 
@@ -367,7 +367,8 @@ cd lakehouse-lab
 **Services will be available at:**
 - 🐳 **Portainer**: http://localhost:9060 (container management)
 - 📈 **Superset**: http://localhost:9030 (BI dashboards) 
-- 📓 **JupyterLab**: http://localhost:9040 (data science)
+- 📓 **JupyterLab**: http://localhost:9040 (single-user notebooks)
+- 👥 **JupyterHub**: http://localhost:9041 (multi-user notebooks)
 - 📋 **Airflow**: http://localhost:9020 (workflows)
 - ☁️ **MinIO**: http://localhost:9001 (file storage)
 - ⚡ **Spark**: http://localhost:8080 (processing)
@@ -379,6 +380,64 @@ cd lakehouse-lab
 2. 🚀 Start with Superset for instant analytics
 3. 📊 Upload your own data to MinIO
 4. 🔬 Create analysis notebooks in Jupyter
+
+## 👥 Multi-User Setup & Team Management
+
+### **Enabling Multi-User JupyterHub**
+
+**For team environments, replace single-user Jupyter with multi-user JupyterHub:**
+
+```bash
+# Enable JupyterHub with Docker Compose overlay
+docker compose -f docker-compose.yml -f docker-compose.jupyterhub.yml up -d
+```
+
+**JupyterHub will be available at:** http://localhost:9041
+
+### **User Provisioning Across All Services**
+
+**Provision users across Superset, Airflow, MinIO, and JupyterHub with one command:**
+
+```bash
+# Provision a team member with analyst role
+./scripts/provision-user.sh john.doe john.doe@company.com SecurePass123 analyst
+
+# Provision an admin user
+./scripts/provision-user.sh jane.smith jane.smith@company.com AnotherPass456 admin
+
+# Provision a viewer-only user
+./scripts/provision-user.sh bob.viewer bob.viewer@company.com ViewPass789 viewer
+```
+
+### **User Roles & Service Access**
+
+| Role | Superset | Airflow | MinIO | JupyterHub | Description |
+|------|----------|---------|-------|------------|-------------|
+| **admin** | Admin | Admin | consoleAdmin | sudo access | Full platform administration |
+| **analyst** | Alpha | User | readwrite | standard user | Create dashboards, run workflows |
+| **viewer** | Gamma | Viewer | readonly | standard user | View dashboards, read-only data |
+
+### **JupyterHub Features**
+
+- **👥 Multi-user environment** with containerized isolation per user
+- **🔗 Spark integration** automatically configured for all users
+- **📁 Shared notebooks** (readonly templates + collaborative workspace)
+- **🔐 User authentication** with role-based access control
+- **📊 Resource management** with per-user CPU and memory limits
+- **🏢 Team collaboration** with shared data access across services
+
+### **Managing Users**
+
+```bash
+# View all provisioned users
+./scripts/provision-user.sh --list
+
+# Remove a user from all services
+./scripts/provision-user.sh --remove john.doe
+
+# Update user role
+./scripts/provision-user.sh john.doe john.doe@company.com NewPass123 admin --update
+```
 
 ## 🔄 Updating
 

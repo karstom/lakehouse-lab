@@ -10,7 +10,7 @@
 > **🚀 Enterprise-Ready Data Analytics Platform in 15 Minutes**  
 > **🔒 Optional Team Authentication • 🤖 AI-Powered API • 📊 Modern Dashboards**
 
-**Version 2.0.0** - A complete lakehouse environment that scales from individual learning to enterprise team collaboration. **Features enterprise authentication, AI-powered data API, modern interactive dashboards, vector search, and configurable service deployment.**
+**Version 2.1.0** - A complete lakehouse environment that scales from individual learning to enterprise team collaboration. **Features enterprise authentication, AI-powered data API, modern interactive dashboards, vector search, multi-user JupyterHub, comprehensive user provisioning, and configurable service deployment.**
 
 ### 🎯 Choose Your Experience
 
@@ -18,7 +18,9 @@
 |----------------------------|------------------------|
 | **One-click install** | **Secure team collaboration** |
 | No setup complexity | OAuth with Google/Microsoft/GitHub |
-| Perfect for learning | Role-based access control |
+| Perfect for learning | Multi-user JupyterHub environment |
+| Interactive dashboard development | Role-based access control |
+| AI-powered analytics | Central user provisioning |
 | Local development | Audit logging & compliance |
 | ⚡ 15-minute setup | 🔒 Production-ready security |
 
@@ -181,6 +183,7 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 | **Apache Airflow** | Workflow Orchestration | :9020 | 4GB | Data pipelines, ETL |
 | **Apache Superset** | BI & Visualization | :9030 | 4GB | Business dashboards |
 | **JupyterLab** | Data Science Notebooks | :9040 | 8GB | Analysis, ML development |
+| **JupyterHub** | Multi-User Notebooks | :9041 | 8GB | Team collaboration, user management |
 | **Vizro** | Interactive Dashboards | :9050 | 2GB | Modern visualizations |
 | **LanceDB** | Vector Database API | :9080 | 3GB | AI/ML, semantic search |
 | **Homer** | Service Links Dashboard | :9061 | 0.1GB | Easy service access |
@@ -204,6 +207,46 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 - **🔒 Secure** (22GB): Full platform + enterprise authentication
 
 Configure services with: `./scripts/configure-services.sh` or use the setup wizard.
+
+## 👥 Team Management & Multi-User Features
+
+**Enterprise-grade user management across the entire lakehouse platform:**
+
+### 🎯 **Central User Provisioning**
+```bash
+# Provision users across all services with one command
+./scripts/provision-user.sh john.doe john.doe@company.com SecurePass123 analyst
+```
+
+**What this does:**
+- ✅ **Superset**: Creates BI dashboard user with appropriate role  
+- ✅ **Airflow**: Sets up workflow orchestration access
+- ✅ **MinIO**: Configures object storage permissions
+- ✅ **JupyterHub**: Creates containerized notebook environment
+- ✅ **Role Mapping**: Automatically maps lakehouse roles to service-specific permissions
+
+### 🏗️ **Multi-User JupyterHub**
+Replace single-user Jupyter with team-ready JupyterHub:
+
+```bash
+# Use JupyterHub configuration overlay
+docker compose -f docker-compose.yml -f docker-compose.jupyterhub.yml up -d
+```
+
+**JupyterHub Features:**
+- 👥 **Multi-user environment** with containerized isolation
+- 🔗 **Spark integration** for all users
+- 📁 **Shared notebooks** (readonly templates + collaborative workspace)  
+- 🔐 **User authentication** with role-based access
+- 📊 **Resource management** with per-user limits
+- 🏢 **Team collaboration** with shared data access
+
+### 📋 **User Roles & Permissions**
+| Role | Superset | Airflow | MinIO | JupyterHub | Description |
+|------|----------|---------|-------|------------|-------------|
+| **admin** | Admin | Admin | consoleAdmin | sudo access | Full platform administration |
+| **analyst** | Alpha | User | readwrite | standard user | Create dashboards, run workflows |
+| **viewer** | Gamma | Viewer | readonly | standard user | View dashboards, read-only data |
 
 ## 🔒 Secure Credential Management
 
