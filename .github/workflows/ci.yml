@@ -225,7 +225,7 @@ jobs:
           sleep 45
           
           # Check that Iceberg JARs are available
-          docker-compose exec -T spark-master ls -la /opt/bitnami/spark/jars/ | grep iceberg || echo "Iceberg JARs not found"
+          docker-compose exec -T spark-master ls -la /opt/spark/jars/ | grep iceberg || echo "Iceberg JARs not found"
           
           # Clean up
           docker-compose -f docker-compose.yml -f docker-compose.iceberg.yml down -v

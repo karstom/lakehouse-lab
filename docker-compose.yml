@@ -163,27 +163,26 @@ services:
 
   # Spark Master
   spark-master:
-    image: bitnami/spark:3.5.0
+    image: apache/spark:3.5.6-scala2.12-java11
     depends_on:
       minio:
         condition: service_healthy
     environment:
-      SPARK_MODE: master
       SPARK_MASTER_HOST: spark-master
-      SPARK_MASTER_MEMORY: ${SPARK_MASTER_MEMORY:-2g}
-      SPARK_MASTER_CORES: ${SPARK_MASTER_CORES:-2}
+      SPARK_MASTER_PORT: 7077
+      SPARK_MASTER_WEBUI_PORT: 8080
       SPARK_DAEMON_MEMORY: ${SPARK_DAEMON_MEMORY:-1g}
     ports:
       - "7077:7077"
       - "8080:8080"
     volumes:
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/spark/jobs:/opt/spark/jobs
+      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/spark/jobs:/opt/spark/work-dir
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/spark/logs:/opt/spark/logs
     networks:
       - lakehouse
     command: >
       bash -c "
-      /opt/bitnami/scripts/spark/entrypoint.sh /opt/bitnami/scripts/spark/run.sh &
+      /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master &
       sleep 10;
       touch /tmp/spark-started;
       wait
@@ -204,19 +203,19 @@ services:
 
   # Spark Worker
   spark-worker:
-    image: bitnami/spark:3.5.0
+    image: apache/spark:3.5.6-scala2.12-java11
     depends_on:
       spark-master:
         condition: service_healthy
     environment:
-      SPARK_MODE: worker
       SPARK_MASTER_URL: spark://spark-master:7077
       SPARK_WORKER_MEMORY: ${SPARK_WORKER_MEMORY:-8g}
       SPARK_WORKER_CORES: ${SPARK_WORKER_CORES:-4}
       SPARK_DAEMON_MEMORY: ${SPARK_DAEMON_MEMORY:-1g}
     volumes:
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/spark/jobs:/opt/spark/jobs
+      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/spark/jobs:/opt/spark/work-dir
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/spark/logs:/opt/spark/logs
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
     networks:
       - lakehouse
     restart: unless-stopped

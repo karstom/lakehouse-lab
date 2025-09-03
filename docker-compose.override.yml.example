@@ -53,9 +53,9 @@ services:
       - SPARK_MASTER_CORES=4
     volumes:
       # Add custom Spark configuration
-      - ./custom-spark-conf:/opt/bitnami/spark/conf/custom:ro
+      - ./custom-spark-conf:/opt/spark/conf/custom:ro
       # Add custom JAR files
-      - ./custom-spark-jars:/opt/bitnami/spark/jars/custom:ro
+      - ./custom-spark-jars:/opt/spark/jars/custom:ro
 
   spark-worker:
     environment:
@@ -63,10 +63,10 @@ services:
       - SPARK_WORKER_MEMORY=16g
       - SPARK_WORKER_CORES=8
       # Add custom classpath
-      - SPARK_CLASSPATH=/opt/bitnami/spark/jars/custom/*
+      - SPARK_CLASSPATH=/opt/spark/jars/custom/*
     volumes:
       # Mount custom JAR files (same as master)
-      - ./custom-spark-jars:/opt/bitnami/spark/jars/custom:ro
+      - ./custom-spark-jars:/opt/spark/jars/custom:ro
       # Mount custom datasets for local processing
       - ./local-datasets:/opt/datasets:ro
 

@@ -10,7 +10,7 @@ services:
   spark-master:
     environment:
       # Add Iceberg and S3A JARs to Spark classpath
-      - SPARK_CLASSPATH=/opt/bitnami/spark/jars/iceberg:/opt/bitnami/spark/jars/iceberg/*
+      - SPARK_CLASSPATH=/opt/spark/jars/iceberg:/opt/spark/jars/iceberg/*
       
       # S3/MinIO configuration for Iceberg (uses generated credentials)
       - SPARK_CONF_spark_hadoop_fs_s3a_endpoint=http://minio:9000
@@ -33,7 +33,7 @@ services:
       - SPARK_CONF_spark_sql_adaptive_coalescePartitions_enabled=true
     volumes:
       # Mount directory containing Iceberg JAR files
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/iceberg-jars:/opt/bitnami/spark/jars/iceberg:ro
+      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/iceberg-jars:/opt/spark/jars/iceberg:ro
     depends_on:
       - minio
 
@@ -41,7 +41,7 @@ services:
   spark-worker:
     environment:
       # Add Iceberg and S3A JARs to Spark classpath
-      - SPARK_CLASSPATH=/opt/bitnami/spark/jars/iceberg:/opt/bitnami/spark/jars/iceberg/*
+      - SPARK_CLASSPATH=/opt/spark/jars/iceberg:/opt/spark/jars/iceberg/*
       
       # S3/MinIO configuration for Iceberg (uses generated credentials)
       - SPARK_CONF_spark_hadoop_fs_s3a_endpoint=http://minio:9000
@@ -64,7 +64,7 @@ services:
       - SPARK_CONF_spark_sql_adaptive_coalescePartitions_enabled=true
     volumes:
       # Mount directory containing Iceberg JAR files
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/iceberg-jars:/opt/bitnami/spark/jars/iceberg:ro
+      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/iceberg-jars:/opt/spark/jars/iceberg:ro
     depends_on:
       - minio
       - spark-master

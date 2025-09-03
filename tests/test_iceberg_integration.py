@@ -108,7 +108,7 @@ class TestIcebergIntegration(unittest.TestCase):
                 for mapping in iceberg_jar_mappings:
                     if 'iceberg-jars' in mapping:
                         # Should map to Spark jars directory
-                        self.assertIn('/opt/bitnami/spark/jars', mapping,
+                        self.assertIn('/opt/spark/jars', mapping,
                                     "Iceberg JARs should be mapped to Spark jars directory")
     
     def test_iceberg_spark_configuration(self):
@@ -360,7 +360,7 @@ class TestIcebergFunctionality(unittest.TestCase):
         # Simulate spark-submit with Iceberg configurations
         result = subprocess.run([
             'spark-submit',
-            '--jars', '/opt/bitnami/spark/jars/iceberg-spark-runtime.jar',
+            '--jars', '/opt/spark/jars/iceberg-spark-runtime.jar',
             '--conf', 'spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions',
             '--conf', 'spark.sql.catalog.iceberg=org.apache.iceberg.spark.SparkCatalog',
             'test_script.py'
@@ -376,7 +376,7 @@ class TestIcebergFunctionality(unittest.TestCase):
         base_compose = {
             'services': {
                 'spark-master': {
-                    'image': 'bitnami/spark:3.5.0',
+                    'image': 'apache/spark:3.5.6-scala2.12-java11',
                     'environment': {
                         'SPARK_MODE': 'master'
                     }
@@ -388,7 +388,7 @@ class TestIcebergFunctionality(unittest.TestCase):
         iceberg_override = {
             'services': {
                 'spark-master': {
-                    'volumes': ['./iceberg-jars:/opt/bitnami/spark/jars/iceberg:ro'],
+                    'volumes': ['./iceberg-jars:/opt/spark/jars/iceberg:ro'],
                     'environment': {
                         'SPARK_CONF_spark.sql.extensions': 'org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions'
                     }
