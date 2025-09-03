@@ -249,7 +249,7 @@ if __name__ == '__main__':
                         'id': range(20),
                         'text': [f'Sample document {i}: This document contains information about lakehouse architecture and data analytics.' for i in range(20)],
                         'vector': [np.random.rand(384).astype(np.float32).tolist() for _ in range(20)],
-                        'category': ['lakehouse', 'analytics', 'data', 'ml', 'ai'][i%5] for i in range(20)],
+                        'category': [['lakehouse', 'analytics', 'data', 'ml', 'ai'][i%5] for i in range(20)],
                         'metadata': [json.dumps({'doc_id': i, 'source': 'sample'}) for i in range(20)]
                     })
                 elif table_type == 'images':

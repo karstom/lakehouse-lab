@@ -231,7 +231,7 @@ services:
 
   # JupyterLab
   jupyter:
-    image: jupyter/pyspark-notebook:spark-3.5.0
+    image: jupyter/pyspark-notebook:latest
     depends_on:
       spark-master:
         condition: service_healthy
