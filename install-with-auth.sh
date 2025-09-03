@@ -366,8 +366,22 @@ enable_authentication() {
     
     cd "$INSTALL_DIR"
     
+    # Check if we're in upgrade mode and auth is already configured
+    if [[ "$UPGRADE_MODE" == "true" ]]; then
+        if grep -q "JWT_SECRET=" .env 2>/dev/null && grep -q "AUTH_MODE=" .env 2>/dev/null; then
+            echo -e "${GREEN}✅ Authentication already configured - skipping setup${NC}"
+            cd ..
+            return 0
+        fi
+    fi
+    
     # Enable authentication services
-    ./scripts/enable-auth.sh
+    if [[ "$UNATTENDED" == "true" || "$UPGRADE_MODE" == "true" ]]; then
+        # Pass unattended flag to avoid prompts
+        echo "y" | ./scripts/enable-auth.sh || true
+    else
+        ./scripts/enable-auth.sh
+    fi
     
     cd ..
     

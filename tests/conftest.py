@@ -122,7 +122,7 @@ def sample_compose_data() -> Dict[str, Any]:
                 }
             },
             'spark-master': {
-                'image': 'apache/spark:3.5.6-scala2.12-java11',
+                'image': 'apache/spark:3.5.6',
                 'environment': {
                     'SPARK_MODE': 'master'
                 },

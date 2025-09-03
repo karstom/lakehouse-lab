@@ -163,7 +163,7 @@ services:
 
   # Spark Master
   spark-master:
-    image: apache/spark:3.5.6-scala2.12-java11
+    image: apache/spark:3.5.6
     depends_on:
       minio:
         condition: service_healthy
@@ -203,7 +203,7 @@ services:
 
   # Spark Worker
   spark-worker:
-    image: apache/spark:3.5.6-scala2.12-java11
+    image: apache/spark:3.5.6
     depends_on:
       spark-master:
         condition: service_healthy

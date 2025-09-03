@@ -187,37 +187,37 @@ start_with_dependencies() {
             echo -e "${YELLOW}🔍 Starting in debug mode (services one by one)...${NC}"
             
             # Check if Iceberg support should be enabled
-            local compose_files="docker-compose.yml"
+            local compose_files="-f docker-compose.yml"
             if [[ "${ENABLE_ICEBERG_OVERRIDE:-}" == "true" ]] || [[ -f ".iceberg-enabled" ]]; then
                 echo -e "${BLUE}🧊 Iceberg support detected - using enhanced configuration...${NC}"
-                compose_files="docker-compose.yml -f docker-compose.iceberg.yml"
+                compose_files="-f docker-compose.yml -f docker-compose.iceberg.yml"
                 # Create marker file for future starts
                 touch .iceberg-enabled
             fi
             
             # Layer 1: Storage
             echo -e "${BLUE}Layer 1: Storage services${NC}"
-            docker compose -f $compose_files up -d postgres minio
+            docker compose $compose_files up -d postgres minio
             check_service_health "MinIO" "http://localhost:9000/minio/health/live"
             
             # Layer 2: Processing
             echo -e "${BLUE}Layer 2: Compute engines${NC}"
-            docker compose -f $compose_files up -d spark-master spark-worker
+            docker compose $compose_files up -d spark-master spark-worker
             check_service_health "Spark Master" "http://localhost:8080" 15
             
             # Layer 3: Initialization
             echo -e "${BLUE}Layer 3: Data initialization${NC}"
-            docker compose -f $compose_files up lakehouse-init
+            docker compose $compose_files up lakehouse-init
             
             # Layer 4: Applications
             echo -e "${BLUE}Layer 4: User applications${NC}"
-            docker compose -f $compose_files up -d jupyter airflow-init
+            docker compose $compose_files up -d jupyter airflow-init
             sleep 30  # Give airflow-init time to complete
-            docker compose -f $compose_files up -d airflow-scheduler airflow-webserver
+            docker compose $compose_files up -d airflow-scheduler airflow-webserver
             
             # Layer 5: BI and monitoring
             echo -e "${BLUE}Layer 5: BI and monitoring${NC}"
-            docker compose -f $compose_files up -d superset portainer
+            docker compose $compose_files up -d superset portainer
             
             # Optional services
             echo -e "${BLUE}Layer 6: Optional services${NC}"
@@ -228,18 +228,18 @@ start_with_dependencies() {
             echo -e "${YELLOW}📦 Starting all services...${NC}"
             
             # Check for service configuration override
-            local compose_files="docker-compose.yml"
+            local compose_files="-f docker-compose.yml"
             if [[ -f "docker-compose.override.yml" ]]; then
                 log_info "Using service configuration override"
-                compose_files="docker-compose.yml docker-compose.override.yml"
+                compose_files="-f docker-compose.yml -f docker-compose.override.yml"
             fi
             
             # Check if Iceberg support should be enabled
             if [[ "${ENABLE_ICEBERG_OVERRIDE:-}" == "true" ]] || [[ -f ".iceberg-enabled" ]]; then
                 echo -e "${BLUE}🧊 Iceberg support detected - using enhanced configuration...${NC}"
-                compose_files="$compose_files docker-compose.iceberg.yml"
+                compose_files="$compose_files -f docker-compose.iceberg.yml"
                 # Try Iceberg startup first
-                if docker compose -f $compose_files up -d; then
+                if docker compose $compose_files up -d; then
                     echo -e "${GREEN}✅ All services with Iceberg support started successfully${NC}"
                     # Create marker file for future starts
                     touch .iceberg-enabled
@@ -250,7 +250,7 @@ start_with_dependencies() {
                     fi
                 fi
             # Try normal startup first
-            elif docker compose -f $compose_files up -d; then
+            elif docker compose $compose_files up -d; then
                 echo -e "${GREEN}✅ All services started successfully${NC}"
                 
                 # Check key services
