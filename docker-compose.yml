@@ -231,7 +231,7 @@ services:
 
   # JupyterLab
   jupyter:
-    image: quay.io/jupyter/pyspark-notebook:latest
+    image: quay.io/jupyter/pyspark-notebook:spark-3.5.3
     depends_on:
       spark-master:
         condition: service_healthy
@@ -262,34 +262,15 @@ services:
       - -c
       - |
         set -e
-        echo 'Installing additional packages...'
-        # Remove conflicting pyspark-connect first, then install compatible versions
-        pip uninstall -y pyspark-connect || echo 'pyspark-connect not found'
-        pip install --no-cache-dir pyspark==3.5.0 duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow 'sqlalchemy>=1.4.0' psycopg2-binary pandas matplotlib seaborn plotly
+        echo 'Installing additional lakehouse packages...'
+        pip install --no-cache-dir duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 'sqlalchemy>=1.4.0' psycopg2-binary
         
-        echo 'Setting up Jupyter configuration...'
-        mkdir -p /home/jovyan/.jupyter
-        
-        echo 'Setting up permissions and environment...'
-        chown -R jovyan:users /home/jovyan 2>/dev/null || echo 'Permission setup skipped'
-        
-        # Install packages for jovyan user as well to ensure availability
-        sudo -u jovyan /opt/conda/bin/pip install --user --no-cache-dir pyspark==3.5.0 duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow pandas matplotlib seaborn plotly 'sqlalchemy>=1.4.0'
-        
-        # Ensure PySpark environment variables are set for jovyan user
-        echo 'export SPARK_HOME=/usr/local/spark' >> /home/jovyan/.bashrc
-        echo 'export PYTHONPATH=$SPARK_HOME/python:$SPARK_HOME/python/lib/py4j-0.10.9.7-src.zip:$PYTHONPATH' >> /home/jovyan/.bashrc
-        echo 'export PYSPARK_PYTHON=/opt/conda/bin/python' >> /home/jovyan/.bashrc
-        echo 'export PYSPARK_DRIVER_PYTHON=/opt/conda/bin/python' >> /home/jovyan/.bashrc
-        echo 'export PYSPARK_SUBMIT_ARGS=--master spark://spark-master:7077 pyspark-shell' >> /home/jovyan/.bashrc
-        
-        # Ensure MinIO credentials are available to jovyan user
+        echo 'Setting up MinIO credentials...'
         echo "export MINIO_ROOT_USER='${MINIO_ROOT_USER}'" >> /home/jovyan/.bashrc
         echo "export MINIO_ROOT_PASSWORD='${MINIO_ROOT_PASSWORD}'" >> /home/jovyan/.bashrc
         
-        echo 'Starting Jupyter...'
-        # Use the proper Jupyter startup command with conda environment
-        exec sudo -E -u jovyan /opt/conda/bin/jupyter lab --NotebookApp.token='${JUPYTER_TOKEN}' --NotebookApp.password='' --NotebookApp.allow_origin='*' --NotebookApp.disable_check_xsrf=True
+        echo 'Starting Jupyter with standard startup script...'
+        exec start-notebook.py --ServerApp.token='${JUPYTER_TOKEN}' --ServerApp.password='' --ServerApp.allow_origin='*' --ServerApp.disable_check_xsrf=True
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/notebooks:/home/jovyan/notebooks
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/jupyter-config:/home/jovyan/.jupyter
