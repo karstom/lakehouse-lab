@@ -263,7 +263,8 @@ services:
       - |
         set -e
         echo 'Installing additional packages...'
-        # Install Python packages including PySpark for compatibility
+        # Remove conflicting pyspark-connect first, then install compatible versions
+        pip uninstall -y pyspark-connect || echo 'pyspark-connect not found'
         pip install --no-cache-dir pyspark==3.5.0 duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow 'sqlalchemy>=1.4.0' psycopg2-binary pandas matplotlib seaborn plotly
         
         echo 'Setting up Jupyter configuration...'
