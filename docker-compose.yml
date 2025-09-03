@@ -264,7 +264,7 @@ services:
         set -e
         echo 'Installing additional packages...'
         # Install Python packages including PySpark for compatibility
-        pip install --no-cache-dir pyspark==3.5.0 duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 'sqlalchemy>=1.4.0' psycopg2-binary pandas matplotlib seaborn plotly
+        pip install --no-cache-dir pyspark==3.5.0 duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow 'sqlalchemy>=1.4.0' psycopg2-binary pandas matplotlib seaborn plotly
         
         echo 'Setting up Jupyter configuration...'
         mkdir -p /home/jovyan/.jupyter
