@@ -233,6 +233,16 @@ create_named_volumes() {
     
     for volume in "${volumes[@]}"; do
         docker volume create "${project_name}_${volume}" || log_warning "Volume ${volume} may already exist"
+        
+        # Fix ownership for Airflow volumes if they need special permissions
+        if [[ "$volume" == "airflow_"* ]]; then
+            # Use a temporary container to fix Airflow volume ownership
+            docker run --rm \
+                -v "${project_name}_${volume}:/mnt/volume" \
+                --user root \
+                alpine:latest \
+                sh -c "chown -R ${AIRFLOW_UID:-50000}:0 /mnt/volume && chmod -R 755 /mnt/volume" >/dev/null 2>&1 || log_warning "Could not fix permissions for ${volume}"
+        fi
     done
     
     log_success "Named volumes created"

@@ -188,6 +188,16 @@ create_named_volumes() {
     # Create volumes if they don't exist (silently ignore if they already exist)
     for volume in "${volumes[@]}"; do
         docker volume create "${project_name}_${volume}" >/dev/null 2>&1 || true
+        
+        # Fix ownership for Airflow volumes if they need special permissions
+        if [[ "$volume" == "airflow_"* ]]; then
+            # Use a temporary container to fix Airflow volume ownership
+            docker run --rm \
+                -v "${project_name}_${volume}:/mnt/volume" \
+                --user root \
+                alpine:latest \
+                sh -c "chown -R ${AIRFLOW_UID:-50000}:0 /mnt/volume && chmod -R 755 /mnt/volume" >/dev/null 2>&1 || true
+        fi
     done
     
     # Create overlay-specific volumes if overlays are detected
