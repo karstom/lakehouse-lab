@@ -67,9 +67,9 @@ services:
       POSTGRES_DEFAULT_STATISTICS_TARGET: ${POSTGRES_DEFAULT_STATISTICS_TARGET:-100}
     volumes:
       - ${LAKEHOUSE_ROOT:-./lakehouse-data}/postgres:/var/lib/postgresql/data
-    # Uncomment to expose PostgreSQL to host (for external tools like pgAdmin, DBeaver, etc.)
-    # ports:
-    #   - "5432:5432"
+    # PostgreSQL port exposed for external access (pgAdmin, DBeaver, etc.)
+    ports:
+      - "5432:5432"
     command: >
       postgres
       -c shared_buffers=${POSTGRES_SHARED_BUFFERS:-256MB}
@@ -109,7 +109,7 @@ services:
       - "9000:9000"
       - "9001:9001"
     volumes:
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/minio:/data
+      - minio_data:/data
     networks:
       - lakehouse
     healthcheck:
@@ -614,4 +614,6 @@ services:
 
 volumes:
   portainer_data:
+    driver: local
+  minio_data:
     driver: local

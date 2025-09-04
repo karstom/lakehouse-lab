@@ -255,11 +255,11 @@ show_upgrade_options() {
 perform_upgrade() {
     print_step "Upgrading existing Lakehouse Lab installation..."
     
-    # Stop running services gracefully
+    # Stop running services gracefully without removing volumes
     if check_command docker && docker ps --format "table {{.Names}}" 2>/dev/null | grep -q "lakehouse-lab"; then
-        print_step "Stopping running services..."
+        print_step "Stopping running services (preserving data)..."
         cd "$INSTALL_DIR" 2>/dev/null || true
-        docker compose down || print_warning "Could not stop some services"
+        docker compose stop || print_warning "Could not stop some services"
         cd - >/dev/null
     fi
     
@@ -296,10 +296,28 @@ perform_upgrade() {
 
 perform_replace() {
     print_step "Performing fresh installation (replacing existing)..."
+    print_warning "⚠️  This will PERMANENTLY DELETE all data including MinIO storage, databases, and notebooks!"
     
-    # Stop and remove all services
+    # Give user final chance to cancel
+    if [[ -t 0 && $UNATTENDED != "true" ]]; then
+        echo ""
+        echo -e "${RED}${BOLD}WARNING: ALL DATA WILL BE LOST!${NC}"
+        echo -e "${RED}This includes:${NC}"
+        echo -e "${RED}  • MinIO object storage and files${NC}"
+        echo -e "${RED}  • PostgreSQL databases${NC}"
+        echo -e "${RED}  • Jupyter notebooks${NC}"
+        echo -e "${RED}  • All analytics data${NC}"
+        echo ""
+        read -p "Type 'DELETE ALL DATA' to confirm: " -r </dev/tty
+        if [[ $REPLY != "DELETE ALL DATA" ]]; then
+            print_warning "Replace operation cancelled - data preserved"
+            exit 0
+        fi
+    fi
+    
+    # Stop and remove all services with volumes
     if check_command docker && docker ps --format "table {{.Names}}" 2>/dev/null | grep -q "lakehouse-lab"; then
-        print_step "Stopping and removing all services..."
+        print_step "Stopping and removing all services and data volumes..."
         cd "$INSTALL_DIR" 2>/dev/null || true
         docker compose down -v || print_warning "Could not stop some services"
         cd - >/dev/null
@@ -312,10 +330,11 @@ perform_replace() {
         print_success "Existing installation removed"
     fi
     
-    # Remove any lakehouse-data directories
+    # Remove any lakehouse-data directories (with confirmation)
     if [[ -d "./lakehouse-data" ]]; then
-        print_warning "Removing existing data directory..."
+        print_step "Removing existing data directory..."
         rm -rf "./lakehouse-data"
+        print_success "Data directory removed"
     fi
     
     # Remove any partial initialization markers

@@ -124,22 +124,16 @@ add_if_missing "LAKEHOUSE_ROOT" "./lakehouse-data" "Lakehouse data root"
 echo ""
 log_info "Restarting services to apply new credentials..."
 
-# Stop all services
-docker compose down
+# Use restart instead of down/up to preserve containers and data
+log_info "Restarting services with new credentials..."
+docker compose restart
 
-# Wait a moment
-sleep 3
-
-# Restart initialization and core services
-log_info "Starting core services..."
-docker compose up -d postgres minio lakehouse-init
-
-# Wait for core services
-log_info "Waiting for core services to be ready..."
+# Wait for services to be ready
+log_info "Waiting for services to be ready..."
 sleep 15
 
-# Start remaining services
-log_info "Starting remaining services..."
+# Check if any services failed to start and try to bring them up
+log_info "Ensuring all services are running..."
 docker compose up -d
 
 echo ""
