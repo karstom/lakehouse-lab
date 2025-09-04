@@ -153,6 +153,6 @@ services:
 # Create iceberg-warehouse bucket in MinIO
 volumes:
   iceberg_jars:
-    driver: local
+    external: true
   iceberg_warehouse:
-    driver: local
+    external: true

@@ -185,8 +185,8 @@ networks:
     external: false
 volumes:
   auth_data:
-    driver: local
+    external: true
   mcp_logs:
-    driver: local
+    external: true
   audit_logs:
-    driver: local
+    external: true

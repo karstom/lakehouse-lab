@@ -60,6 +60,6 @@ services:
 volumes:
   # JupyterHub named volumes for persistent data
   jupyterhub_users:
-    driver: local
+    external: true
   jupyterhub_shared:
-    driver: local
+    external: true

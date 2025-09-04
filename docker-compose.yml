@@ -614,37 +614,38 @@ services:
 
 volumes:
   # Core data volumes (persistent across container recreation)
+  # These are managed externally (created by install/migration scripts)
   postgres_data:
-    driver: local
+    external: true
   minio_data:
-    driver: local
+    external: true
   
   # Shared data volumes
   lakehouse_shared:
-    driver: local
+    external: true
   
   # Application data volumes
   jupyter_notebooks:
-    driver: local
+    external: true
   jupyter_config:
-    driver: local
+    external: true
   airflow_dags:
-    driver: local
+    external: true
   airflow_logs:
-    driver: local
+    external: true
   airflow_plugins:
-    driver: local
+    external: true
   spark_jobs:
-    driver: local
+    external: true
   spark_logs:
-    driver: local
+    external: true
   superset_data:
-    driver: local
+    external: true
   homer_data:
-    driver: local
+    external: true
   vizro_data:
-    driver: local
+    external: true
   lancedb_data:
-    driver: local
+    external: true
   portainer_data:
-    driver: local
+    external: true

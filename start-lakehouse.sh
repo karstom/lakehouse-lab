@@ -159,6 +159,55 @@ ensure_curl() {
     fi
 }
 
+# Function to create required named volumes if they don't exist
+create_named_volumes() {
+    log_info "Ensuring required named volumes exist..."
+    
+    # Get the project name (directory name)
+    local project_name=$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]')
+    
+    # List of all required volumes for the lakehouse stack
+    local volumes=(
+        "postgres_data"
+        "minio_data" 
+        "lakehouse_shared"
+        "jupyter_notebooks"
+        "jupyter_config"
+        "airflow_dags"
+        "airflow_logs"
+        "airflow_plugins"
+        "spark_jobs"
+        "spark_logs"
+        "superset_data"
+        "homer_data"
+        "vizro_data"
+        "lancedb_data"
+        "portainer_data"
+    )
+    
+    # Create volumes if they don't exist (silently ignore if they already exist)
+    for volume in "${volumes[@]}"; do
+        docker volume create "${project_name}_${volume}" >/dev/null 2>&1 || true
+    done
+    
+    # Create overlay-specific volumes if overlays are detected
+    if [[ "${ENABLE_ICEBERG_OVERRIDE:-}" == "true" ]] || [[ -f ".iceberg-enabled" ]]; then
+        docker volume create "${project_name}_iceberg_jars" >/dev/null 2>&1 || true
+        docker volume create "${project_name}_iceberg_warehouse" >/dev/null 2>&1 || true
+    fi
+    
+    if [[ -f "docker-compose.jupyterhub.yml" ]]; then
+        docker volume create "${project_name}_jupyterhub_users" >/dev/null 2>&1 || true
+        docker volume create "${project_name}_jupyterhub_shared" >/dev/null 2>&1 || true
+    fi
+    
+    if [[ -f "docker-compose.auth.yml" ]]; then
+        docker volume create "${project_name}_auth_data" >/dev/null 2>&1 || true
+        docker volume create "${project_name}_mcp_logs" >/dev/null 2>&1 || true
+        docker volume create "${project_name}_audit_logs" >/dev/null 2>&1 || true
+    fi
+}
+
 # Function to start services with dependency checking
 start_with_dependencies() {
     echo -e "${BLUE}🚀 Starting Lakehouse Lab ($STARTUP_MODE mode, attempt $((RETRY_COUNT + 1))/$((MAX_RETRIES + 1)))...${NC}"
@@ -168,6 +217,9 @@ start_with_dependencies() {
     
     # Ensure data directory exists
     mkdir -p "$LAKEHOUSE_ROOT"
+    
+    # Ensure all required named volumes exist (for external volume declarations)
+    create_named_volumes
     
     case "$STARTUP_MODE" in
         "minimal")
