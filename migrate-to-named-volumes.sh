@@ -228,14 +228,21 @@ create_named_volumes() {
         "homer_data"
         "vizro_data"
         "lancedb_data"
+        "portainer_data"
         "lakehouse_shared"
     )
     
     for volume in "${volumes[@]}"; do
-        docker volume create "${project_name}_${volume}" || log_warning "Volume ${volume} may already exist"
+        log_info "Creating volume: ${project_name}_${volume}"
+        if docker volume create "${project_name}_${volume}" >/dev/null 2>&1; then
+            log_success "Created volume: ${project_name}_${volume}"
+        else
+            log_warning "Volume ${project_name}_${volume} may already exist"
+        fi
         
         # Fix ownership for Airflow volumes if they need special permissions
         if [[ "$volume" == "airflow_"* ]]; then
+            log_info "Fixing permissions for ${project_name}_${volume}"
             # Use a temporary container to fix Airflow volume ownership
             docker run --rm \
                 -v "${project_name}_${volume}:/mnt/volume" \
@@ -245,7 +252,11 @@ create_named_volumes() {
         fi
     done
     
-    log_success "Named volumes created"
+    # Verify volumes were created
+    log_info "Verifying created volumes..."
+    docker volume ls | grep "${project_name}_" || log_error "No volumes found with prefix ${project_name}_"
+    
+    log_success "Named volumes created and verified"
 }
 
 migrate_data() {
@@ -319,14 +330,37 @@ start_services() {
         return 0
     fi
     
+    # Verify critical volumes exist before starting services
+    local project_name=$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]')
+    local critical_volumes=("postgres_data" "minio_data" "lakehouse_shared")
+    
+    for vol in "${critical_volumes[@]}"; do
+        if ! docker volume inspect "${project_name}_${vol}" >/dev/null 2>&1; then
+            log_error "Critical volume ${project_name}_${vol} not found!"
+            log_info "Available volumes:"
+            docker volume ls | grep "${project_name}_" || log_warning "No project volumes found"
+            return 1
+        fi
+    done
+    
+    log_info "All critical volumes verified, starting services..."
+    
     # Start core services first
-    docker compose up -d postgres minio lakehouse-init
-    sleep 15
-    
-    # Start remaining services
-    docker compose up -d
-    
-    log_success "Services started with named volumes"
+    if docker compose up -d postgres minio lakehouse-init; then
+        log_success "Core services started"
+        sleep 15
+        
+        # Start remaining services
+        if docker compose up -d; then
+            log_success "All services started with named volumes"
+        else
+            log_error "Failed to start all services"
+            return 1
+        fi
+    else
+        log_error "Failed to start core services"
+        return 1
+    fi
 }
 
 verify_migration() {
