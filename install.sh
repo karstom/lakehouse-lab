@@ -212,16 +212,33 @@ show_upgrade_options() {
         docker ps --format "table {{.Names}}\t{{.Status}}" | grep "lakehouse-lab" | sed 's/^/     /'
     fi
     
+    local has_bind_mount_data=false
     if [[ -d "$INSTALL_DIR/lakehouse-data" ]] || [[ -d "./lakehouse-data" ]]; then
         echo -e "${BLUE}💾 Found data directory with your analytics data${NC}"
+        
+        # Check if this is old bind mount data that needs migration
+        if [[ -d "$INSTALL_DIR/lakehouse-data/postgres" ]] || [[ -d "./lakehouse-data/postgres" ]]; then
+            has_bind_mount_data=true
+            echo -e "${YELLOW}⚠️  Detected old bind mount storage (needs migration for safety)${NC}"
+        fi
     fi
     
     echo ""
     echo -e "${BLUE}${BOLD}What would you like to do?${NC}"
     echo ""
-    echo -e "${GREEN}1) Upgrade${NC} - Update to latest version (keeps your data and settings)"
-    echo -e "${YELLOW}2) Replace${NC} - Fresh installation (⚠️  removes all data and starts over)"
-    echo -e "${CYAN}3) Cancel${NC} - Exit without making changes"
+    
+    if $has_bind_mount_data; then
+        echo -e "${GREEN}1) Smart Upgrade${NC} - Update + migrate data to safe storage (RECOMMENDED)"
+        echo -e "${CYAN}2) Legacy Upgrade${NC} - Update code only (keeps old storage system)"
+        echo -e "${YELLOW}3) Replace${NC} - Fresh installation (⚠️  removes all data and starts over)"
+        echo -e "${CYAN}4) Cancel${NC} - Exit without making changes"
+        echo ""
+        echo -e "${BLUE}💡 Smart Upgrade migrates to named volumes for data safety${NC}"
+    else
+        echo -e "${GREEN}1) Upgrade${NC} - Update to latest version (keeps your data and settings)"
+        echo -e "${YELLOW}2) Replace${NC} - Fresh installation (⚠️  removes all data and starts over)"
+        echo -e "${CYAN}3) Cancel${NC} - Exit without making changes"
+    fi
     echo ""
     
     if [[ $UNATTENDED == "true" ]]; then
@@ -231,24 +248,49 @@ show_upgrade_options() {
     fi
     
     while true; do
-        read -p "Please choose (1/2/3): " choice </dev/tty
-        case $choice in
-            1|upgrade|Upgrade|UPGRADE)
-                UPGRADE_CHOICE="upgrade"
-                return 0
-                ;;
-            2|replace|Replace|REPLACE)
-                UPGRADE_CHOICE="replace"
-                return 0
-                ;;
-            3|cancel|Cancel|CANCEL|q|quit)
-                UPGRADE_CHOICE="cancel"
-                return 0
-                ;;
-            *)
-                echo -e "${RED}Invalid choice. Please enter 1, 2, or 3.${NC}"
-                ;;
-        esac
+        if $has_bind_mount_data; then
+            read -p "Please choose (1/2/3/4): " choice </dev/tty
+            case $choice in
+                1|smart|Smart|SMART)
+                    UPGRADE_CHOICE="smart-upgrade"
+                    return 0
+                    ;;
+                2|legacy|Legacy|LEGACY)
+                    UPGRADE_CHOICE="legacy-upgrade"
+                    return 0
+                    ;;
+                3|replace|Replace|REPLACE)
+                    UPGRADE_CHOICE="replace"
+                    return 0
+                    ;;
+                4|cancel|Cancel|CANCEL|q|quit)
+                    UPGRADE_CHOICE="cancel"
+                    return 0
+                    ;;
+                *)
+                    echo -e "${RED}Invalid choice. Please enter 1, 2, 3, or 4.${NC}"
+                    ;;
+            esac
+        else
+            read -p "Please choose (1/2/3): " choice </dev/tty
+            case $choice in
+                1|upgrade|Upgrade|UPGRADE)
+                    UPGRADE_CHOICE="upgrade"
+                    return 0
+                    ;;
+                2|replace|Replace|REPLACE)
+                    UPGRADE_CHOICE="replace"
+                    return 0
+                    ;;
+                3|cancel|Cancel|CANCEL|q|quit)
+                    UPGRADE_CHOICE="cancel"
+                    return 0
+                    ;;
+                *)
+                    echo -e "${RED}Invalid choice. Please enter 1, 2, or 3.${NC}"
+                    ;;
+            esac
+        fi
     done
 }
 
@@ -292,6 +334,55 @@ perform_upgrade() {
     
     print_success "Upgrade completed successfully!"
     print_warning "Backup available at: $backup_dir"
+}
+
+perform_smart_upgrade() {
+    print_step "🚀 Performing Smart Upgrade (with data migration to named volumes)..."
+    print_info "This will:"
+    echo -e "  ✅ Stop services safely (preserving data)"
+    echo -e "  ✅ Update to latest Lakehouse Lab"
+    echo -e "  ✅ Migrate your data to persistent storage"
+    echo -e "  ✅ Ensure data survives container recreation"
+    echo ""
+    
+    # First perform the regular upgrade steps
+    perform_upgrade
+    
+    # Then run the migration script from the updated directory
+    print_step "Running data migration to named volumes..."
+    cd "$INSTALL_DIR"
+    
+    # Check if migration script exists
+    if [[ ! -f "migrate-to-named-volumes.sh" ]]; then
+        print_error "Migration script not found in updated installation."
+        print_warning "Your upgrade was completed but data migration failed."
+        cd - >/dev/null
+        exit 1
+    fi
+    
+    bash migrate-to-named-volumes.sh
+    migration_result=$?
+    cd - >/dev/null
+    
+    if [[ $migration_result -ne 0 ]]; then
+        print_error "Data migration failed. Your upgrade was completed but data is still in bind mounts."
+        print_info "You can run the migration manually later: cd $INSTALL_DIR && bash migrate-to-named-volumes.sh"
+        exit 1
+    fi
+    
+    print_success "Smart upgrade completed successfully!"
+    print_info "Your data is now stored in named Docker volumes for maximum safety."
+}
+
+perform_legacy_upgrade() {
+    print_step "⚠️  Performing Legacy Upgrade (keeping bind mount storage)..."
+    print_warning "This upgrade preserves your current storage system but doesn't provide"
+    print_warning "protection against data loss during 'docker compose down' operations."
+    print_info "Consider running Smart Upgrade later for better data protection."
+    echo ""
+    
+    # This is essentially the same as the regular upgrade
+    perform_upgrade
 }
 
 perform_replace() {
@@ -566,7 +657,7 @@ download_lakehouse_lab() {
     print_step "Downloading Lakehouse Lab..."
     
     # Only remove directory if not in upgrade/replace mode (those handle it)
-    if [[ -d "$INSTALL_DIR" ]] && [[ $UPGRADE_MODE != "true" ]] && [[ $REPLACE_MODE != "true" ]]; then
+    if [[ -d "$INSTALL_DIR" ]] && [[ $UPGRADE_MODE != "true" ]] && [[ $UPGRADE_MODE != "smart-upgrade" ]] && [[ $UPGRADE_MODE != "legacy-upgrade" ]] && [[ $REPLACE_MODE != "true" ]]; then
         print_warning "Directory $INSTALL_DIR already exists. Removing..."
         rm -rf "$INSTALL_DIR"
     fi
@@ -675,6 +766,12 @@ show_completion_message() {
     if [[ $UPGRADE_MODE == "true" ]]; then
         echo -e "${GREEN}${BOLD}🎉 Upgrade Complete!${NC}"
         echo -e "${BLUE}Your data and settings have been preserved${NC}"
+    elif [[ $UPGRADE_MODE == "smart-upgrade" ]]; then
+        echo -e "${GREEN}${BOLD}🎉 Smart Upgrade Complete!${NC}"
+        echo -e "${BLUE}Your data has been migrated to persistent storage for maximum safety${NC}"
+    elif [[ $UPGRADE_MODE == "legacy-upgrade" ]]; then
+        echo -e "${GREEN}${BOLD}🎉 Legacy Upgrade Complete!${NC}"
+        echo -e "${BLUE}Your data and settings have been preserved (using bind mount storage)${NC}"
     elif [[ $REPLACE_MODE == "true" ]]; then
         echo -e "${GREEN}${BOLD}🎉 Fresh Installation Complete!${NC}"
         echo -e "${BLUE}Starting with a clean slate${NC}"
@@ -724,12 +821,18 @@ main() {
     print_header
     
     # Check for existing installation first (unless explicitly told to upgrade/replace)
-    if [[ $UPGRADE_MODE != "true" ]] && [[ $REPLACE_MODE != "true" ]]; then
+    if [[ $UPGRADE_MODE != "true" ]] && [[ $UPGRADE_MODE != "smart-upgrade" ]] && [[ $UPGRADE_MODE != "legacy-upgrade" ]] && [[ $REPLACE_MODE != "true" ]]; then
         if detect_existing_installation; then
             show_upgrade_options
             case $UPGRADE_CHOICE in
-                upgrade)  # Upgrade
+                upgrade)  # Standard upgrade
                     UPGRADE_MODE="true"
+                    ;;
+                smart-upgrade)  # Smart upgrade with migration
+                    UPGRADE_MODE="smart-upgrade"
+                    ;;
+                legacy-upgrade)  # Legacy upgrade (bind mounts)
+                    UPGRADE_MODE="legacy-upgrade"
                     ;;
                 replace)  # Replace
                     REPLACE_MODE="true"
@@ -749,6 +852,10 @@ main() {
     echo -e "  Iceberg: ${YELLOW}$ENABLE_ICEBERG${NC}"
     if [[ $UPGRADE_MODE == "true" ]]; then
         echo -e "  Mode: ${GREEN}Upgrade (preserving data)${NC}"
+    elif [[ $UPGRADE_MODE == "smart-upgrade" ]]; then
+        echo -e "  Mode: ${GREEN}Smart Upgrade (migrate to named volumes)${NC}"
+    elif [[ $UPGRADE_MODE == "legacy-upgrade" ]]; then
+        echo -e "  Mode: ${GREEN}Legacy Upgrade (keep bind mounts)${NC}"
     elif [[ $REPLACE_MODE == "true" ]]; then
         echo -e "  Mode: ${YELLOW}Replace (fresh install)${NC}"
     else
@@ -769,7 +876,7 @@ main() {
     echo ""
     
     # Confirm installation (only if not already chosen via upgrade options)
-    if [[ -t 0 && $UNATTENDED != "true" ]] && [[ $UPGRADE_MODE != "true" ]] && [[ $REPLACE_MODE != "true" ]]; then
+    if [[ -t 0 && $UNATTENDED != "true" ]] && [[ $UPGRADE_MODE != "true" ]] && [[ $UPGRADE_MODE != "smart-upgrade" ]] && [[ $UPGRADE_MODE != "legacy-upgrade" ]] && [[ $REPLACE_MODE != "true" ]]; then
         read -p "Continue with installation? [Y/n]: " -n 1 -r </dev/tty
         echo
         if [[ $REPLY =~ ^[Nn]$ ]]; then
@@ -786,6 +893,10 @@ main() {
     
     if [[ $UPGRADE_MODE == "true" ]]; then
         perform_upgrade
+    elif [[ $UPGRADE_MODE == "smart-upgrade" ]]; then
+        perform_smart_upgrade
+    elif [[ $UPGRADE_MODE == "legacy-upgrade" ]]; then
+        perform_legacy_upgrade
     elif [[ $REPLACE_MODE == "true" ]]; then
         perform_replace
     else
