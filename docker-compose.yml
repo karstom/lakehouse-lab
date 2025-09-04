@@ -36,9 +36,9 @@ x-airflow-common: &airflow-common
     # Install DuckDB and dependencies
     _PIP_ADDITIONAL_REQUIREMENTS: 'duckdb==1.3.2 duckdb-engine==0.17.0 boto3==1.35.5 pyarrow==14.0.2 sqlalchemy>=1.4.0'
   volumes:
-    - ${LAKEHOUSE_ROOT:-./lakehouse-data}/airflow/dags:/opt/airflow/dags
-    - ${LAKEHOUSE_ROOT:-./lakehouse-data}/airflow/logs:/opt/airflow/logs
-    - ${LAKEHOUSE_ROOT:-./lakehouse-data}/airflow/plugins:/opt/airflow/plugins
+    - airflow_dags:/opt/airflow/dags
+    - airflow_logs:/opt/airflow/logs
+    - airflow_plugins:/opt/airflow/plugins
   user: "${AIRFLOW_UID:-50000}:0"
   depends_on:
     postgres:
@@ -66,7 +66,7 @@ services:
       POSTGRES_WAL_BUFFERS: ${POSTGRES_WAL_BUFFERS:-32MB}
       POSTGRES_DEFAULT_STATISTICS_TARGET: ${POSTGRES_DEFAULT_STATISTICS_TARGET:-100}
     volumes:
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/postgres:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     # PostgreSQL port exposed for external access (pgAdmin, DBeaver, etc.)
     ports:
       - "5432:5432"
@@ -153,7 +153,7 @@ services:
       # Host IP for Homer dashboard (detected from host system)
       HOST_IP: ${HOST_IP:-}
     volumes:
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}:/mnt/lakehouse
+      - lakehouse_shared:/mnt/lakehouse
       - ./init-all-in-one-modular.sh:/host/init-all-in-one-modular.sh:ro
       - ./scripts:/host/scripts:ro
       - ./templates:/host/templates:ro
@@ -176,8 +176,8 @@ services:
       - "7077:7077"
       - "8080:8080"
     volumes:
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/spark/jobs:/opt/spark/work-dir
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/spark/logs:/opt/spark/logs
+      - spark_jobs:/opt/spark/work-dir
+      - spark_logs:/opt/spark/logs
     networks:
       - lakehouse
     command: >
@@ -213,8 +213,8 @@ services:
       SPARK_WORKER_CORES: ${SPARK_WORKER_CORES:-4}
       SPARK_DAEMON_MEMORY: ${SPARK_DAEMON_MEMORY:-1g}
     volumes:
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/spark/jobs:/opt/spark/work-dir
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/spark/logs:/opt/spark/logs
+      - spark_jobs:/opt/spark/work-dir
+      - spark_logs:/opt/spark/logs
     command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
     networks:
       - lakehouse
@@ -276,8 +276,8 @@ services:
         echo 'Starting Jupyter with standard startup script...'
         exec start-notebook.py --ServerApp.token='${JUPYTER_TOKEN}' --ServerApp.password='' --ServerApp.allow_origin='*' --ServerApp.disable_check_xsrf=True
     volumes:
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/notebooks:/home/jovyan/notebooks
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/jupyter-config:/home/jovyan/.jupyter
+      - jupyter_notebooks:/home/jovyan/notebooks
+      - jupyter_config:/home/jovyan/.jupyter
     networks:
       - lakehouse
     restart: unless-stopped
@@ -470,7 +470,7 @@ services:
     ports:
       - "9030:8088"
     volumes:
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/superset:/app/superset_home
+      - superset_data:/app/superset_home
       - ./scripts:/host/scripts:ro
     networks:
       - lakehouse
@@ -515,7 +515,7 @@ services:
     ports:
       - "9061:8080"
     volumes:
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/homer:/www/assets
+      - homer_data:/www/assets
     networks:
       - lakehouse
     environment:
@@ -555,7 +555,7 @@ services:
         pip install --no-cache-dir vizro[default] pandas plotly psycopg2-binary boto3 duckdb pyarrow sqlalchemy
         cd /app/dashboards && python app.py
     volumes:
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/vizro:/app/dashboards
+      - vizro_data:/app/dashboards
     networks:
       - lakehouse
     healthcheck:
@@ -596,7 +596,7 @@ services:
         pip install --no-cache-dir lancedb pyarrow pandas fastapi uvicorn boto3 numpy
         python /app/service/lancedb_service.py
     volumes:
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/lancedb:/app
+      - lancedb_data:/app
     networks:
       - lakehouse
     healthcheck:
@@ -613,7 +613,38 @@ services:
           memory: ${LANCEDB_MEMORY_RESERVATION:-1G}
 
 volumes:
-  portainer_data:
+  # Core data volumes (persistent across container recreation)
+  postgres_data:
     driver: local
   minio_data:
+    driver: local
+  
+  # Shared data volumes
+  lakehouse_shared:
+    driver: local
+  
+  # Application data volumes
+  jupyter_notebooks:
+    driver: local
+  jupyter_config:
+    driver: local
+  airflow_dags:
+    driver: local
+  airflow_logs:
+    driver: local
+  airflow_plugins:
+    driver: local
+  spark_jobs:
+    driver: local
+  spark_logs:
+    driver: local
+  superset_data:
+    driver: local
+  homer_data:
+    driver: local
+  vizro_data:
+    driver: local
+  lancedb_data:
+    driver: local
+  portainer_data:
     driver: local

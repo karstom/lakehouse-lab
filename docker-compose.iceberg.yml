@@ -33,7 +33,7 @@ services:
       - SPARK_CONF_spark_sql_adaptive_coalescePartitions_enabled=true
     volumes:
       # Mount directory containing Iceberg JAR files
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/iceberg-jars:/opt/spark/jars/iceberg:ro
+      - iceberg_jars:/opt/spark/jars/iceberg:ro
     depends_on:
       - minio
 
@@ -64,7 +64,7 @@ services:
       - SPARK_CONF_spark_sql_adaptive_coalescePartitions_enabled=true
     volumes:
       # Mount directory containing Iceberg JAR files
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/iceberg-jars:/opt/spark/jars/iceberg:ro
+      - iceberg_jars:/opt/spark/jars/iceberg:ro
     depends_on:
       - minio
       - spark-master
@@ -83,7 +83,7 @@ services:
       - JUPYTER_ICEBERG_ENABLED=true
     volumes:
       # Mount Iceberg JARs for Jupyter access
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/iceberg-jars:/home/jovyan/work/iceberg-jars:ro
+      - iceberg_jars:/home/jovyan/work/iceberg-jars:ro
       # Mount custom Iceberg notebooks
       - ./iceberg-notebooks:/home/jovyan/work/iceberg-examples:ro
 
@@ -152,5 +152,7 @@ services:
 
 # Create iceberg-warehouse bucket in MinIO
 volumes:
-  iceberg-warehouse:
+  iceberg_jars:
+    driver: local
+  iceberg_warehouse:
     driver: local

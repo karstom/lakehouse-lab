@@ -34,9 +34,9 @@ services:
     ports:
       - "9041:8000"
     volumes:
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/jupyterhub:/srv/jupyterhub/users
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/notebooks:/srv/shared:ro           # Original shared notebooks
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/shared-notebooks:/srv/shared-notebooks  # New collaborative space
+      - jupyterhub_users:/srv/jupyterhub/users
+      - jupyter_notebooks:/srv/shared:ro           # Original shared notebooks
+      - jupyterhub_shared:/srv/shared-notebooks  # New collaborative space
       - /var/run/docker.sock:/var/run/docker.sock:rw
     networks:
       - lakehouse
@@ -58,8 +58,8 @@ services:
           memory: ${JUPYTER_MEMORY_RESERVATION:-2G}
 
 volumes:
-  # Additional volumes for JupyterHub
-  lakehouse-data-jupyterhub:
+  # JupyterHub named volumes for persistent data
+  jupyterhub_users:
     driver: local
-  lakehouse-data-shared:
+  jupyterhub_shared:
     driver: local
