@@ -10,7 +10,7 @@
 > **🎓 Modern Data Engineering Learning Platform in 15 Minutes**  
 > **🔒 Optional Team Authentication • 🤖 AI-Powered API • 📊 Modern Dashboards**
 
-**Version 2.1.0** - A comprehensive lakehouse environment designed for learning modern data engineering practices and lab-scale projects. **Features enterprise authentication, AI-powered data API, modern interactive dashboards, vector search, multi-user JupyterHub, and comprehensive backup systems - making advanced lakehouse technologies accessible to home-labbers and learning environments.**
+**Version 2.1.0** - A comprehensive lakehouse environment designed for learning modern data engineering practices and lab-scale projects. **Features integrated authentication, AI-powered data API, modern interactive dashboards, vector search, multi-user JupyterHub, and comprehensive backup systems - making advanced lakehouse technologies accessible to home-labbers and learning environments.**
 
 ### 🎯 Choose Your Experience
 
