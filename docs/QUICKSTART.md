@@ -1,23 +1,24 @@
-# 🚀 Lakehouse Lab - 15-Minute Quickstart Guide
+# 🚀 Lakehouse Lab - 15-Minute Educational Quickstart Guide
 
-**Version 2.1.0** - Get your complete modern data engineering learning environment running in 15 minutes! Perfect for learning data engineering practices, lab-scale projects, and understanding enterprise-grade technologies in a home-lab friendly environment.
+**Version 2.1.0** - Get your complete modern data engineering learning environment running in 15 minutes! Perfect for data engineering students, CS labs, educational institutions, and learning enterprise-grade technologies in a classroom-friendly environment.
 
 ## ⚡ 1. Quick Setup
 
 > ⚠️ **Critical**: Always use `./install.sh` for new installations. Direct `docker compose up -d` will fail without proper credentials and initialization!
 
-### 🏠 **Individual Developer Setup (Simple & Fast)**
+### 🎓 **Individual Learning Setup (Simple & Fast)**
 
-**One-Command Install - Perfect for Learning:**
+**One-Command Install - Perfect for Students & Educators:**
 ```bash
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
 ```
 
-### 🏢 **Enterprise Team Setup (Secure & Collaborative)**
+### 🏫 **Educational Institution Setup (Multi-User & Collaborative)**
 
-**Secure Installation with Team Authentication:**
+**Multi-User Installation for Classrooms & Labs:**
 ```bash
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install-with-auth.sh | bash
+# Standard installation with multi-user capabilities
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
 ```
 
 ### **Alternative: Git Clone Method**
@@ -25,13 +26,10 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install-w
 git clone https://github.com/karstom/lakehouse-lab.git
 cd lakehouse-lab
 
-# Individual setup
+# Individual/educational setup
 ./install.sh
 
-# OR Enterprise setup  
-./install-with-auth.sh
-
-# OR Fat server setup (32+ cores, 64GB+ RAM)
+# OR High-performance setup for CS labs (32+ cores, 64GB+ RAM)
 ./install.sh --fat-server
 ```
 
@@ -41,16 +39,15 @@ cd lakehouse-lab
 ./scripts/setup-wizard.sh
 
 # Or use presets
-./scripts/setup-wizard.sh --minimal    # 8GB RAM
-./scripts/setup-wizard.sh --analytics  # 14GB RAM  
-./scripts/setup-wizard.sh --ml         # 16GB RAM
-./scripts/setup-wizard.sh --full       # 20GB RAM
-./scripts/setup-wizard.sh --secure     # 22GB RAM (with auth)
+./scripts/setup-wizard.sh --minimal    # 8GB RAM - Basic learning environment
+./scripts/setup-wizard.sh --analytics  # 14GB RAM - BI/Dashboard focus
+./scripts/setup-wizard.sh --ml         # 16GB RAM - AI/ML coursework
+./scripts/setup-wizard.sh --full       # 20GB RAM - Complete curriculum
 ```
 
-### 👥 **Multi-User JupyterHub Setup (Team Collaboration)**
+### 👥 **Multi-User JupyterHub Setup (Classroom Collaboration)**
 
-**For team environments, replace single-user Jupyter with multi-user JupyterHub:**
+**For educational environments, enable multi-user JupyterHub for student collaboration:**
 
 ```bash
 # After installation, enable multi-user JupyterHub
@@ -61,12 +58,12 @@ docker compose -f docker-compose.yml -f docker-compose.jupyterhub.yml up -d
 ./scripts/provision-user.sh jane.smith jane.smith@company.com AnotherPass456 admin
 ```
 
-**JupyterHub Features:**
-- 👥 **Multi-user environment** with containerized isolation per user
-- 🔗 **Spark integration** automatically configured for all users
-- 📁 **Shared notebooks** (readonly templates + collaborative workspace)
-- 🔐 **User authentication** with role-based access control
-- 📊 **Resource management** with per-user CPU and memory limits
+**JupyterHub Features for Education:**
+- 👥 **Multi-user environment** with containerized isolation per student
+- 🔗 **Spark integration** automatically configured for all students
+- 📁 **Shared notebooks** (readonly course materials + collaborative workspace)
+- 🔐 **Student authentication** with role-based access control
+- 📊 **Resource management** with per-student CPU and memory limits
 
 **Access JupyterHub:** http://localhost:9041
 
@@ -113,11 +110,6 @@ Once startup completes, access these URLs:
 | **LanceDB API** | http://localhost:9080 | Vector Database | API Access |
 | **Homer Dashboard** | http://localhost:9061 | Service Links | N/A |
 
-### 🔐 **Enterprise Authentication Services (If Enabled)**
-| Service | URL | Purpose | Credentials |
-|---------|-----|---------|-------------|
-| **Auth Portal** | http://localhost:9091 | Login & User Management | OAuth/Local |
-| **Secure Access** | http://localhost:9092 | Authenticated Service Access | Via Auth Portal |
 
 ## 🔒 Getting Your Login Credentials
 
@@ -132,7 +124,7 @@ This shows all your service URLs and login credentials in a clean, copy-paste re
 
 ---
 
-## 📊 3. Your First Analytics Query - FIXED!
+## 📊 3. Your First Analytics Query
 
 ### **Step 1: Open Superset**
 1. Visit http://localhost:9030
@@ -141,7 +133,7 @@ This shows all your service URLs and login credentials in a clean, copy-paste re
 4. Go to **SQL Lab**
 
 ### **Step 2: Use Pre-configured DuckDB Database**
-✅ **FIXED**: The DuckDB connection is now pre-configured with the correct URI and S3 settings!
+✅ **Ready for Learning**: The DuckDB connection is pre-configured for immediate educational use!
 
 The database connection **"DuckDB-S3"** should appear automatically with:
 - **URI**: `duckdb:////app/superset_home/lakehouse.duckdb` (fixed persistent file)
@@ -154,8 +146,8 @@ The database connection **"DuckDB-S3"** should appear automatically with:
 1. Refresh the page or try **Data** → **Database Connections**
 2. If still not there, see the [Superset Database Setup Guide](SUPERSET_DATABASE_SETUP.md) for manual creation steps
 
-### **Step 3: Query Your Data (No Configuration Needed!)**
-✅ **FIXED**: S3 configuration is now persistent - no need to run setup commands every time!
+### **Step 3: Query Your Data (Ready to Go!)**
+✅ **Educational Ready**: S3 configuration is persistent - perfect for learning sessions!
 
 Simply run your analytics queries:
 
@@ -175,14 +167,14 @@ GROUP BY product_category
 ORDER BY total_revenue DESC;
 ```
 
-🎉 **You just ran analytics on your data lake without any configuration!**
+🎓 **You just learned lakehouse analytics with zero configuration complexity!**
 
 ---
 
-## 📈 4. Create Your First Dataset - FIXED!
+## 📈 4. Learn Dataset Creation
 
-### **Step 1: Create a Dataset (Single Query Only)**
-✅ **FIXED**: Use single SELECT statements to avoid "Only single queries supported" error
+### **Step 1: Create a Dataset (Educational Best Practice)**
+✅ **Learning**: Use single SELECT statements following data engineering best practices
 
 1. In Superset, go to **Data** → **Datasets** → **+ Dataset**
 2. **Database**: DuckDB-S3
@@ -217,10 +209,10 @@ GROUP BY product_category
 ---
 
 
-## 📊 5. Modern Interactive Dashboards (NEW!)
+## 📊 5. Learn Modern Interactive Dashboards
 
 ### **Step 1: Access Vizro Dashboards**
-✨ **NEW**: Modern, responsive dashboard framework!
+✨ **Educational**: Learn modern, responsive dashboard development!
 
 1. Visit http://localhost:9050
 2. Get credentials: Run `./scripts/show-credentials.sh`
@@ -253,10 +245,10 @@ pages:
 
 ---
 
-## 🔍 6. Vector Database & Semantic Search (NEW!)
+## 🔍 6. Vector Database & Semantic Search (Educational AI/ML)
 
 ### **Step 1: Access LanceDB**
-✨ **NEW**: High-performance vector operations for AI/ML!
+✨ **Educational**: Learn high-performance vector operations for AI/ML!
 
 1. API available at http://localhost:9080
 2. Pre-loaded with sample embeddings and vectors
@@ -286,10 +278,10 @@ similar_products = response.json()
 
 ---
 
-## 🔬 7. Interactive Data Science - Enhanced!
+## 🔬 7. Interactive Data Science Learning
 
 ### **Step 1: Open JupyterLab**
-✅ **FIXED**: DuckDB packages are now pre-installed in Jupyter
+✅ **Ready for Learning**: DuckDB packages are pre-installed for immediate use
 
 1. Visit http://localhost:9040
 2. **Get token**: Run `./scripts/show-credentials.sh` to see your JupyterLab token
@@ -307,11 +299,11 @@ import matplotlib.pyplot as plt
 # Connect to DuckDB with S3 configuration
 conn = duckdb.connect()
 
-# Configure S3 access (still needed in Jupyter)
+# Configure S3 access for learning environment
 conn.execute("""
     INSTALL httpfs; LOAD httpfs;
     SET s3_endpoint='minio:9000';
-    SET s3_access_key_id='admin';  -- Replace with your MinIO username
+    SET s3_access_key_id='admin';  -- Default username for educational setup
     SET s3_secret_access_key='YOUR_MINIO_PASSWORD';  -- Get from ./scripts/show-credentials.sh
     SET s3_use_ssl=false;
     SET s3_url_style='path';
@@ -338,67 +330,65 @@ plt.show()
 print(f"DuckDB version: {duckdb.__version__}")  # Should show 1.3.2
 ```
 
-### **Step 3: Enhanced Example Notebooks**
-✨ **NEW**: Comprehensive tutorial notebooks with AI-powered analytics!
+### **Step 3: Educational Example Notebooks**
+✨ **NEW**: Comprehensive tutorial notebooks designed for learning!
 
-**Available Notebooks:**
-- `04_Vizro_Interactive_Dashboards.ipynb` - Modern dashboard creation and component architecture
-- `05_LanceDB_Vector_Search.ipynb` - Vector database, semantic search, and clustering
-- `06_Advanced_Analytics_Vizro_LanceDB.ipynb` - Combined AI-powered analytics with interactive dashboards
-- `simple_working_dashboard.py` - Bulletproof dashboard solution that works in any environment
+**Available Learning Notebooks:**
+- `01_Getting_Started.ipynb` - Introduction to the lakehouse environment
+- `02_PostgreSQL_Analytics.ipynb` - Database analytics and SQL integration
+- `04_Vizro_Interactive_Dashboards.ipynb` - Modern dashboard creation
+- `05_LanceDB_Vector_Search.ipynb` - Vector database and semantic search
+- `06_Advanced_Analytics_Vizro_LanceDB.ipynb` - Combined AI-powered analytics
+- `simple_working_dashboard.py` - Interactive dashboard development
 
-**Key Features:**
-- 🎨 **Interactive Dashboards**: Professional charts with hover, zoom, and filtering
-- 🤖 **AI-Powered Analytics**: Semantic clustering, UMAP visualization, and TF-IDF analysis
-- 📊 **Business Intelligence**: Revenue trends, customer analysis, and product metrics
-- 🚀 **Production-Ready**: Robust error handling with multiple fallback strategies
+**Educational Features:**
+- 🎨 **Interactive Learning**: Step-by-step tutorials with hands-on examples
+- 🤖 **AI/ML Concepts**: Learn semantic clustering, UMAP visualization, and TF-IDF analysis
+- 📊 **Data Engineering**: Revenue trends, customer analysis, and business metrics
+- 🎓 **Learning-Focused**: Clear explanations with educational best practices
 
 **Quick Start:**
 ```python
 # In any Jupyter notebook, run the dashboard demo:
-exec(open('/shared-notebooks/simple_working_dashboard.py').read())
+# Path will be available after initialization
+exec(open('/home/jovyan/notebooks/simple_working_dashboard.py').read())
 display_dashboard()
 ```
 
 ---
 
-## 🔐 8. Enterprise Authentication & Team Access (NEW!)
+## 🔐 8. User Management & Access Control
 
-### **Step 1: Access Authentication Portal (If Enabled)**
-✨ **NEW**: Enterprise-grade authentication with role-based access!
+### **Step 1: Single-User Access (Default)**
+By default, Lakehouse Lab provides secure single-user access perfect for individual learning:
 
-1. Visit http://localhost:9091 (Auth Portal)
-2. Choose login method:
-   - **Local Login**: admin@localhost (development)
-   - **OAuth**: Google, Microsoft, GitHub (production)
+1. All services use generated credentials (run `./scripts/show-credentials.sh` to view)
+2. Each service has its own authentication system
+3. Perfect for individual students and small learning groups
 
-### **Step 2: Configure OAuth Providers**
+### **Step 2: Multi-User Setup (Educational Environments)**
+For classroom and lab environments, use JupyterHub for multi-user collaboration:
+
 ```bash
-# Interactive OAuth setup wizard
-./scripts/setup-auth.sh
+# Enable multi-user JupyterHub
+docker compose -f docker-compose.yml -f docker-compose.jupyterhub.yml up -d
 
-# Add authentication to existing installation
-./scripts/enable-auth.sh
+# Add students/users
+./scripts/provision-user.sh student1 student1@university.edu SecurePass123 student
+./scripts/provision-user.sh professor professor@university.edu AdminPass456 admin
 ```
 
-### **Step 3: User Roles & Permissions**
-- **data_viewer**: Read-only dashboard access
-- **data_analyst**: Query data, create charts  
-- **data_engineer**: ETL pipelines, data modeling
-- **admin**: Full system access, user management
-
-### **Step 4: Secure Service Access**
-All services are protected via http://localhost:9092 when authentication is enabled:
-- Automatic JWT token validation
-- Complete audit logging of all actions
-- Role-based service access control
+### **Step 3: Educational User Roles**
+- **student**: Access to JupyterHub, shared notebooks, course materials
+- **instructor**: Full notebook access, can create/modify course content
+- **admin**: System administration, user management, all services
 
 ---
 
-## ⚙️ 9. Workflow Orchestration - Enhanced!
+## ⚙️ 9. Workflow Orchestration Learning
 
 ### **Step 1: Open Airflow**
-✅ **FIXED**: DuckDB import errors resolved - DAGs now work!
+✅ **Educational**: Pre-configured DAGs ready for learning workflow orchestration
 
 1. Visit http://localhost:9020
 2. **Get credentials**: Run `./scripts/show-credentials.sh` to see your Airflow login
@@ -416,7 +406,7 @@ All services are protected via http://localhost:9092 when authentication is enab
 
 ---
 
-## 💾 10. Manage Your Data
+## 💾 10. Learn Data Management
 
 ### **Step 1: Access MinIO Console**
 1. Visit http://localhost:9001
@@ -438,7 +428,7 @@ All services are protected via http://localhost:9092 when authentication is enab
 
 ---
 
-## 🐳 11. Monitor Everything
+## 🐳 11. Learn System Monitoring
 
 ### **Step 1: Container Management**
 1. Visit http://localhost:9060 (Portainer)
@@ -464,9 +454,9 @@ docker compose logs -f jupyter
 
 ---
 
-## 🔧 12. Advanced Patterns
+## 🔧 12. Advanced Learning Patterns
 
-### **Multi-File Analytics (Now Works Perfectly!)**
+### **Multi-File Analytics (Educational Examples)**
 ```sql
 -- Query multiple files with same schema
 SELECT * FROM read_csv_auto('s3://lakehouse/raw-data/orders_*.csv');
@@ -493,13 +483,13 @@ ORDER BY month;
 
 ---
 
-## 🚨 13. Troubleshooting
+## 🚨 13. Learning Environment Troubleshooting
 
-### **Fixed Issues:**
-✅ **Issue #1**: Superset S3 configuration now persists  
-✅ **Issue #2**: Airflow DuckDB import errors resolved  
-✅ **Dataset Creation**: Single query requirement documented  
-✅ **Latest Packages**: DuckDB 1.3.2 + duckdb-engine 0.17.0  
+### **Educational Environment Features:**
+✅ **Persistent Configuration**: Superset S3 settings maintained across sessions  
+✅ **Working Examples**: All Airflow DAGs configured and functional  
+✅ **Best Practices**: Single query patterns for dataset creation  
+✅ **Modern Stack**: DuckDB 1.3.2 + duckdb-engine 0.17.0 for current industry practices  
 
 ### **Common Issues:**
 ```bash
@@ -516,51 +506,53 @@ sudo rm -rf lakehouse-data/
 docker compose up -d
 ```
 
-### **Superset Database Connection Issues**
-If you need to manually update the Superset DuckDB connection:
+### **Educational Environment Connection Issues**
+If you need to manually update the Superset DuckDB connection for learning purposes:
 
 1. Go to **Settings** → **Database Connections**
 2. Edit "DuckDB-S3" 
 3. Ensure **SQLAlchemy URI**: `duckdb:////app/superset_home/lakehouse.duckdb`
-4. **Test Connection** should work immediately
+4. **Test Connection** should work immediately - perfect for educational demos
 
 ---
 
-## 🎓 What You've Accomplished
+## 🎓 What You've Learned
 
-After completing this Version 2.0.0 quickstart:
+After completing this Version 2.1.0 quickstart, you've gained hands-on experience with:
 
-✅ **Enterprise-Ready Data Platform** - Complete analytics stack with optional security  
+✅ **Modern Data Engineering Platform** - Complete analytics stack for learning  
   
-✅ **Modern Interactive Dashboards** - Vizro framework with live data  
-✅ **Vector Database Integration** - LanceDB for semantic search and AI/ML  
-✅ **Fixed S3 Integration** - Persistent DuckDB S3 configuration  
-✅ **Working Airflow DAGs** - No more import errors, enhanced capabilities  
-✅ **Latest Technology** - DuckDB 1.3.2 + Vector database + AI integration  
-✅ **Enterprise Security** - Optional OAuth with role-based access control  
-✅ **Triple Analytics Architecture** - Data lake + warehouse + vector database  
-✅ **Production Patterns** - Modern lakehouse with team collaboration  
+✅ **Interactive Dashboard Development** - Vizro framework with live data  
+✅ **Vector Database Concepts** - LanceDB for semantic search and AI/ML applications  
+✅ **Cloud-Native Storage** - S3-compatible object storage with DuckDB integration  
+✅ **Workflow Orchestration** - Airflow DAGs for data pipeline automation  
+✅ **Modern Analytics Stack** - DuckDB 1.3.2 + Vector database + AI integration  
+✅ **Multi-User Collaboration** - JupyterHub for team-based data science  
+✅ **Lakehouse Architecture** - Modern data lake + warehouse + vector database patterns  
+✅ **Educational Best Practices** - Comprehensive learning environment for data engineering  
 
 ## 🚀 Next Steps
 
-### **Individual Developers**
+### **Individual Students & Self-Learners**
 - **Add Your Data**: Upload CSV/Parquet files to MinIO
 - **Build ML Models**: Use LanceDB for vector embeddings and semantic search
 - **Create Dashboards**: Build interactive Vizro dashboards
+- **Experiment & Learn**: Safe environment for data engineering practice
 
-### **Enterprise Teams** 
-- **Setup OAuth**: Configure Google/Microsoft/GitHub authentication
-- **Manage Users**: Assign roles and permissions for team members
-- **Enable Audit**: Monitor all data access and operations
-- **Scale Infrastructure**: Use fat-server configuration for production workloads
+### **Educational Institutions & Instructors** 
+- **Setup Multi-User**: Configure JupyterHub for classroom collaboration
+- **Manage Students**: Assign roles and control access to course materials
+- **Monitor Progress**: Track student usage and learning activities
+- **Scale Resources**: Use high-performance configuration for computer labs
 
-### **Advanced Use Cases**
-- **Vector Search**: Build recommendation systems and semantic search
-- **Real-time Analytics**: Create streaming dashboards with live data
-- **Multi-tenant**: Configure separate environments for different teams
+### **Advanced Learning Topics**
+- **Vector Search**: Build recommendation systems and semantic search applications
+- **Real-time Analytics**: Create streaming dashboards and live data visualization
+- **Distributed Computing**: Explore Spark for large-scale data processing
+- **Data Pipeline Design**: Learn ETL/ELT patterns with Airflow orchestration
 
 ---
 
-**Happy Data Engineering in the AI Era!** 🚀🤖
+**Happy Learning and Data Engineering!** 🚀🎓
 
-Your enterprise-ready lakehouse is now fully functional with cutting-edge AI capabilities!
+Your educational lakehouse environment is now ready for comprehensive data engineering learning and experimentation!

@@ -1,12 +1,12 @@
 # 🚀 Lakehouse Lab Installation Guide
 
-**Version 2.1.0** - Complete installation options for all platforms and use cases, from individual development to enterprise team collaboration with multi-user JupyterHub environments.
+**Version 2.1.0** - Complete installation options for all platforms and use cases, from individual learning to educational institutions with multi-user JupyterHub environments.
 
 > ⚠️ **Critical for New Users**: You **MUST** use `./install.sh` for first-time installation. Running `docker compose up -d` directly will fail because it requires secure credentials and proper initialization that only the installer provides.
 
 ## ⚡ One-Command Installation
 
-### 🏠 **Individual Developer Installation (Simple & Fast)**
+### 🎓 **Individual Student Installation (Simple & Fast)**
 
 **Standard Installation (Recommended for Learning):**
 ```bash
@@ -20,12 +20,12 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --fat-server
 ```
 
-### 🏢 **Enterprise Team Installation (Secure & Collaborative)**
+### 🏫 **Educational Institution Installation (Multi-User & Collaborative)**
 
-**Secure Installation with Authentication:**
+**Standard Multi-User Installation:**
 ```bash
-# Complete secure installation with team authentication
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install-with-auth.sh | bash
+# Complete installation for classrooms and computer labs
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
 ```
 
 ### 🎯 **Interactive Setup Wizard (Recommended)**
@@ -40,13 +40,11 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --preset analytics
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --preset ml
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --preset full
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --preset secure
 ```
 
 **Windows WSL or macOS users** (if piping fails):
 ```bash
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install-with-auth.sh -o /tmp/install-with-auth.sh && bash /tmp/install-with-auth.sh
 ```
 
 ### **Unattended Installation (CI/CD)**
@@ -132,31 +130,7 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 | **Starting fresh** | Replace | Removes all old data |
 | **After failed initial install** | Replace | Cleans up any partial state |
 
-## 🔐 Enterprise Authentication Setup
-
-### **Add Authentication to Existing Installation**
-```bash
-# Enable authentication on existing installation
-./scripts/enable-auth.sh
-
-# Configure OAuth providers
-./scripts/setup-auth.sh
-```
-
-### **OAuth Provider Configuration**
-```bash
-# Google Workspace
-./scripts/setup-auth.sh --provider google
-
-# Microsoft Azure AD  
-./scripts/setup-auth.sh --provider microsoft
-
-# GitHub Enterprise
-./scripts/setup-auth.sh --provider github
-
-# Configure all providers interactively
-./scripts/setup-auth.sh
-```
+## 🔧 Service Configuration
 
 ### **Service Configuration Presets**
 ```bash
@@ -168,7 +142,6 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 ./scripts/configure-services.sh preset analytics  # 14GB RAM  
 ./scripts/configure-services.sh preset ml         # 16GB RAM
 ./scripts/configure-services.sh preset full       # 20GB RAM
-./scripts/configure-services.sh preset secure     # 22GB RAM (with auth)
 ```
 
 ## 🔧 Installation Options
@@ -177,7 +150,7 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 |--------|-------------|---------|
 | `--fat-server` | High-performance config (32+ cores, 64GB+ RAM) | `--fat-server` |
 | `--wizard` | Interactive service selection wizard | `--wizard` |
-| `--preset NAME` | Use configuration preset (minimal/analytics/ml/full/secure) | `--preset secure` |
+| `--preset NAME` | Use configuration preset (minimal/analytics/ml/full) | `--preset full` |
 | `--no-start` | Download only, don't start services | `--no-start` |
 | `--unattended` | No prompts, assume yes to all | `--unattended` |
 | `--skip-deps` | Skip dependency installation | `--skip-deps` |
@@ -253,7 +226,6 @@ cd lakehouse-lab
 | **Analytics** | 14GB | 4+ | 50GB | BI dashboards + visualization |
 | **ML/AI** | 16GB | 6+ | 100GB | Vector database + ML workflows |
 | **Full** | 20GB | 8+ | 200GB | All data services |
-| **Secure** | 22GB | 8+ | 250GB | Full platform + authentication |
 | **Fat Server** | 64GB+ | 16+ | 500GB+ | High-performance deployment |
 
 ### **Base System Requirements**
@@ -262,10 +234,6 @@ cd lakehouse-lab
 - **Network**: Internet connection for installation
 - **Ports**: 8080, 9001, 9020-9092 available
 
-### **Enterprise Authentication Requirements**
-- **OAuth Setup**: Google/Microsoft/GitHub developer account (optional)
-- **SSL Certificates**: For production OAuth callbacks (optional)
-- **Domain/DNS**: For OAuth redirect URIs (production only)
 
 ## 🛡️ Security Considerations
 
@@ -381,11 +349,11 @@ cd lakehouse-lab
 3. 📊 Upload your own data to MinIO
 4. 🔬 Create analysis notebooks in Jupyter
 
-## 👥 Multi-User Setup & Team Management
+## 👥 Multi-User Setup & Educational Institution Management
 
 ### **Enabling Multi-User JupyterHub**
 
-**For team environments, replace single-user Jupyter with multi-user JupyterHub:**
+**For educational environments, replace single-user Jupyter with multi-user JupyterHub:**
 
 ```bash
 # Enable JupyterHub with Docker Compose overlay
@@ -394,37 +362,37 @@ docker compose -f docker-compose.yml -f docker-compose.jupyterhub.yml up -d
 
 **JupyterHub will be available at:** http://localhost:9041
 
-### **User Provisioning Across All Services**
+### **Student and Instructor Provisioning Across All Services**
 
-**Provision users across Superset, Airflow, MinIO, and JupyterHub with one command:**
+**Provision students and instructors across Superset, Airflow, MinIO, and JupyterHub with one command:**
 
 ```bash
-# Provision a team member with analyst role
-./scripts/provision-user.sh john.doe john.doe@company.com SecurePass123 analyst
+# Provision a student with analyst role
+./scripts/provision-user.sh john.student john.student@university.edu SecurePass123 analyst
 
-# Provision an admin user
-./scripts/provision-user.sh jane.smith jane.smith@company.com AnotherPass456 admin
+# Provision an instructor/admin user
+./scripts/provision-user.sh prof.smith prof.smith@university.edu AdminPass456 admin
 
-# Provision a viewer-only user
-./scripts/provision-user.sh bob.viewer bob.viewer@company.com ViewPass789 viewer
+# Provision a read-only user
+./scripts/provision-user.sh guest.user guest.user@university.edu ViewPass789 viewer
 ```
 
 ### **User Roles & Service Access**
 
 | Role | Superset | Airflow | MinIO | JupyterHub | Description |
 |------|----------|---------|-------|------------|-------------|
-| **admin** | Admin | Admin | consoleAdmin | sudo access | Full platform administration |
-| **analyst** | Alpha | User | readwrite | standard user | Create dashboards, run workflows |
-| **viewer** | Gamma | Viewer | readonly | standard user | View dashboards, read-only data |
+| **admin** | Admin | Admin | consoleAdmin | sudo access | Instructor/administrator access |
+| **analyst** | Alpha | User | readwrite | standard user | Student access - create dashboards, run workflows |
+| **viewer** | Gamma | Viewer | readonly | standard user | Guest access - view dashboards, read-only data |
 
 ### **JupyterHub Features**
 
 - **👥 Multi-user environment** with containerized isolation per user
 - **🔗 Spark integration** automatically configured for all users
 - **📁 Shared notebooks** (readonly templates + collaborative workspace)
-- **🔐 User authentication** with role-based access control
+- **🔐 User management** with role-based access control
 - **📊 Resource management** with per-user CPU and memory limits
-- **🏢 Team collaboration** with shared data access across services
+- **🎓 Classroom collaboration** with shared data access across services
 
 ### **Managing Users**
 
@@ -433,10 +401,10 @@ docker compose -f docker-compose.yml -f docker-compose.jupyterhub.yml up -d
 ./scripts/provision-user.sh --list
 
 # Remove a user from all services
-./scripts/provision-user.sh --remove john.doe
+./scripts/provision-user.sh --remove john.student
 
 # Update user role
-./scripts/provision-user.sh john.doe john.doe@company.com NewPass123 admin --update
+./scripts/provision-user.sh john.student john.student@university.edu NewPass123 admin --update
 ```
 
 ## 🔄 Updating
@@ -496,7 +464,7 @@ After installation, set up automated backups to protect your valuable data and c
 ### **CRON-Based Backups (Recommended for most users)**
 ```bash
 # Setup daily automated backups with email notifications
-./examples/cron-backup-setup.sh --email admin@company.com --compress
+./examples/cron-backup-setup.sh --email admin@university.edu --compress
 
 # Interactive setup wizard
 ./examples/cron-backup-setup.sh
@@ -512,7 +480,7 @@ After installation, set up automated backups to protect your valuable data and c
 cp templates/airflow/dags/lakehouse_backup_dag.py lakehouse-data/airflow/dags/
 
 # Configure environment variables
-export BACKUP_NOTIFICATION_EMAIL="admin@company.com"
+export BACKUP_NOTIFICATION_EMAIL="admin@university.edu"
 export LAKEHOUSE_BACKUP_PATH="/path/to/backups"
 
 # The DAG will appear in Airflow UI for scheduling and monitoring

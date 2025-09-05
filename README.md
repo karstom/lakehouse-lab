@@ -1,4 +1,4 @@
-# Lakehouse Lab 🏠📊
+# Lakehouse Lab 🎓📊
 
 [![GitHub release](https://img.shields.io/github/release/karstom/lakehouse-lab.svg)](https://github.com/karstom/lakehouse-lab/releases)
 [![Docker Compose](https://img.shields.io/badge/docker--compose-ready-blue)](https://docs.docker.com/compose/)
@@ -10,30 +10,30 @@
 > **🎓 Modern Data Engineering Learning Platform in 15 Minutes**  
 > **🚀 One-Click Install • 🔍 Vector Search • 📊 Modern Dashboards**
 
-**Version 2.1.0** - A comprehensive lakehouse environment designed for learning modern data engineering practices and lab-scale projects. **Features modern interactive dashboards, vector search, multi-user JupyterHub, and comprehensive backup systems - making advanced lakehouse technologies accessible to home-labbers and learning environments.**
+**Version 2.1.0** - A comprehensive lakehouse environment designed for learning modern data engineering practices and educational projects. **Features modern interactive dashboards, vector search, multi-user JupyterHub, and comprehensive backup systems - making advanced lakehouse technologies accessible to students, educators, and learning environments.**
 
-### 🎯 Perfect for Learning & Lab Projects
+### 🎯 Perfect for Education & Learning
 
-| **🏠 Individual Learning** | **🏢 Team Lab Environment** |
+| **👤 Individual Learning** | **🏫 Educational Institutions** |
 |----------------------------|------------------------|
 | **One-click install** | **Multi-user collaboration** |
-| No setup complexity | Multi-user JupyterHub environment |
-| Perfect for learning data engineering | Shared notebooks and data access |
-| Interactive dashboard development | Team-friendly configuration |
-| Vector search and semantic analysis | Multiple user workflows |
-| Local development & experimentation | Collaborative data science |
-| ⚡ 15-minute setup | 🤝 Team-ready setup |
+| No setup complexity | Computer science labs |
+| Perfect for data engineering students | University courses & bootcamps |
+| Interactive dashboard development | Corporate training programs |
+| Vector search and semantic analysis | Academic research projects |
+| Local development & experimentation | Collaborative classroom environments |
+| ⚡ 15-minute setup | 🎓 Institution-ready setup |
 
-**⚠️ Important**: Lakehouse Lab is designed for **learning and lab-scale projects**. It provides a complete modern lakehouse experience to help you understand data engineering concepts and is suitable for home labs, but it is **not recommended for mission-critical or production-scale workloads**. For production use cases, consider commercial solutions that offer enterprise-grade support, SLA guarantees, and production-specific features.
+**⚠️ Important**: Lakehouse Lab is designed for **education and learning environments**. It provides a complete modern lakehouse experience to help students and professionals understand data engineering concepts. Perfect for computer science labs, university courses, bootcamps, and training programs, but it is **not recommended for mission-critical or production-scale workloads**. For production use cases, consider commercial solutions that offer enterprise-grade support, SLA guarantees, and production-specific features.
 
 ## ⚡ Ultra-Quick Start
 
 ### 🚀 One-Command Installation
 
-**Simple one-click install for learning and lab use:**
+**Simple one-click install for educational and learning use:**
 
 ```bash
-# Complete lakehouse installation - perfect for learning
+# Complete lakehouse installation - perfect for students and educators
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
 ```
 
@@ -193,7 +193,7 @@ Configure services with: `./scripts/configure-services.sh` or use the setup wiza
 
 ## 👥 Multi-User Features
 
-**Team collaboration features for learning and lab environments:**
+**Multi-user features for educational institutions and collaborative learning:**
 
 ### 🏗️ **Multi-User JupyterHub**
 Replace single-user Jupyter with team-ready JupyterHub:
@@ -209,7 +209,7 @@ docker compose -f docker-compose.yml -f docker-compose.jupyterhub.yml up -d
 - 📁 **Shared notebooks** (readonly templates + collaborative workspace)  
 - 📊 **Resource management** with per-user limits
 - 🏢 **Team collaboration** with shared data access
-- 🎓 **Learning-focused** user management for educational environments
+- 🎓 **Education-focused** user management for classrooms and training programs
 
 ### 🎯 **Central User Provisioning**
 Create users across all services with one command:
@@ -261,6 +261,32 @@ Each service also provides its own user management:
 
 **⚠️ Important**: Your credentials are stored in the `.env` file. Back it up securely and never commit it to version control.
 
+
+## 🎯 Educational Use Cases
+
+### 👨‍🎓 For Students
+- **Data Engineering Courses**: Hands-on experience with modern lakehouse architecture
+- **Computer Science Projects**: Real-world data platform for academic assignments  
+- **Machine Learning Studies**: Vector databases and semantic search capabilities
+- **Capstone Projects**: Complete data pipeline development and analysis
+
+### 👩‍🏫 For Educators  
+- **Classroom Demonstrations**: Live data engineering concepts in action
+- **Lab Assignments**: Multi-user environment for collaborative learning
+- **Course Curriculum**: Ready-made examples and datasets
+- **Research Projects**: Platform for academic data research
+
+### 🏢 For Institutions
+- **Training Programs**: Corporate data engineering bootcamps
+- **Computer Labs**: Standardized data platform across multiple workstations  
+- **Research Centers**: Collaborative data analysis environment
+- **Certification Courses**: Practical experience with industry-standard tools
+
+### 🔬 Key Educational Benefits
+- **Industry-Standard Tools**: Learn with the same technologies used in production
+- **Hands-On Learning**: Interactive notebooks, dashboards, and data pipelines
+- **Scalable Deployment**: From single laptops to institutional lab networks
+- **Comprehensive Curriculum**: From basics to advanced AI/ML workflows
 
 ## 📖 Documentation
 
@@ -476,7 +502,7 @@ graph TB
 - **📈 Modern Dashboards**: Interactive Vizro framework + traditional Superset BI
 - **👥 Team Collaboration**: Multi-user JupyterHub with containerized isolation
 - **🎛️ Configurable Services**: Enable only what you need to save resources
-- **🎯 Lab-Ready**: Health checks, monitoring, orchestration for learning environments
+- **🎯 Education-Ready**: Health checks, monitoring, orchestration for learning environments and computer labs
 - **🐳 Container-Based**: Consistent deployment across environments with Docker Compose
 - **🔄 Flexible Deployment**: Start simple, add features incrementally as needs grow
 
@@ -1024,15 +1050,16 @@ Built with these amazing open source projects:
 - ✅ **Modern interactive dashboards** - Vizro framework for dynamic, responsive visualizations
 - ✅ **Vector database integration** - LanceDB for semantic search and AI/ML workflows
 - ✅ **Multi-file processing** - Wildcard queries across datasets with format auto-detection
-- ✅ **Multi-user collaboration** - JupyterHub with containerized user environments
+- ✅ **Multi-user collaboration** - JupyterHub with containerized user environments for classrooms
 - ✅ **Triple analytics architecture** - Data lake + warehouse + vector database unified
-- ✅ **Production patterns** - Learn real-world data engineering concepts in a lab environment
-- ✅ **Container monitoring** - Full observability with Portainer
-- ✅ **Scalable architecture** - From individual laptops to team deployments
-- ✅ **Configurable deployment** - Enable only the services you need to optimize resources
+- ✅ **Educational focus** - Learn real-world data engineering concepts in a safe environment
+- ✅ **Container monitoring** - Full observability with Portainer for teaching DevOps concepts
+- ✅ **Scalable deployment** - From individual students to entire institutions
+- ✅ **Configurable resources** - Enable only needed services to optimize classroom hardware
+- ✅ **Ready-made curriculum** - Comprehensive notebooks and examples for immediate use
 
 ---
 
-**Happy Data Engineering!** 🚀
+**Happy Learning and Data Engineering!** 🚀
 
-For questions and support, please open an issue on GitHub.
+For questions, educational support, and community discussions, please open an issue on GitHub.

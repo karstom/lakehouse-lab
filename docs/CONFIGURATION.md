@@ -1,14 +1,15 @@
 # 🔧 Lakehouse Lab Configuration Guide
 
-**Version 2.1.0** - This guide explains how to configure which services are enabled in your Lakehouse Lab installation, including enterprise authentication, AI-powered services, and multi-user JupyterHub environments.
+**Version 2.1.0** - This guide explains how to configure which services are enabled in your Lakehouse Lab installation for educational environments, including AI-powered services and multi-user JupyterHub environments perfect for classroom and student lab settings.
 
 ## Overview
 
-Lakehouse Lab now supports selective service installation, allowing you to:
-- **Enable only the services you need** to save system resources
-- **Create custom configurations** for different use cases
-- **Switch between configurations** without rebuilding containers
-- **Use preset configurations** for common scenarios
+Lakehouse Lab supports selective service installation, making it ideal for educational environments where you need to:
+- **Enable only the services you need** to optimize classroom hardware resources
+- **Create custom configurations** for different courses and learning objectives
+- **Switch between configurations** without rebuilding containers for different class sessions
+- **Use preset configurations** for common educational scenarios
+- **Support multi-user environments** for student collaboration
 
 ## Quick Start
 
@@ -18,19 +19,20 @@ The easiest way to configure services is using presets:
 
 ```bash
 # Minimal setup (8GB RAM) - Core services + Jupyter only
+# Perfect for introductory data science courses
 ./scripts/configure-services.sh preset minimal
 
-# Analytics focus (14GB RAM) - Jupyter + Superset + Vizro  
+# Analytics focus (14GB RAM) - Jupyter + Superset + Vizro
+# Ideal for business intelligence and data visualization courses
 ./scripts/configure-services.sh preset analytics
 
 # ML/AI focus (16GB RAM) - Jupyter + LanceDB + Airflow
+# Great for machine learning and advanced data engineering courses
 ./scripts/configure-services.sh preset ml
 
-# Full installation (20GB RAM) - All data services enabled  
+# Full installation (20GB RAM) - All data services enabled
+# Complete platform for comprehensive data science programs
 ./scripts/configure-services.sh preset full
-
-# Secure installation (22GB RAM) - Full platform + enterprise authentication
-./scripts/configure-services.sh preset secure
 ```
 
 ### Interactive Configuration
@@ -71,7 +73,7 @@ These services cannot be disabled as they form the foundation of the lakehouse:
 ## Preset Configurations
 
 ### 1. Minimal Configuration
-**Best for**: Learning, development, resource-constrained systems
+**Best for**: Introductory courses, student laptops, resource-constrained classroom environments
 ```
 ✅ Core Services: PostgreSQL, MinIO, Spark
 ✅ JupyterLab: Data science notebooks
@@ -79,11 +81,11 @@ These services cannot be disabled as they form the foundation of the lakehouse:
 ❌ All other services disabled
 
 📊 Resources: ~8GB RAM, 4 CPU cores minimum
-🎯 Use case: Data exploration, learning Spark/lakehouse concepts
+🎯 Use case: Introductory data science, learning Spark/lakehouse fundamentals, individual student work
 ```
 
 ### 2. Analytics Configuration  
-**Best for**: Business intelligence, reporting, data visualization
+**Best for**: Business intelligence courses, data visualization classes, reporting workshops
 ```
 ✅ Core Services: PostgreSQL, MinIO, Spark
 ✅ JupyterLab: Data science notebooks
@@ -94,11 +96,11 @@ These services cannot be disabled as they form the foundation of the lakehouse:
 ❌ Airflow, LanceDB disabled
 
 📊 Resources: ~14GB RAM, 8 CPU cores recommended
-🎯 Use case: BI teams, data analysts, dashboard creators
+🎯 Use case: Advanced analytics courses, business intelligence programs, dashboard creation workshops
 ```
 
 ### 3. ML/AI Configuration
-**Best for**: Machine learning, AI workflows, vector operations
+**Best for**: Machine learning courses, AI workshops, advanced data engineering programs
 ```
 ✅ Core Services: PostgreSQL, MinIO, Spark
 ✅ JupyterLab: Data science notebooks
@@ -109,16 +111,16 @@ These services cannot be disabled as they form the foundation of the lakehouse:
 ❌ Superset, Vizro disabled
 
 📊 Resources: ~16GB RAM, 8+ CPU cores recommended  
-🎯 Use case: ML engineers, AI researchers, vector search
+🎯 Use case: Machine learning courses, AI research projects, graduate-level data science programs
 ```
 
 ### 4. Full Configuration
-**Best for**: Production environments, comprehensive data platforms
+**Best for**: Comprehensive data science programs, capstone projects, advanced coursework
 ```
 ✅ All services enabled
 
 📊 Resources: ~20GB RAM, 16+ CPU cores recommended
-🎯 Use case: Production data platforms, comprehensive analytics
+🎯 Use case: Complete data science curriculum, multi-semester programs, research environments
 ```
 
 ## Configuration Management
