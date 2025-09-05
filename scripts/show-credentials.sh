@@ -62,16 +62,51 @@ detect_host_ip() {
     echo "localhost"
 }
 
-# Check if .env exists
-if [[ ! -f ".env" ]]; then
+# Find the correct .env file by looking for lakehouse installation
+find_env_file() {
+    local current_dir="$(pwd)"
+    local env_file=""
+    
+    # Check current directory first
+    if [[ -f ".env" ]] && [[ -f "docker-compose.yml" ]]; then
+        echo ".env"
+        return 0
+    fi
+    
+    # Check if we're in a subdirectory of a lakehouse installation
+    # Look for parent directories that contain both .env and docker-compose.yml
+    local check_dir="$current_dir"
+    while [[ "$check_dir" != "/" ]]; do
+        if [[ -f "$check_dir/.env" ]] && [[ -f "$check_dir/docker-compose.yml" ]]; then
+            echo "$check_dir/.env"
+            return 0
+        fi
+        check_dir="$(dirname "$check_dir")"
+    done
+    
+    # Check for lakehouse-lab subdirectory (common case: running from parent of installation)
+    if [[ -f "lakehouse-lab/.env" ]] && [[ -f "lakehouse-lab/docker-compose.yml" ]]; then
+        echo "lakehouse-lab/.env"
+        return 0
+    fi
+    
+    return 1
+}
+
+# Find and source the environment file
+ENV_FILE=$(find_env_file)
+if [[ -z "$ENV_FILE" ]]; then
     echo -e "${RED}❌ No .env file found!${NC}"
-    echo -e "${YELLOW}💡 Run './scripts/generate-credentials.sh' to create credentials${NC}"
+    echo -e "${YELLOW}💡 Make sure you're running from a Lakehouse Lab directory${NC}"
+    echo -e "${YELLOW}   Or run './scripts/generate-credentials.sh' to create credentials${NC}"
     exit 1
 fi
 
+echo -e "${BLUE}📍 Using environment file: ${YELLOW}$ENV_FILE${NC}"
+
 # Source environment variables
 set -a  # Mark variables for export
-source .env
+source "$ENV_FILE"
 set +a  # Stop marking variables for export
 
 # Detect the host IP address for service URLs
