@@ -668,17 +668,43 @@ check_dependencies() {
 download_lakehouse_lab() {
     print_step "Downloading Lakehouse Lab..."
     
-    # Only remove directory if not in upgrade/replace mode (those handle it)
-    if [[ -d "$INSTALL_DIR" ]] && [[ $UPGRADE_MODE != "true" ]] && [[ $UPGRADE_MODE != "smart-upgrade" ]] && [[ $UPGRADE_MODE != "legacy-upgrade" ]] && [[ $REPLACE_MODE != "true" ]]; then
+    # Detect if we're already in a directory with the same name as INSTALL_DIR
+    # This prevents nesting like ~/lakehouse-lab/lakehouse-lab
+    local current_dir_name=$(basename "$(pwd)")
+    local target_dir="$INSTALL_DIR"
+    
+    if [[ "$current_dir_name" == "$target_dir" ]] && [[ ! -f "docker-compose.yml" ]]; then
+        # We're in a directory with the target name but it's not a lakehouse installation
+        # Install directly in current directory instead of creating subdirectory
+        print_info "Installing directly in current directory ($current_dir_name) to avoid nesting"
+        target_dir="."
+        
+        # Remove any existing lakehouse files (but preserve other files)
+        rm -rf docker-compose*.yml .env* scripts/ templates/ *.sh README.md 2>/dev/null || true
+    elif [[ -d "$INSTALL_DIR" ]] && [[ $UPGRADE_MODE != "true" ]] && [[ $UPGRADE_MODE != "smart-upgrade" ]] && [[ $UPGRADE_MODE != "legacy-upgrade" ]] && [[ $REPLACE_MODE != "true" ]]; then
         print_warning "Directory $INSTALL_DIR already exists. Removing..."
         rm -rf "$INSTALL_DIR"
     fi
     
     # Clone repository
-    git clone --branch "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
-    cd "$INSTALL_DIR"
-    
-    print_success "Lakehouse Lab downloaded successfully"
+    if [[ "$target_dir" == "." ]]; then
+        # Clone to temporary directory then move contents
+        local temp_dir="lakehouse-temp-$$"
+        git clone --branch "$BRANCH" "$REPO_URL" "$temp_dir"
+        
+        # Move contents to current directory
+        mv "$temp_dir"/* . 2>/dev/null || true
+        mv "$temp_dir"/.[^.]* . 2>/dev/null || true
+        rmdir "$temp_dir"
+        
+        # Update INSTALL_DIR to reflect actual installation location
+        INSTALL_DIR="$(pwd)"
+        print_success "Lakehouse Lab installed in current directory"
+    else
+        git clone --branch "$BRANCH" "$REPO_URL" "$target_dir"
+        cd "$target_dir"
+        print_success "Lakehouse Lab downloaded successfully"
+    fi
 }
 
 configure_environment() {
