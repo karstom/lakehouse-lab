@@ -17,6 +17,7 @@ Welcome to the Lakehouse Lab documentation! This directory contains all the deta
 ## 🔧 Advanced Guides
 
 - **[LAKEHOUSE_LLM_GUIDE.md](LAKEHOUSE_LLM_GUIDE.md)** - AI/ML integration and LLM development
+- **[MCP.md](MCP.md)** - Compatible Model Context Protocol servers for AI enhancement
 - **[ICEBERG.md](ICEBERG.md)** - Apache Iceberg integration for advanced analytics
 - **[CLOUD_DEPLOYMENT.md](CLOUD_DEPLOYMENT.md)** - AWS, GCP, Azure deployment guides
 

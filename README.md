@@ -268,6 +268,7 @@ Each service also provides its own user management:
 - [🔧 **Configuration Guide**](docs/CONFIGURATION.md) - Service configuration and presets
 - [📚 **Installation Guide**](docs/INSTALLATION.md) - Complete installation options
 - [🤖 **AI/ML Integration**](docs/LAKEHOUSE_LLM_GUIDE.md) - LLM development and vector search
+- [🤖 **MCP Integration**](docs/MCP.md) - Compatible Model Context Protocol servers
 - [☁️ **Cloud Deployment**](docs/CLOUD_DEPLOYMENT.md) - AWS, GCP, Azure deployment guides
 - [🤝 **Contributing**](docs/CONTRIBUTING.md) - How to contribute
 - [📋 **Changelog**](docs/CHANGELOG.md) - Version history
