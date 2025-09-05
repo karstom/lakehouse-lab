@@ -6,15 +6,21 @@ on:
     paths:
       - 'docker-compose*.yml'
       - 'install.sh'
-      - 'fix-credentials.sh'
+      - 'install-with-auth.sh'
       - 'start-lakehouse.sh'
+      - 'migrate-to-named-volumes.sh'
+      - 'scripts/backup-lakehouse.sh'
+      - 'scripts/restore-lakehouse.sh'
   pull_request:
     branches: [ main, dev ]
     paths:
       - 'docker-compose*.yml'
       - 'install.sh'
-      - 'fix-credentials.sh'
+      - 'install-with-auth.sh'
       - 'start-lakehouse.sh'
+      - 'migrate-to-named-volumes.sh'
+      - 'scripts/backup-lakehouse.sh'
+      - 'scripts/restore-lakehouse.sh'
 
 jobs:
   storage-persistence:
@@ -34,7 +40,15 @@ jobs:
     - name: Generate Test Credentials
       run: |
         # Create minimal .env for testing
-        ./scripts/generate-credentials.sh || cp .env.default .env
+        if [ -f scripts/generate-credentials.sh ]; then
+          ./scripts/generate-credentials.sh
+        else
+          cp .env.default .env
+        fi
+        
+        # Override with test-specific settings
+        echo "COMPOSE_PROJECT_NAME=lakehouse-lab" >> .env
+        echo "HOST_IP=localhost" >> .env
 
     - name: Start Services - Initial Setup
       run: |
@@ -202,6 +216,33 @@ jobs:
         fi
         
         echo "✅ Data persisted through overlay switching ($OVERLAY_COUNT records)"
+
+    - name: Test Backup and Restore System
+      run: |
+        echo "💾 Testing backup and restore system..."
+        
+        # Stop services for clean backup test
+        docker compose down
+        
+        # Start services again
+        docker compose up -d postgres minio lakehouse-init
+        sleep 30
+        
+        # Test dry-run backup
+        if [ -f scripts/backup-lakehouse.sh ]; then
+          ./scripts/backup-lakehouse.sh --dry-run --services postgres,minio
+          echo "✅ Backup system dry-run successful"
+        else
+          echo "⚠️ Backup script not found, skipping backup test"
+        fi
+        
+        # Test backup script permissions
+        if [ -x scripts/backup-lakehouse.sh ]; then
+          echo "✅ Backup script has execute permissions"
+        else
+          echo "❌ Backup script missing execute permissions"
+          exit 1
+        fi
 
     - name: Generate Storage Report
       run: |

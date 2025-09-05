@@ -77,6 +77,12 @@ jobs:
           echo "Validating modular scripts..."
           shellcheck scripts/*.sh
         fi
+        
+        # Check example scripts
+        if ls examples/*.sh 1> /dev/null 2>&1; then
+          echo "Validating example scripts..."
+          shellcheck examples/*.sh
+        fi
     
     - name: Validate Docker Compose syntax
       run: |
@@ -87,6 +93,16 @@ jobs:
           # Test Iceberg override if it exists
           if [ -f docker-compose.iceberg.yml ]; then
             docker-compose -f docker-compose.yml -f docker-compose.iceberg.yml config > /dev/null
+          fi
+          
+          # Test JupyterHub override if it exists
+          if [ -f docker-compose.jupyterhub.yml ]; then
+            docker-compose -f docker-compose.yml -f docker-compose.jupyterhub.yml config > /dev/null
+          fi
+          
+          # Test auth overlay if it exists
+          if [ -f iceberg/jupyterhub/auth/docker-compose.auth.yml ]; then
+            docker-compose -f docker-compose.yml -f iceberg/jupyterhub/auth/docker-compose.auth.yml config > /dev/null
           fi
         fi
 
@@ -121,47 +137,74 @@ jobs:
           echo "No tests directory found, creating basic test structure"
         fi
         
-    - name: Run v2.0.0 fixes validation
+    - name: Run v2.1.0 features validation
       run: |
-        echo "Running v2.0.0 bug fix validation tests..."
+        echo "Running v2.1.0 feature validation tests..."
         
-        # Test 1: Check if log functions are defined in start-lakehouse.sh
-        echo "=== Checking start-lakehouse.sh log functions ==="
-        if grep -q 'log_info()' start-lakehouse.sh && grep -q 'log_success()' start-lakehouse.sh; then
-          echo "✅ Log functions are defined"
+        # Test 1: Check backup system exists
+        echo "=== Checking backup system ==="
+        if [ -f scripts/backup-lakehouse.sh ] && [ -f scripts/restore-lakehouse.sh ]; then
+          echo "✅ Backup and restore scripts exist"
         else
-          echo "❌ Log functions missing"
+          echo "❌ Backup system scripts missing"
           exit 1
         fi
         
-        # Test 2: Test configuration parsing fix
-        echo "=== Checking configuration parsing ==="
-        if grep -q 'SERVICE_CONFIG' scripts/configure-services.sh && grep -q 'declare -A SERVICE_CONFIG' scripts/configure-services.sh; then
-          echo "✅ SERVICE_CONFIG array is used for hyphenated service names"
+        # Test 2: Check backup scripts are executable
+        echo "=== Checking script permissions ==="
+        if [ -x scripts/backup-lakehouse.sh ] && [ -x scripts/restore-lakehouse.sh ]; then
+          echo "✅ Backup scripts are executable"
         else
-          echo "❌ Configuration parsing not fixed"
+          echo "❌ Backup scripts missing execute permissions"
           exit 1
         fi
         
-        # Test 3: Check Vizro health check improvements
-        echo "=== Checking Vizro health check ==="
-        if grep -A 10 'vizro:' docker-compose.yml | grep -q 'start_period: 120s'; then
-          echo "✅ Vizro has extended start period (120s)"
+        # Test 3: Check CRON setup script exists
+        echo "=== Checking CRON setup ==="
+        if [ -f examples/cron-backup-setup.sh ] && [ -x examples/cron-backup-setup.sh ]; then
+          echo "✅ CRON backup setup script exists and is executable"
         else
-          echo "❌ Vizro health check not improved"
+          echo "❌ CRON backup setup missing or not executable"
           exit 1
         fi
         
-        # Test 4: Test secure preset exists
-        echo "=== Checking secure preset ==="
-        if grep -A 15 'secure")' scripts/configure-services.sh | grep -q 'auth-service=true'; then
-          echo "✅ Secure preset with auth services is available"
+        # Test 4: Check Airflow backup DAG template
+        echo "=== Checking Airflow DAG template ==="
+        if [ -f templates/airflow/dags/lakehouse_backup_dag.py ]; then
+          echo "✅ Airflow backup DAG template exists"
         else
-          echo "❌ Secure preset not found or incomplete"
+          echo "❌ Airflow backup DAG template missing"
           exit 1
         fi
         
-        echo "🎉 All v2.0.0 fixes validated successfully!"
+        # Test 5: Check smart upgrade system
+        echo "=== Checking smart upgrade system ==="
+        if [ -f migrate-to-named-volumes.sh ] && [ -x migrate-to-named-volumes.sh ]; then
+          echo "✅ Smart upgrade migration script exists"
+        else
+          echo "❌ Smart upgrade system missing"
+          exit 1
+        fi
+        
+        # Test 6: Check external volume declarations in docker-compose.yml
+        echo "=== Checking external volume declarations ==="
+        if grep -A 2 'postgres_data:' docker-compose.yml | grep -q 'external: true'; then
+          echo "✅ External volume declarations found"
+        else
+          echo "❌ External volume declarations missing"
+          exit 1
+        fi
+        
+        # Test 7: Check named volume creation in start script
+        echo "=== Checking named volume creation ==="
+        if grep -q 'create_named_volumes' start-lakehouse.sh; then
+          echo "✅ Named volume creation function found"
+        else
+          echo "❌ Named volume creation missing from start script"
+          exit 1
+        fi
+        
+        echo "🎉 All v2.1.0 features validated successfully!"
     
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3
@@ -432,7 +475,7 @@ jobs:
     - name: Validate README and documentation
       run: |
         # Check that required documentation exists
-        required_docs=("README.md" "ICEBERG.md")
+        required_docs=("README.md" "ICEBERG.md" "QUICKSTART.md" "INSTALLATION.md" "CONFIGURATION.md" "CHANGELOG.md" "TESTING.md")
         
         for doc in "${required_docs[@]}"; do
           if [ ! -f "$doc" ]; then
@@ -440,6 +483,18 @@ jobs:
             exit 1
           fi
         done
+        
+        # Check that backup documentation exists
+        echo "Checking backup system documentation..."
+        if ! grep -q "Backup & Data Protection" README.md; then
+          echo "ERROR: Backup documentation missing from README.md"
+          exit 1
+        fi
+        
+        if ! grep -q "Post-Installation: Backup Setup" INSTALLATION.md; then
+          echo "ERROR: Backup setup documentation missing from INSTALLATION.md"
+          exit 1
+        fi
         
         # Check for broken links in markdown files
         if command -v markdown-link-check &> /dev/null; then
@@ -532,11 +587,23 @@ jobs:
         required_files=(
           "docker-compose.yml"
           "docker-compose.iceberg.yml"
+          "docker-compose.jupyterhub.yml"
           "init-all-in-one-modular.sh"
           "start-lakehouse.sh"
           "install.sh"
+          "install-with-auth.sh"
+          "migrate-to-named-volumes.sh"
+          "scripts/backup-lakehouse.sh"
+          "scripts/restore-lakehouse.sh"
+          "examples/cron-backup-setup.sh"
+          "templates/airflow/dags/lakehouse_backup_dag.py"
           "README.md"
           "ICEBERG.md"
+          "CHANGELOG.md"
+          "QUICKSTART.md"
+          "INSTALLATION.md"
+          "CONFIGURATION.md"
+          "TESTING.md"
         )
         
         for file in "${required_files[@]}"; do

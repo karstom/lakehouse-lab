@@ -10,6 +10,83 @@ jobs:
         uses: gaurav-nelson/github-action-markdown-link-check@v1
       - name: Validate README structure
         run: |
+          echo "Validating README.md structure..."
           grep -q "Quick Start" README.md
           grep -q "Architecture" README.md
           grep -q "Troubleshooting" README.md
+          grep -q "Backup & Data Protection" README.md
+          
+          # Check for learning-focused messaging
+          if ! grep -q "learning" README.md; then
+            echo "❌ Missing learning-focused messaging in README"
+            exit 1
+          fi
+          
+          echo "✅ README structure validated"
+          
+      - name: Validate documentation completeness
+        run: |
+          echo "Checking for required documentation files..."
+          
+          required_docs=(
+            "QUICKSTART.md"
+            "INSTALLATION.md" 
+            "CONFIGURATION.md"
+            "CHANGELOG.md"
+            "TESTING.md"
+            "ICEBERG.md"
+          )
+          
+          for doc in "${required_docs[@]}"; do
+            if [ ! -f "$doc" ]; then
+              echo "❌ Missing required documentation: $doc"
+              exit 1
+            fi
+            echo "✅ Found: $doc"
+          done
+          
+      - name: Validate backup documentation
+        run: |
+          echo "Validating backup system documentation..."
+          
+          # Check README has backup section
+          if ! grep -q "💾 Backup & Data Protection" README.md; then
+            echo "❌ Backup section missing from README"
+            exit 1
+          fi
+          
+          # Check INSTALLATION has backup setup
+          if ! grep -q "Post-Installation: Backup Setup" INSTALLATION.md; then
+            echo "❌ Backup setup missing from INSTALLATION"
+            exit 1
+          fi
+          
+          # Check CONFIGURATION has backup config
+          if ! grep -q "💾 Backup Configuration" CONFIGURATION.md; then
+            echo "❌ Backup configuration missing from CONFIGURATION"
+            exit 1
+          fi
+          
+          # Check CHANGELOG has v2.1.0 backup features
+          if ! grep -q "💾 Comprehensive Backup & Restore System" CHANGELOG.md; then
+            echo "❌ v2.1.0 backup features missing from CHANGELOG"
+            exit 1
+          fi
+          
+          echo "✅ Backup documentation complete"
+          
+      - name: Validate version consistency
+        run: |
+          echo "Checking version consistency across documentation..."
+          
+          # Check that v2.1.0 is mentioned in key files
+          version_files=("README.md" "QUICKSTART.md" "INSTALLATION.md" "CONFIGURATION.md")
+          
+          for file in "${version_files[@]}"; do
+            if ! grep -q "2.1.0" "$file"; then
+              echo "❌ Version 2.1.0 not found in $file"
+              exit 1
+            fi
+          done
+          
+          echo "✅ Version consistency validated"
