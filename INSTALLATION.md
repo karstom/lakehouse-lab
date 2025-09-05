@@ -488,3 +488,66 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 - Works on AWS, Azure, GCP, DigitalOcean
 - Use `--unattended` flag for automated deployments
 - Consider `--fat-server` for cloud instances with high specs
+
+## 💾 Post-Installation: Backup Setup
+
+After installation, set up automated backups to protect your valuable data and configurations:
+
+### **CRON-Based Backups (Recommended for most users)**
+```bash
+# Setup daily automated backups with email notifications
+./examples/cron-backup-setup.sh --email admin@company.com --compress
+
+# Interactive setup wizard
+./examples/cron-backup-setup.sh
+
+# Custom schedule examples:
+./examples/cron-backup-setup.sh --schedule "0 3 * * 0" --compress  # Weekly Sunday 3 AM
+./examples/cron-backup-setup.sh --schedule "0 1 1 * *"             # Monthly 1st at 1 AM
+```
+
+### **Airflow-Integrated Backups (For workflow environments)**
+```bash
+# Copy the backup DAG template to your Airflow instance
+cp templates/airflow/dags/lakehouse_backup_dag.py lakehouse-data/airflow/dags/
+
+# Configure environment variables
+export BACKUP_NOTIFICATION_EMAIL="admin@company.com"
+export LAKEHOUSE_BACKUP_PATH="/path/to/backups"
+
+# The DAG will appear in Airflow UI for scheduling and monitoring
+```
+
+### **Manual Backup Commands**
+```bash
+# Complete backup with compression and verification
+./scripts/backup-lakehouse.sh --compress --verify --retention-days 30
+
+# Backup specific services only
+./scripts/backup-lakehouse.sh --services postgres,minio,jupyter
+
+# Test backup without actually creating files
+./scripts/backup-lakehouse.sh --dry-run
+```
+
+### **Data Restoration**
+```bash
+# List available backups
+ls -la backups/
+
+# Complete system restore (with safety prompts)
+./scripts/restore-lakehouse.sh lakehouse-backup-20240304_143052
+
+# Restore specific service only
+./scripts/restore-lakehouse.sh lakehouse-backup-20240304_143052 --service postgres
+
+# Preview what would be restored
+./scripts/restore-lakehouse.sh lakehouse-backup-20240304_143052 --dry-run
+```
+
+**💡 Backup Best Practices:**
+- Set up automated backups immediately after installation
+- Test your restore process regularly
+- Store backups on a different disk/server for disaster recovery
+- Monitor backup logs and email notifications
+- Keep at least 30 days of backups for data recovery options

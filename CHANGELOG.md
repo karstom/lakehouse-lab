@@ -1,5 +1,46 @@
 # Changelog
 
+## [2.1.0] - 2025-09-05
+
+### 💾 Comprehensive Backup & Restore System
+- **🔄 Complete Backup Solution**: Full-featured backup system supporting all services (PostgreSQL, MinIO, Jupyter, Airflow, Spark, Superset, etc.)
+- **📅 Flexible Scheduling**: CRON integration with automated setup script and Airflow DAG template for workflow-integrated backups
+- **🗜️ Advanced Features**: Compression, verification, parallel processing, service exclusion, and configurable retention policies
+- **📧 Monitoring & Notifications**: Email notifications, comprehensive logging, backup verification, and automatic cleanup
+- **🔧 Easy Setup**: Interactive CRON setup wizard and ready-to-use Airflow DAG template
+- **⚡ Granular Restore**: Complete system restore or service-specific recovery with safety confirmations and dry-run mode
+
+### 🛠️ Smart Upgrade System & Data Migration
+- **🧠 Intelligent Upgrade Detection**: Automatic detection of existing installations with user-friendly upgrade options
+- **🔒 Named Volume Migration**: Migration from vulnerable bind mounts to persistent Docker named volumes for better security
+- **📁 Data Preservation**: Safe migration of all existing data using rsync with metadata preservation
+- **🔧 Template Updates**: Automatic service template updates during migration to ensure latest code deployment
+- **🎯 Smart Installer**: Enhanced installer with directory nesting detection and path resolution improvements
+- **✅ Migration Verification**: Comprehensive verification of data integrity during migration process
+
+### 🔐 Enhanced Security & Volume Management  
+- **🛡️ External Volume Security**: Proper external volume declarations with explicit naming to prevent Docker warnings
+- **🔑 Airflow Permissions**: Fixed volume ownership issues with proper user/group assignment (50000:0)
+- **🔧 Credential Management**: Enhanced credential script with intelligent .env file discovery across directories
+- **📊 Volume Creation**: Automatic named volume creation with proper permissions during startup
+- **🔄 Service Dependencies**: Improved service startup order and health checks for reliable initialization
+
+### 🐛 Critical Bug Fixes & Stability Improvements
+- **🔧 LanceDB Syntax Errors**: Fixed Python syntax errors in init-lancedb.sh and template deployment issues
+- **📁 MinIO Configuration**: Resolved missing access keys after migration by ensuring hidden file migration
+- **🏗️ Install Process**: Fixed installer directory nesting problems and enhanced path resolution
+- **⚡ Service Startup**: Improved reliability of service initialization and dependency management
+- **🔄 Migration Reliability**: Enhanced data migration with rsync and comprehensive error handling
+
+### 📚 Documentation & User Experience
+- **📖 Learning-Focused Messaging**: Updated documentation to emphasize learning and lab-scale use cases
+- **⚠️ Production Guidance**: Clear messaging that Lakehouse Lab is designed for learning environments, not mission-critical production workloads
+- **📋 Backup Documentation**: Comprehensive backup and restore documentation with examples
+- **🎯 Upgrade Guidance**: Enhanced installation documentation with upgrade paths and troubleshooting
+- **🔧 Improved Help**: Better error messages and user guidance throughout the system
+
+This release significantly enhances data protection, system reliability, and user experience while maintaining the learning-focused mission of Lakehouse Lab.
+
 ## [2.0.0] - 2025-08-23
 
 ### 🏢 Enterprise Authentication & Team Collaboration

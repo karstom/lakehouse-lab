@@ -1,6 +1,6 @@
 # 🚀 Lakehouse Lab - 15-Minute Quickstart Guide
 
-**Version 2.1.0** - Get your complete enterprise-ready data analytics environment running in 15 minutes! Choose between simple individual setup, secure team collaboration, or multi-user JupyterHub environments.
+**Version 2.1.0** - Get your complete modern data engineering learning environment running in 15 minutes! Perfect for learning data engineering practices, lab-scale projects, and understanding enterprise-grade technologies in a home-lab friendly environment.
 
 ## ⚡ 1. Quick Setup
 

@@ -7,24 +7,24 @@
 [![Enterprise Auth](https://img.shields.io/badge/Enterprise-Authentication-green)](CONFIGURATION.md)
 [![AI Ready](https://img.shields.io/badge/AI-Ready-purple)](LAKEHOUSE_LLM_GUIDE.md)
 
-> **🚀 Enterprise-Ready Data Analytics Platform in 15 Minutes**  
+> **🎓 Modern Data Engineering Learning Platform in 15 Minutes**  
 > **🔒 Optional Team Authentication • 🤖 AI-Powered API • 📊 Modern Dashboards**
 
-**Version 2.1.0** - A complete lakehouse environment that scales from individual learning to enterprise team collaboration. **Features enterprise authentication, AI-powered data API, modern interactive dashboards, vector search, multi-user JupyterHub, comprehensive user provisioning, and configurable service deployment.**
+**Version 2.1.0** - A comprehensive lakehouse environment designed for learning modern data engineering practices and lab-scale projects. **Features enterprise authentication, AI-powered data API, modern interactive dashboards, vector search, multi-user JupyterHub, and comprehensive backup systems - making advanced lakehouse technologies accessible to home-labbers and learning environments.**
 
 ### 🎯 Choose Your Experience
 
-| **🏠 Individual Developer** | **🏢 Enterprise Team** |
+| **🏠 Individual Learning** | **🏢 Team Lab Environment** |
 |----------------------------|------------------------|
 | **One-click install** | **Secure team collaboration** |
 | No setup complexity | OAuth with Google/Microsoft/GitHub |
-| Perfect for learning | Multi-user JupyterHub environment |
+| Perfect for learning data engineering | Multi-user JupyterHub environment |
 | Interactive dashboard development | Role-based access control |
-| AI-powered analytics | Central user provisioning |
-| Local development | Audit logging & compliance |
-| ⚡ 15-minute setup | 🔒 Production-ready security |
+| AI-powered analytics exploration | Central user provisioning |
+| Local development & experimentation | Audit logging & compliance |
+| ⚡ 15-minute setup | 🔒 Lab-ready security |
 
-Both experiences use the **same powerful data platform** underneath!
+**⚠️ Important**: Lakehouse Lab is designed for **learning and lab-scale projects**. It provides a complete modern lakehouse experience to help you understand data engineering concepts and is suitable for home labs, but it is **not recommended for mission-critical or production-scale workloads**. For production use cases, consider commercial solutions that offer enterprise-grade support, SLA guarantees, and production-specific features.
 
 ## ⚡ Ultra-Quick Start
 
@@ -361,6 +361,79 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install-w
 - [🤝 **Contributing**](CONTRIBUTING.md) - How to contribute
 - [📋 **Changelog**](CHANGELOG.md) - Version history
 
+## 💾 Backup & Data Protection
+
+Lakehouse Lab includes a comprehensive backup system to protect your valuable data and configurations:
+
+### 🎯 **Backup Features**
+- **Complete System Backup**: PostgreSQL databases, MinIO object storage, Jupyter notebooks, Airflow DAGs, and all service configurations
+- **Flexible Scheduling**: Run via CRON for automated backups or Airflow for workflow-integrated backups
+- **Compression & Verification**: Optional compression and backup integrity verification
+- **Retention Management**: Configurable retention policies to manage backup storage
+- **Service-Specific Restore**: Restore individual services or complete system recovery
+
+### 🚀 **Quick Backup Setup**
+
+**Automated CRON Backups:**
+```bash
+# Setup daily automated backups at 2 AM with email notifications
+./examples/cron-backup-setup.sh --schedule "0 2 * * *" --email admin@company.com --compress
+
+# Or interactive setup wizard
+./examples/cron-backup-setup.sh
+```
+
+**Manual Backup:**
+```bash
+# Backup all services with compression and verification
+./scripts/backup-lakehouse.sh --compress --verify --retention-days 30
+
+# Backup specific services only
+./scripts/backup-lakehouse.sh --services postgres,minio,jupyter --compress
+```
+
+**Airflow-Integrated Backups:**
+```bash
+# Deploy the backup DAG template
+cp templates/airflow/dags/lakehouse_backup_dag.py lakehouse-data/airflow/dags/
+
+# Configure environment variables for email notifications
+export BACKUP_NOTIFICATION_EMAIL="admin@company.com"
+export LAKEHOUSE_BACKUP_PATH="/path/to/backups"
+```
+
+### 🔄 **Data Restoration**
+
+**Complete System Restore:**
+```bash
+# List available backups
+ls -la backups/
+
+# Restore from backup with confirmation prompts
+./scripts/restore-lakehouse.sh lakehouse-backup-20240304_143052
+
+# Force restore without prompts (be careful!)
+./scripts/restore-lakehouse.sh lakehouse-backup-20240304_143052 --force --stop-services
+```
+
+**Service-Specific Restore:**
+```bash
+# Restore only PostgreSQL database
+./scripts/restore-lakehouse.sh lakehouse-backup-20240304_143052 --service postgres
+
+# Restore only Jupyter notebooks
+./scripts/restore-lakehouse.sh lakehouse-backup-20240304_143052 --service jupyter
+
+# Dry run to see what would be restored
+./scripts/restore-lakehouse.sh lakehouse-backup-20240304_143052 --dry-run
+```
+
+### 📊 **Backup Monitoring**
+- **Log Files**: Comprehensive logging of all backup operations
+- **Email Notifications**: Success/failure notifications with backup summaries
+- **Verification Reports**: Automatic backup integrity checking
+- **Space Management**: Automatic cleanup of old backups based on retention policies
+
 ## 🏗️ Architecture
 
 ```mermaid
@@ -523,7 +596,7 @@ graph TB
 - **📈 Modern Dashboards**: Interactive Vizro framework + traditional Superset BI
 - **👥 Team Collaboration**: Multi-user access with granular permissions and audit logging
 - **🎛️ Configurable Services**: Enable only what you need to save resources
-- **🎯 Production-Ready**: Health checks, monitoring, orchestration, and compliance
+- **🎯 Lab-Ready**: Health checks, monitoring, orchestration, and compliance for learning environments
 - **🐳 Container-Based**: Consistent deployment across environments with Docker Compose
 - **🔄 Flexible Deployment**: Start simple, add features incrementally as needs grow
 
@@ -1093,7 +1166,7 @@ Built with these amazing open source projects:
 - ✅ **Multi-file processing** - Wildcard queries across datasets with format auto-detection
 - ✅ **Role-based access control** - Granular permissions for team collaboration
 - ✅ **Triple analytics architecture** - Data lake + warehouse + vector database unified
-- ✅ **Production patterns** - Learn real-world data engineering with enterprise features
+- ✅ **Production patterns** - Learn real-world data engineering concepts with enterprise-grade features in a lab environment
 - ✅ **Container monitoring** - Full observability with Portainer and audit logging
 - ✅ **Scalable architecture** - From individual laptops to enterprise team deployments
 - ✅ **Configurable deployment** - Enable only the services you need to optimize resources

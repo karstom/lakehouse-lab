@@ -322,3 +322,60 @@ docker compose down
 ```
 
 This configuration system provides the flexibility requested while maintaining ease of use for both new and experienced users.
+
+## 💾 Backup Configuration
+
+### Automated Backup Setup
+Configure automated backups to protect your lakehouse data and configurations:
+
+```bash
+# Interactive CRON backup configuration
+./examples/cron-backup-setup.sh
+
+# Automated daily backups with email notifications
+./examples/cron-backup-setup.sh --schedule "0 2 * * *" --email admin@company.com --compress
+
+# Weekly backups with custom retention
+./examples/cron-backup-setup.sh --schedule "0 3 * * 0" --retention-days 90 --compress
+```
+
+### Airflow Backup DAG
+For environments using Airflow, deploy the backup DAG:
+
+```bash
+# Copy backup DAG template
+cp templates/airflow/dags/lakehouse_backup_dag.py lakehouse-data/airflow/dags/
+
+# Configure backup environment variables
+export LAKEHOUSE_PATH="/path/to/lakehouse-lab"
+export LAKEHOUSE_BACKUP_PATH="/path/to/backups"
+export BACKUP_NOTIFICATION_EMAIL="admin@company.com"
+```
+
+### Backup Service Configuration
+The backup system can be configured to backup only specific services:
+
+```bash
+# Backup only core data services
+./scripts/backup-lakehouse.sh --services postgres,minio --compress
+
+# Exclude specific services from backup
+./scripts/backup-lakehouse.sh --exclude-services homer,portainer --compress
+
+# Full backup with all options
+./scripts/backup-lakehouse.sh --compress --verify --parallel --retention-days 30
+```
+
+### Backup Storage Options
+Configure where backups are stored:
+
+```bash
+# Local directory backup (default)
+./scripts/backup-lakehouse.sh --output-dir /data/backups
+
+# Network storage backup
+./scripts/backup-lakehouse.sh --output-dir /mnt/nas/lakehouse-backups
+
+# Custom backup location with CRON
+./examples/cron-backup-setup.sh --backup-dir /external/storage/backups
+```
