@@ -292,34 +292,51 @@ migrate_data() {
         if [[ -d "$source_path" ]] && [[ "$(ls -A "$source_path" 2>/dev/null)" ]]; then
             log_info "Migrating $(basename "$source_path") data..."
             
-            # Use a temporary container to copy data (including hidden files)
+            # Use a temporary container with rsync for reliable data migration
             docker run --rm \
                 -v "$source_path:/source" \
                 -v "$volume_name:/target" \
                 alpine:latest \
                 sh -c "
-                    # Copy all files including hidden ones
-                    cp -r /source/. /target/ 2>/dev/null || {
-                        # Fallback: copy visible files then hidden files separately
-                        cp -r /source/* /target/ 2>/dev/null || true
-                        cp -r /source/.[^.]* /target/ 2>/dev/null || true
-                        cp -r /source/..?* /target/ 2>/dev/null || true
+                    # Install rsync for reliable migration
+                    apk add --no-cache rsync >/dev/null 2>&1 || {
+                        echo 'rsync install failed, using cp fallback'
+                        # Fallback to cp with comprehensive file handling
+                        cp -r /source/. /target/ 2>/dev/null || {
+                            cp -r /source/* /target/ 2>/dev/null || true
+                            cp -r /source/.[^.]* /target/ 2>/dev/null || true  
+                            cp -r /source/..?* /target/ 2>/dev/null || true
+                        }
+                        exit 0
                     }
-                    # Ensure proper permissions are preserved
-                    chown -R \$(stat -c '%u:%g' /source) /target 2>/dev/null || true
+                    
+                    # Use rsync for reliable, complete data migration
+                    rsync -av --progress /source/ /target/ 2>/dev/null || {
+                        echo 'rsync failed, using cp fallback'
+                        cp -r /source/. /target/ 2>/dev/null || true
+                    }
                 " || {
                 log_warning "Migration of $(basename "$source_path") may have failed"
             }
         fi
     done
     
-    # Special case: migrate shared data
+    # Special case: migrate shared data with rsync
     if [[ -d "$LAKEHOUSE_ROOT" ]]; then
+        log_info "Migrating shared lakehouse data..."
         docker run --rm \
             -v "$LAKEHOUSE_ROOT:/source" \
             -v "${project_name}_lakehouse_shared:/target" \
             alpine:latest \
-            sh -c "cp -r /source/* /target/ 2>/dev/null || true" || {
+            sh -c "
+                # Install rsync for reliable migration
+                apk add --no-cache rsync >/dev/null 2>&1 || {
+                    cp -r /source/* /target/ 2>/dev/null || true
+                    exit 0
+                }
+                # Use rsync for shared data
+                rsync -av /source/ /target/ 2>/dev/null || cp -r /source/* /target/ 2>/dev/null || true
+            " || {
             log_warning "Shared data migration may have failed"
         }
     fi
