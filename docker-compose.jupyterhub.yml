@@ -61,5 +61,7 @@ volumes:
   # JupyterHub named volumes for persistent data
   jupyterhub_users:
     external: true
+    name: lakehouse-lab_jupyterhub_users
   jupyterhub_shared:
     external: true
+    name: lakehouse-lab_jupyterhub_shared

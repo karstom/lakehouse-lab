@@ -186,7 +186,10 @@ networks:
 volumes:
   auth_data:
     external: true
+    name: lakehouse-lab_auth_data
   mcp_logs:
     external: true
+    name: lakehouse-lab_mcp_logs
   audit_logs:
     external: true
+    name: lakehouse-lab_audit_logs

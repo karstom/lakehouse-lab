@@ -154,5 +154,7 @@ services:
 volumes:
   iceberg_jars:
     external: true
+    name: lakehouse-lab_iceberg_jars
   iceberg_warehouse:
     external: true
+    name: lakehouse-lab_iceberg_warehouse

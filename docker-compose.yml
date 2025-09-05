@@ -617,35 +617,50 @@ volumes:
   # These are managed externally (created by install/migration scripts)
   postgres_data:
     external: true
+    name: lakehouse-lab_postgres_data
   minio_data:
     external: true
+    name: lakehouse-lab_minio_data
   
   # Shared data volumes
   lakehouse_shared:
     external: true
+    name: lakehouse-lab_lakehouse_shared
   
   # Application data volumes
   jupyter_notebooks:
     external: true
+    name: lakehouse-lab_jupyter_notebooks
   jupyter_config:
     external: true
+    name: lakehouse-lab_jupyter_config
   airflow_dags:
     external: true
+    name: lakehouse-lab_airflow_dags
   airflow_logs:
     external: true
+    name: lakehouse-lab_airflow_logs
   airflow_plugins:
     external: true
+    name: lakehouse-lab_airflow_plugins
   spark_jobs:
     external: true
+    name: lakehouse-lab_spark_jobs
   spark_logs:
     external: true
+    name: lakehouse-lab_spark_logs
   superset_data:
     external: true
+    name: lakehouse-lab_superset_data
   homer_data:
     external: true
+    name: lakehouse-lab_homer_data
   vizro_data:
     external: true
+    name: lakehouse-lab_vizro_data
   lancedb_data:
     external: true
+    name: lakehouse-lab_lancedb_data
   portainer_data:
     external: true
+    name: lakehouse-lab_portainer_data
