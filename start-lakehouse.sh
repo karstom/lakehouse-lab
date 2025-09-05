@@ -213,7 +213,6 @@ create_named_volumes() {
     
     if [[ -f "docker-compose.auth.yml" ]]; then
         docker volume create "${project_name}_auth_data" >/dev/null 2>&1 || true
-        docker volume create "${project_name}_mcp_logs" >/dev/null 2>&1 || true
         docker volume create "${project_name}_audit_logs" >/dev/null 2>&1 || true
     fi
 }

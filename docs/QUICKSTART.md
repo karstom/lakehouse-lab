@@ -118,7 +118,6 @@ Once startup completes, access these URLs:
 |---------|-----|---------|-------------|
 | **Auth Portal** | http://localhost:9091 | Login & User Management | OAuth/Local |
 | **Secure Access** | http://localhost:9092 | Authenticated Service Access | Via Auth Portal |
-| **MCP Data API** | http://localhost:9090 | AI-Powered Data Queries | API Key |
 
 ## 🔒 Getting Your Login Credentials
 
@@ -217,50 +216,8 @@ GROUP BY product_category
 
 ---
 
-## 🤖 5. AI-Powered Data Queries (NEW!)
 
-### **Step 1: Access the MCP Server**
-✨ **NEW**: Natural language data queries with AI assistance!
-
-1. Get MCP API URL: Run `./scripts/show-credentials.sh`
-2. The MCP Server provides AI-powered data access at http://localhost:9090
-
-### **Step 2: Query Data with Natural Language**
-```python
-import requests
-
-# Natural language query
-response = requests.post('http://localhost:9090/api/query', json={
-    "query": "Show me the top 5 product categories by revenue from the sample data",
-    "limit": 5
-})
-print(response.json())
-
-# Vector similarity search
-response = requests.post('http://localhost:9090/api/vector-search', json={
-    "text": "find products similar to electronics",
-    "limit": 10
-})
-similar_items = response.json()
-```
-
-### **Step 3: Advanced AI Features**
-```python
-# Semantic data discovery
-response = requests.post('http://localhost:9090/api/discover', json={
-    "description": "customer purchase patterns during holidays"
-})
-
-# Automated insights
-response = requests.post('http://localhost:9090/api/insights', json={
-    "table": "sample_orders",
-    "focus": "anomaly_detection"
-})
-```
-
----
-
-## 📊 6. Modern Interactive Dashboards (NEW!)
+## 📊 5. Modern Interactive Dashboards (NEW!)
 
 ### **Step 1: Access Vizro Dashboards**
 ✨ **NEW**: Modern, responsive dashboard framework!
@@ -296,7 +253,7 @@ pages:
 
 ---
 
-## 🔍 7. Vector Database & Semantic Search (NEW!)
+## 🔍 6. Vector Database & Semantic Search (NEW!)
 
 ### **Step 1: Access LanceDB**
 ✨ **NEW**: High-performance vector operations for AI/ML!
@@ -329,7 +286,7 @@ similar_products = response.json()
 
 ---
 
-## 🔬 8. Interactive Data Science - Enhanced!
+## 🔬 7. Interactive Data Science - Enhanced!
 
 ### **Step 1: Open JupyterLab**
 ✅ **FIXED**: DuckDB packages are now pre-installed in Jupyter
@@ -405,7 +362,7 @@ display_dashboard()
 
 ---
 
-## 🔐 9. Enterprise Authentication & Team Access (NEW!)
+## 🔐 8. Enterprise Authentication & Team Access (NEW!)
 
 ### **Step 1: Access Authentication Portal (If Enabled)**
 ✨ **NEW**: Enterprise-grade authentication with role-based access!
@@ -438,7 +395,7 @@ All services are protected via http://localhost:9092 when authentication is enab
 
 ---
 
-## ⚙️ 10. Workflow Orchestration - Enhanced!
+## ⚙️ 9. Workflow Orchestration - Enhanced!
 
 ### **Step 1: Open Airflow**
 ✅ **FIXED**: DuckDB import errors resolved - DAGs now work!
@@ -459,7 +416,7 @@ All services are protected via http://localhost:9092 when authentication is enab
 
 ---
 
-## 💾 11. Manage Your Data
+## 💾 10. Manage Your Data
 
 ### **Step 1: Access MinIO Console**
 1. Visit http://localhost:9001
@@ -481,7 +438,7 @@ All services are protected via http://localhost:9092 when authentication is enab
 
 ---
 
-## 🐳 12. Monitor Everything
+## 🐳 11. Monitor Everything
 
 ### **Step 1: Container Management**
 1. Visit http://localhost:9060 (Portainer)
@@ -507,7 +464,7 @@ docker compose logs -f jupyter
 
 ---
 
-## 🔧 13. Advanced Patterns
+## 🔧 12. Advanced Patterns
 
 ### **Multi-File Analytics (Now Works Perfectly!)**
 ```sql
@@ -536,7 +493,7 @@ ORDER BY month;
 
 ---
 
-## 🚨 14. Troubleshooting
+## 🚨 13. Troubleshooting
 
 ### **Fixed Issues:**
 ✅ **Issue #1**: Superset S3 configuration now persists  
@@ -574,7 +531,7 @@ If you need to manually update the Superset DuckDB connection:
 After completing this Version 2.0.0 quickstart:
 
 ✅ **Enterprise-Ready Data Platform** - Complete analytics stack with optional security  
-✅ **AI-Powered Data API** - Natural language queries via MCP Server  
+  
 ✅ **Modern Interactive Dashboards** - Vizro framework with live data  
 ✅ **Vector Database Integration** - LanceDB for semantic search and AI/ML  
 ✅ **Fixed S3 Integration** - Persistent DuckDB S3 configuration  
@@ -590,7 +547,6 @@ After completing this Version 2.0.0 quickstart:
 - **Add Your Data**: Upload CSV/Parquet files to MinIO
 - **Build ML Models**: Use LanceDB for vector embeddings and semantic search
 - **Create Dashboards**: Build interactive Vizro dashboards
-- **AI Integration**: Experiment with natural language data queries
 
 ### **Enterprise Teams** 
 - **Setup OAuth**: Configure Google/Microsoft/GitHub authentication
@@ -599,7 +555,6 @@ After completing this Version 2.0.0 quickstart:
 - **Scale Infrastructure**: Use fat-server configuration for production workloads
 
 ### **Advanced Use Cases**
-- **Custom MCP Tools**: Extend the AI data API with custom functions
 - **Vector Search**: Build recommendation systems and semantic search
 - **Real-time Analytics**: Create streaming dashboards with live data
 - **Multi-tenant**: Configure separate environments for different teams

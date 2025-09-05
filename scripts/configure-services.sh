@@ -47,7 +47,6 @@ SERVICES[vizro]="Vizro (Interactive Dashboards)"
 SERVICES[lancedb]="LanceDB (Vector Database)"
 SERVICES[portainer]="Portainer (Docker Management)"
 SERVICES[homer]="Homer (Service Dashboard)"
-SERVICES[mcp-server]="AI-Powered Data API with Security"
 
 # Service descriptions
 SERVICE_DESCRIPTIONS[airflow]="Workflow orchestration and scheduling platform for data pipelines"
@@ -57,7 +56,6 @@ SERVICE_DESCRIPTIONS[vizro]="Low-code dashboard framework for interactive data v
 SERVICE_DESCRIPTIONS[lancedb]="High-performance vector database for AI/ML applications"
 SERVICE_DESCRIPTIONS[portainer]="Web-based Docker container management interface"
 SERVICE_DESCRIPTIONS[homer]="Static service dashboard with links to all running services"
-SERVICE_DESCRIPTIONS[mcp-server]="AI assistant for data queries with natural language processing"
 
 # Service dependencies (services that depend on this service)
 SERVICE_DEPENDENCIES[airflow]="lakehouse-init postgres"
@@ -67,7 +65,6 @@ SERVICE_DEPENDENCIES[vizro]="postgres minio lakehouse-init"
 SERVICE_DEPENDENCIES[lancedb]="lakehouse-init"
 SERVICE_DEPENDENCIES[portainer]=""
 SERVICE_DEPENDENCIES[homer]=""
-SERVICE_DEPENDENCIES[mcp-server]="postgres minio lancedb"
 
 # Service ports
 SERVICE_PORTS[airflow]="9020"
@@ -77,7 +74,6 @@ SERVICE_PORTS[vizro]="9050"
 SERVICE_PORTS[lancedb]="9080"
 SERVICE_PORTS[portainer]="9060"
 SERVICE_PORTS[homer]="9061"
-SERVICE_PORTS[mcp-server]="9090"
 
 # Resource requirements (RAM in GB)
 SERVICE_RESOURCES[airflow]="4"
@@ -87,7 +83,6 @@ SERVICE_RESOURCES[vizro]="2"
 SERVICE_RESOURCES[lancedb]="3"
 SERVICE_RESOURCES[portainer]="0.5"
 SERVICE_RESOURCES[homer]="0.1"
-SERVICE_RESOURCES[mcp-server]="2"
 
 # Configuration file
 CONFIG_FILE=".lakehouse-services.conf"
@@ -390,23 +385,9 @@ EOF
             log_info "Creating full configuration (all services enabled)"
             echo "$DEFAULT_CONFIG" > "$CONFIG_FILE"
             ;;
-        "secure")
-            log_info "Creating secure configuration (all services enabled)"
-            cat > "$CONFIG_FILE" << EOF
-# Secure Lakehouse Lab Configuration
-airflow=true
-superset=true
-jupyter=true
-vizro=true
-lancedb=true
-portainer=true
-homer=true
-mcp-server=true
-EOF
-            ;;
         *)
             log_error "Unknown preset: $preset"
-            log_info "Available presets: minimal, analytics, ml, full, secure"
+            log_info "Available presets: minimal, analytics, ml, full"
             exit 1
             ;;
     esac
@@ -511,7 +492,7 @@ main() {
             echo -e "  analytics      Jupyter + Superset + Vizro"
             echo -e "  ml             Jupyter + LanceDB + Airflow"
             echo -e "  full           All services enabled"
-            echo -e "  secure         All services enabled"
+            echo -e ""
             echo ""
             ;;
         *)

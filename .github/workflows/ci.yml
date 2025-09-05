@@ -280,62 +280,7 @@ jobs:
         docker system prune -f
         docker volume prune -f
 
-  # Job 4: MCP Server tests
-  mcp-server-tests:
-    runs-on: ubuntu-latest
-    name: MCP Server Tests
-    needs: lint-and-validate
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: Install MCP server dependencies
-      run: |
-        python -m pip install --upgrade pip
-        if [ -f mcp-server/requirements.txt ]; then
-          echo "Installing MCP server dependencies..."
-          pip install -r mcp-server/requirements.txt
-        else
-          echo "No MCP server requirements found, installing basic dependencies"
-          pip install fastapi uvicorn pytest pytest-asyncio httpx
-        fi
-    
-    - name: Test MCP server syntax
-      run: |
-        if [ -f mcp-server/main.py ]; then
-          echo "Testing MCP server Python syntax..."
-          python -m py_compile mcp-server/main.py
-          echo "✅ MCP server syntax is valid"
-        else
-          echo "⚠️  MCP server main.py not found, skipping syntax check"
-        fi
-    
-    - name: Test MCP server configuration
-      run: |
-        if [ -f mcp-server/config.py ]; then
-          echo "Testing MCP server configuration..."
-          python -m py_compile mcp-server/config.py
-          echo "✅ MCP server configuration is valid"
-        else
-          echo "⚠️  MCP server config.py not found, skipping config check"
-        fi
-    
-    - name: Run MCP server unit tests
-      run: |
-        if [ -f tests/test_mcp_server.py ]; then
-          echo "Running MCP server tests..."
-          python -m pytest tests/test_mcp_server.py -v -k "not integration and not docker" --tb=short
-        else
-          echo "⚠️  MCP server tests not found, skipping"
-        fi
-
-  # Job 5: Integration tests
+  # Job 4: Integration tests
   integration-tests:
     runs-on: ubuntu-latest
     name: Integration Tests

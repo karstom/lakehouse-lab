@@ -50,14 +50,6 @@ This release significantly enhances data protection, system reliability, and use
 - **🏠 Preserve One-Click Install**: Original simple installation completely unchanged and preserved
 - **⚡ Flexible Deployment**: Can start simple and add authentication later, or install with full security
 
-### 🤖 AI-Powered Data API (MCP Server)
-- **🧠 Model Context Protocol Server**: AI-powered data access with natural language capabilities
-- **🔍 Intelligent Query Assistant**: Convert natural language to SQL and data insights
-- **🎨 Vizro Integration**: Generate interactive dashboards from SQL queries via natural language
-- **📊 Smart Chart Creation**: Automatic chart type selection based on data analysis
-- **🔒 Security Integrated**: Full authentication and authorization for AI operations
-- **📊 Multi-Source Access**: Unified API for PostgreSQL, MinIO, DuckDB, and LanceDB
-- **📋 Audit & Compliance**: Complete audit trail for all AI-assisted data operations
 
 ### 📊 Modern Interactive Dashboards (Vizro)
 - **🎨 Vizro Dashboard Framework**: Low-code interactive dashboard creation
@@ -123,7 +115,7 @@ This release significantly enhances data protection, system reliability, and use
 - **🚀 QUICKSTART.md**: New v2.0.0 walkthrough with AI features, authentication, and modern dashboards
 - **⚙️ INSTALLATION.md**: Enterprise installation paths, OAuth setup, and configuration-based requirements
 - **🔧 CONFIGURATION.md**: Updated service presets including secure configuration option
-- **🤖 LAKEHOUSE_LLM_GUIDE.md**: Enhanced with AI layer architecture and MCP server integration
+- **🤖 LAKEHOUSE_LLM_GUIDE.md**: Enhanced with AI layer architecture and vector database integration
 - **🎯 User Experience**: Clear separation between individual developer and enterprise team workflows
 
 This release transforms Lakehouse Lab from a development-focused data platform into a production-ready, team-collaboration platform while preserving the simplicity that made it popular for individual developers and learners.

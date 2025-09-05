@@ -137,7 +137,7 @@ class TestConfigurationParsing:
             if line.strip().startswith('#'):
                 continue
             # Look for problematic patterns like ${auth-service}
-            if '${auth-service}' in line or '${auth-proxy}' in line or '${mcp-server}' in line:
+            if '${auth-service}' in line or '${auth-proxy}' in line:
                 # This would be problematic, but allow in comments/strings
                 if not ('"' in line or "'" in line):
                     pytest.fail(f"Found problematic variable access: {line.strip()}")
@@ -151,7 +151,6 @@ airflow=true
 superset=false
 auth-service=true
 auth-proxy=true
-mcp-server=false
 """
         config_file = temp_dir / "test-services.conf"
         with open(config_file, 'w') as f:
@@ -175,7 +174,7 @@ fi
 # Test that hyphenated services were parsed correctly
 echo "auth-service: ${{SERVICE_CONFIG[auth-service]:-NOT_FOUND}}"
 echo "auth-proxy: ${{SERVICE_CONFIG[auth-proxy]:-NOT_FOUND}}"
-echo "mcp-server: ${{SERVICE_CONFIG[mcp-server]:-NOT_FOUND}}"
+echo "lancedb: ${{SERVICE_CONFIG[lancedb]:-NOT_FOUND}}"
 echo "airflow: ${{SERVICE_CONFIG[airflow]:-NOT_FOUND}}"
 echo "superset: ${{SERVICE_CONFIG[superset]:-NOT_FOUND}}"
 '''
@@ -193,7 +192,7 @@ echo "superset: ${{SERVICE_CONFIG[superset]:-NOT_FOUND}}"
         output = result.stdout
         assert "auth-service: true" in output
         assert "auth-proxy: true" in output
-        assert "mcp-server: false" in output
+        assert "lancedb: NOT_FOUND" in output
         assert "airflow: true" in output
         assert "superset: false" in output
 
@@ -215,7 +214,7 @@ class TestAuthenticationScripts:
         assert 'secure")' in content
         assert 'auth-service=true' in content
         assert 'auth-proxy=true' in content
-        assert 'mcp-server=true' in content
+        assert 'lancedb=true' in content
 
     def test_auth_services_defined(self, project_root):
         """Test that auth services are properly defined."""
@@ -227,7 +226,7 @@ class TestAuthenticationScripts:
         # Should define auth services
         assert 'SERVICES[auth-service]=' in content
         assert 'SERVICES[auth-proxy]=' in content
-        assert 'SERVICES[mcp-server]=' in content
+        assert 'SERVICES[lancedb]=' in content
 
         # Should have descriptions
         assert 'Authentication Service' in content

@@ -8,9 +8,9 @@
 [![AI Ready](https://img.shields.io/badge/AI-Ready-purple)](docs/LAKEHOUSE_LLM_GUIDE.md)
 
 > **🎓 Modern Data Engineering Learning Platform in 15 Minutes**  
-> **🚀 One-Click Install • 🤖 AI-Powered API • 📊 Modern Dashboards**
+> **🚀 One-Click Install • 🔍 Vector Search • 📊 Modern Dashboards**
 
-**Version 2.1.0** - A comprehensive lakehouse environment designed for learning modern data engineering practices and lab-scale projects. **Features AI-powered data API, modern interactive dashboards, vector search, multi-user JupyterHub, and comprehensive backup systems - making advanced lakehouse technologies accessible to home-labbers and learning environments.**
+**Version 2.1.0** - A comprehensive lakehouse environment designed for learning modern data engineering practices and lab-scale projects. **Features modern interactive dashboards, vector search, multi-user JupyterHub, and comprehensive backup systems - making advanced lakehouse technologies accessible to home-labbers and learning environments.**
 
 ### 🎯 Perfect for Learning & Lab Projects
 
@@ -20,7 +20,7 @@
 | No setup complexity | Multi-user JupyterHub environment |
 | Perfect for learning data engineering | Shared notebooks and data access |
 | Interactive dashboard development | Team-friendly configuration |
-| AI-powered analytics exploration | Multiple user workflows |
+| Vector search and semantic analysis | Multiple user workflows |
 | Local development & experimentation | Collaborative data science |
 | ⚡ 15-minute setup | 🤝 Team-ready setup |
 
@@ -179,10 +179,6 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 | **LanceDB** | Vector Database API | :9080 | 3GB | AI/ML, semantic search |
 | **Homer** | Service Links Dashboard | :9061 | 0.1GB | Easy service access |
 
-### 🤖 AI & Advanced Services (Optional)
-| Service | Purpose | URL | RAM | Use Case |
-|---------|---------|-----|-----|----------|
-| **MCP Server** | AI-Powered Data API | :9090 | 2GB | Natural language data queries, AI analytics |
 
 📋 **Get exact URLs**: Run `./scripts/show-credentials.sh` to see service URLs with your detected IP address.
 
@@ -359,10 +355,6 @@ graph TB
         DS3[Databases]
     end
     
-    subgraph "🤖 AI-Powered Data API"
-        MCP[MCP Server<br/>Natural Language<br/>Data Queries]
-    end
-    
     subgraph "Processing Layer"
         AF[Airflow<br/>Orchestration]
         SP[Spark<br/>Processing]
@@ -412,16 +404,13 @@ graph TB
     DU --> SU
     DU --> VZ
     DU --> JD
-    DU --> MCP
     SS --> SU
     SS --> VZ
     SS --> JD
     PA --> SU
     PA --> VZ
     PA --> JD
-    PA --> MCP
     VS --> JD
-    VS --> MCP
     DU --> PG
     
     %% Management connections
@@ -446,7 +435,7 @@ graph TB
     class AF,SP,JU processing
     class SU,VZ,JD visualization
     class PO,HO management
-    class MCP,VS ai
+    class VS ai
     class DU,SS,PA storage
 ```
 
@@ -454,7 +443,6 @@ graph TB
 
 | **Layer** | **Components** | **Purpose** |
 |-----------|----------------|-------------|
-| **AI-Powered API** | MCP Server | Natural language data queries, AI-assisted analytics |
 | **Data Sources** | CSV Files, APIs, Databases | Raw data ingestion from various sources |
 | **Processing** | Apache Airflow, Apache Spark, Jupyter | ETL workflows, distributed processing, analysis |
 | **Storage** | MinIO (S3-compatible), PostgreSQL, LanceDB | Object storage + analytics database + vector database |
@@ -467,7 +455,7 @@ graph TB
 1. **Ingest** → Upload data files to MinIO or connect external sources
 2. **Process** → Transform data using Spark jobs orchestrated by Airflow  
 3. **Store** → Save processed data to MinIO (data lake), PostgreSQL (warehouse), and LanceDB (vectors)
-4. **Analyze** → Query data with DuckDB (data lake), PostgreSQL (structured), or natural language (MCP)
+4. **Analyze** → Query data with DuckDB (data lake), PostgreSQL (structured), or vector search (LanceDB)
 5. **AI/ML** → Perform semantic search, vector similarity, and embedding operations via LanceDB
 6. **Visualize** → Create dashboards in Superset/Vizro or notebooks in Jupyter from all data sources
 7. **Monitor** → Manage services through Portainer and service dashboard
@@ -476,13 +464,11 @@ graph TB
 - **Data Lake (DuckDB + MinIO)**: Direct file queries, multi-format support, schema-on-read
 - **Data Warehouse (PostgreSQL)**: Structured analytics, ACID transactions, optimized performance  
 - **Vector Database (LanceDB)**: High-performance vector operations, semantic search, AI/ML workflows
-- **AI Data API (MCP)**: Natural language queries, intelligent data discovery, automated insights
 
 ### **Key Architectural Benefits**
 
-- **🤖 AI-Powered API**: Natural language data queries via Model Context Protocol (MCP)
 - **🚀 S3-Native Analytics**: Query files directly without data movement
-- **🏗️ Quadruple Analytics**: Data lake (DuckDB) + warehouse (PostgreSQL) + vector (LanceDB) + AI (MCP)
+- **🏗️ Triple Analytics**: Data lake (DuckDB) + warehouse (PostgreSQL) + vector database (LanceDB)
 - **📊 Multi-Format Support**: CSV, Parquet, JSON, and more with seamless access
 - **🔄 Scalable Processing**: Spark scales from single machine to cluster
 - **🤖 AI/ML Ready**: Vector search, embeddings, semantic similarity, and LLM integration
@@ -775,42 +761,7 @@ docker compose restart postgres
 - **Database**: `lakehouse`
 - **Username/Password**: Run `./scripts/show-credentials.sh`
 
-### 5. **AI-Powered Data API (MCP Server)**
-**Natural language queries with the MCP Server** - Get your service URL from `./scripts/show-credentials.sh`:
-
-**Example natural language queries:**
-```bash
-# Query via REST API
-curl -X POST http://localhost:9090/api/query \
-  -H "Content-Type: application/json" \
-  -d '{"query": "Show me the top 5 product categories by revenue", "limit": 5}'
-
-# Vector similarity search
-curl -X POST http://localhost:9090/api/vector-search \
-  -H "Content-Type: application/json" \
-  -d '{"text": "find products similar to electronics", "limit": 10}'
-```
-
-**In Python (Jupyter):**
-```python
-import requests
-
-# Natural language data query
-response = requests.post('http://localhost:9090/api/query', json={
-    "query": "What were the sales trends last month?",
-    "source": "postgres"  # or "duckdb"
-})
-print(response.json())
-
-# Vector search for semantic similarity
-response = requests.post('http://localhost:9090/api/vector-search', json={
-    "text": "customer complaints about delivery",
-    "limit": 5
-})
-similar_records = response.json()
-```
-
-### 6. **Build Dashboards**
+### 5. **Build Dashboards**
 1. **Get Superset URL**: Run `./scripts/show-credentials.sh` to see your service URLs and login credentials
 2. **Choose your database connection:**
    - **"DuckDB-S3"** - For data lake queries with persistent S3 access
@@ -821,7 +772,7 @@ similar_records = response.json()
 4. **Advanced features**: Both connections support CREATE, INSERT, UPDATE, DELETE operations
 5. See the [Superset Database Setup Guide](docs/SUPERSET_DATABASE_SETUP.md) for detailed configuration
 
-### 7. **Modern Interactive Dashboards (Vizro)**
+### 6. **Modern Interactive Dashboards (Vizro)**
 **Get Vizro URL**: Run `./scripts/show-credentials.sh` to see your service URLs
 
 **🎨 Dashboard Development Options:**
@@ -848,7 +799,7 @@ similar_records = response.json()
 3. **Live Data**: Dashboards automatically update with fresh data from PostgreSQL and MinIO
 4. **Interactive Features**: Filtering, drilling, real-time updates with modern UI
 
-### 8. **Orchestrate with Airflow**
+### 7. **Orchestrate with Airflow**
 1. **Get Airflow URL**: Run `./scripts/show-credentials.sh` to see your service URLs and login credentials
 2. **Available DAGs:**
    - **`sample_duckdb_pipeline`** - DuckDB ETL pipeline with S3 data processing
@@ -1068,7 +1019,6 @@ Built with these amazing open source projects:
 ## 🌟 Key Features
 
 - ✅ **15-minute setup** - Complete lakehouse in minutes with one-click install
-- ✅ **AI-powered data API** - Natural language queries via Model Context Protocol (MCP)
 - ✅ **S3-native analytics** - Query files directly with DuckDB without data movement
 - ✅ **Modern interactive dashboards** - Vizro framework for dynamic, responsive visualizations
 - ✅ **Vector database integration** - LanceDB for semantic search and AI/ML workflows

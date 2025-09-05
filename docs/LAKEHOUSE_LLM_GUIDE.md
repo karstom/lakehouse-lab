@@ -2,7 +2,7 @@
 
 > **Comprehensive metadata and development guide for Large Language Models working with Lakehouse Lab**
 
-**Version 2.0.0** - This document provides LLMs and AI developers with complete system understanding, code patterns, configuration details, and best practices for working with the modern Lakehouse Lab environment, including the integrated MCP Server, authentication system, and AI-powered capabilities.
+**Version 2.0.0** - This document provides LLMs and AI developers with complete system understanding, code patterns, configuration details, and best practices for working with the modern Lakehouse Lab environment, including the authentication system and AI-powered capabilities.
 
 ## 🏗️ System Architecture Overview
 
@@ -13,8 +13,7 @@
 ├─────────────────┬─────────────────┬─────────────────┬───────────────┤
 │  STORAGE LAYER  │ PROCESSING LAYER│  INTERFACE LAYER│   AI LAYER    │
 ├─────────────────┼─────────────────┼─────────────────┼───────────────┤
-│ • PostgreSQL    │ • Apache Spark  │ • JupyterLab    │ • MCP Server  │
-│ • MinIO (S3)    │ • Apache Airflow│ • Apache Superset│ • LanceDB API │
+│ • PostgreSQL    │ • Apache Spark  │ • JupyterLab    │ • MinIO (S3)    │ • Apache Airflow│ • Apache Superset│ • LanceDB API │
 │ • LanceDB       │ • DuckDB        │ • Vizro Dashboards│ • Vector Search│
 │                 │                 │ • Portainer     │               │
 │                 │                 │ • Auth Portal   │               │
@@ -47,8 +46,7 @@ LanceDB         | 8000          | 9080          | lancedb               | /healt
 Portainer       | 9000          | 9060          | portainer             | HTTP:9060
 Homer           | 8080          | 9061          | homer                 | HTTP:8080
 
-# AI & MCP Services
-MCP Server      | 8090          | 9090          | mcp-server            | /health
+# AI Services
 Vector Search   | 8000          | 9080          | lancedb               | /health
 
 # Authentication Services (Optional)
