@@ -341,7 +341,39 @@ migrate_data() {
         }
     fi
     
+    # Update service files from templates to ensure we have the latest versions
+    update_service_templates
+    
     log_success "Data migration completed"
+}
+
+update_service_templates() {
+    log_info "Updating service files from templates..."
+    
+    local project_name=$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]')
+    
+    # Update LanceDB service files to ensure we have the fixed version
+    if [[ -f "templates/lancedb/service/lancedb_service.py" ]]; then
+        log_info "Updating LanceDB service file from template..."
+        docker run --rm \
+            -v "$(pwd)/templates/lancedb:/source" \
+            -v "${project_name}_lancedb_data:/target" \
+            alpine:latest \
+            sh -c "
+                # Copy the fixed service files from templates
+                mkdir -p /target/service
+                cp /source/service/* /target/service/ 2>/dev/null || true
+                echo 'LanceDB service files updated from templates'
+            " || log_warning "Could not update LanceDB service files"
+    fi
+    
+    # Add other service template updates here as needed
+    # Example for future services:
+    # if [[ -f "templates/other-service/config.py" ]]; then
+    #     docker run --rm -v "$(pwd)/templates/other-service:/source" -v "${project_name}_other_data:/target" alpine:latest sh -c "cp /source/* /target/"
+    # fi
+    
+    log_success "Service templates updated"
 }
 
 update_configuration() {
@@ -401,6 +433,29 @@ start_services() {
         # Start remaining services
         if docker compose up -d; then
             log_success "All services started with named volumes"
+            
+            # Restart LanceDB to ensure it picks up updated service files
+            if docker compose ps lancedb >/dev/null 2>&1; then
+                log_info "Restarting LanceDB to load updated service files..."
+                docker compose restart lancedb
+                sleep 10
+                
+                # Verify LanceDB is healthy after restart
+                local lancedb_attempts=0
+                while [[ $lancedb_attempts -lt 6 ]]; do
+                    if curl -f http://localhost:9080/health >/dev/null 2>&1; then
+                        log_success "LanceDB is healthy with updated service files"
+                        break
+                    fi
+                    lancedb_attempts=$((lancedb_attempts + 1))
+                    if [[ $lancedb_attempts -lt 6 ]]; then
+                        log_info "Waiting for LanceDB to restart... (attempt $lancedb_attempts/6)"
+                        sleep 5
+                    else
+                        log_warning "LanceDB may not be responding - check service logs"
+                    fi
+                done
+            fi
         else
             log_error "Failed to start all services"
             return 1
