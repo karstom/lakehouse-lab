@@ -292,12 +292,22 @@ migrate_data() {
         if [[ -d "$source_path" ]] && [[ "$(ls -A "$source_path" 2>/dev/null)" ]]; then
             log_info "Migrating $(basename "$source_path") data..."
             
-            # Use a temporary container to copy data
+            # Use a temporary container to copy data (including hidden files)
             docker run --rm \
                 -v "$source_path:/source" \
                 -v "$volume_name:/target" \
                 alpine:latest \
-                sh -c "cp -r /source/* /target/ 2>/dev/null || cp -r /source/. /target/ 2>/dev/null || true" || {
+                sh -c "
+                    # Copy all files including hidden ones
+                    cp -r /source/. /target/ 2>/dev/null || {
+                        # Fallback: copy visible files then hidden files separately
+                        cp -r /source/* /target/ 2>/dev/null || true
+                        cp -r /source/.[^.]* /target/ 2>/dev/null || true
+                        cp -r /source/..?* /target/ 2>/dev/null || true
+                    }
+                    # Ensure proper permissions are preserved
+                    chown -R \$(stat -c '%u:%g' /source) /target 2>/dev/null || true
+                " || {
                 log_warning "Migration of $(basename "$source_path") may have failed"
             }
         fi
@@ -349,6 +359,27 @@ start_services() {
     if docker compose up -d postgres minio lakehouse-init; then
         log_success "Core services started"
         sleep 15
+        
+        # Restart MinIO to ensure it picks up migrated IAM configuration
+        log_info "Restarting MinIO to reload access keys and policies..."
+        docker compose restart minio
+        sleep 10
+        
+        # Verify MinIO is healthy after restart
+        local minio_attempts=0
+        while [[ $minio_attempts -lt 6 ]]; do
+            if docker compose exec minio mc admin info local >/dev/null 2>&1; then
+                log_success "MinIO is healthy and access keys loaded"
+                break
+            fi
+            minio_attempts=$((minio_attempts + 1))
+            if [[ $minio_attempts -lt 6 ]]; then
+                log_info "Waiting for MinIO to reload configuration... (attempt $minio_attempts/6)"
+                sleep 5
+            else
+                log_warning "MinIO may not have loaded all access keys - check admin console"
+            fi
+        done
         
         # Start remaining services
         if docker compose up -d; then
