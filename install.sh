@@ -362,8 +362,8 @@ perform_smart_upgrade() {
     print_step "Running data migration to named volumes..."
     
     # Check if migration script exists in the new installation
-    if [[ ! -f "$abs_install_dir/migrate-to-named-volumes.sh" ]]; then
-        print_error "Migration script not found at: $abs_install_dir/migrate-to-named-volumes.sh"
+    if [[ ! -f "$abs_install_dir/scripts/install/migrate-to-named-volumes.sh" ]]; then
+        print_error "Migration script not found at: $abs_install_dir/scripts/install/migrate-to-named-volumes.sh"
         print_warning "Your upgrade was completed but data migration failed."
         print_info "Directory contents:"
         ls -la "$abs_install_dir/" || echo "Directory not accessible"
@@ -372,13 +372,13 @@ perform_smart_upgrade() {
     
     # Run migration from the correct directory
     cd "$abs_install_dir"
-    bash migrate-to-named-volumes.sh
+    bash scripts/install/migrate-to-named-volumes.sh
     migration_result=$?
     cd "$original_dir"
     
     if [[ $migration_result -ne 0 ]]; then
         print_error "Data migration failed. Your upgrade was completed but data is still in bind mounts."
-        print_info "You can run the migration manually: cd $abs_install_dir && bash migrate-to-named-volumes.sh"
+        print_info "You can run the migration manually: cd $abs_install_dir && bash scripts/install/migrate-to-named-volumes.sh"
         exit 1
     fi
     

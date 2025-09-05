@@ -29,12 +29,12 @@ jobs:
           echo "Checking for required documentation files..."
           
           required_docs=(
-            "QUICKSTART.md"
-            "INSTALLATION.md" 
-            "CONFIGURATION.md"
-            "CHANGELOG.md"
-            "TESTING.md"
-            "ICEBERG.md"
+            "docs/QUICKSTART.md"
+            "docs/INSTALLATION.md" 
+            "docs/CONFIGURATION.md"
+            "docs/CHANGELOG.md"
+            "docs/TESTING.md"
+            "docs/ICEBERG.md"
           )
           
           for doc in "${required_docs[@]}"; do
@@ -56,19 +56,19 @@ jobs:
           fi
           
           # Check INSTALLATION has backup setup
-          if ! grep -q "Post-Installation: Backup Setup" INSTALLATION.md; then
+          if ! grep -q "Post-Installation: Backup Setup" docs/INSTALLATION.md; then
             echo "❌ Backup setup missing from INSTALLATION"
             exit 1
           fi
           
           # Check CONFIGURATION has backup config
-          if ! grep -q "💾 Backup Configuration" CONFIGURATION.md; then
+          if ! grep -q "💾 Backup Configuration" docs/CONFIGURATION.md; then
             echo "❌ Backup configuration missing from CONFIGURATION"
             exit 1
           fi
           
           # Check CHANGELOG has v2.1.0 backup features
-          if ! grep -q "💾 Comprehensive Backup & Restore System" CHANGELOG.md; then
+          if ! grep -q "💾 Comprehensive Backup & Restore System" docs/CHANGELOG.md; then
             echo "❌ v2.1.0 backup features missing from CHANGELOG"
             exit 1
           fi
@@ -80,7 +80,7 @@ jobs:
           echo "Checking version consistency across documentation..."
           
           # Check that v2.1.0 is mentioned in key files
-          version_files=("README.md" "QUICKSTART.md" "INSTALLATION.md" "CONFIGURATION.md")
+          version_files=("README.md" "docs/QUICKSTART.md" "docs/INSTALLATION.md" "docs/CONFIGURATION.md")
           
           for file in "${version_files[@]}"; do
             if ! grep -q "2.1.0" "$file"; then

@@ -3,9 +3,9 @@
 [![GitHub release](https://img.shields.io/github/release/karstom/lakehouse-lab.svg)](https://github.com/karstom/lakehouse-lab/releases)
 [![Docker Compose](https://img.shields.io/badge/docker--compose-ready-blue)](https://docs.docker.com/compose/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![Enterprise Auth](https://img.shields.io/badge/Enterprise-Authentication-green)](CONFIGURATION.md)
-[![AI Ready](https://img.shields.io/badge/AI-Ready-purple)](LAKEHOUSE_LLM_GUIDE.md)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](docs/CONTRIBUTING.md)
+[![Enterprise Auth](https://img.shields.io/badge/Enterprise-Authentication-green)](docs/CONFIGURATION.md)
+[![AI Ready](https://img.shields.io/badge/AI-Ready-purple)](docs/LAKEHOUSE_LLM_GUIDE.md)
 
 > **🎓 Modern Data Engineering Learning Platform in 15 Minutes**  
 > **🔒 Optional Team Authentication • 🤖 AI-Powered API • 📊 Modern Dashboards**
@@ -353,13 +353,13 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install-w
 
 ## 📖 Documentation
 
-- [🚀 **Quick Start**](QUICKSTART.md) - Get running in 15 minutes
-- [🔧 **Configuration Guide**](CONFIGURATION.md) - Service configuration and presets
-- [📚 **Installation Guide**](INSTALLATION.md) - Complete installation options
-- [🤖 **AI/ML Integration**](LAKEHOUSE_LLM_GUIDE.md) - LLM development and vector search
-- [☁️ **Cloud Deployment**](CLOUD_DEPLOYMENT.md) - AWS, GCP, Azure deployment guides
-- [🤝 **Contributing**](CONTRIBUTING.md) - How to contribute
-- [📋 **Changelog**](CHANGELOG.md) - Version history
+- [🚀 **Quick Start**](docs/QUICKSTART.md) - Get running in 15 minutes
+- [🔧 **Configuration Guide**](docs/CONFIGURATION.md) - Service configuration and presets
+- [📚 **Installation Guide**](docs/INSTALLATION.md) - Complete installation options
+- [🤖 **AI/ML Integration**](docs/LAKEHOUSE_LLM_GUIDE.md) - LLM development and vector search
+- [☁️ **Cloud Deployment**](docs/CLOUD_DEPLOYMENT.md) - AWS, GCP, Azure deployment guides
+- [🤝 **Contributing**](docs/CONTRIBUTING.md) - How to contribute
+- [📋 **Changelog**](docs/CHANGELOG.md) - Version history
 
 ## 💾 Backup & Data Protection
 
@@ -932,7 +932,7 @@ similar_records = response.json()
    - **DuckDB**: `SELECT * FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv')`
    - **PostgreSQL**: `SELECT * FROM analytics.order_facts WHERE order_date >= CURRENT_DATE - 7`
 4. **Advanced features**: Both connections support CREATE, INSERT, UPDATE, DELETE operations
-5. See the [Superset Database Setup Guide](SUPERSET_DATABASE_SETUP.md) for detailed configuration
+5. See the [Superset Database Setup Guide](docs/SUPERSET_DATABASE_SETUP.md) for detailed configuration
 
 ### 7. **Modern Interactive Dashboards (Vizro)**
 **Get Vizro URL**: Run `./scripts/show-credentials.sh` to see your service URLs
@@ -973,23 +973,46 @@ similar_records = response.json()
 
 ```
 lakehouse-lab/
-├── docker-compose.yml           # Main stack definition
-├── init-all-in-one-modular.sh  # Modular initialization script
-├── scripts/                    # Initialization modules
-├── templates/                  # Configuration templates
-├── .env.default                # Default configuration
-├── .env.fat-server             # High-resource configuration
-├── README.md                   # This file
-├── QUICKSTART.md               # Step-by-step guide
-└── lakehouse-data/             # Data directory (created on startup)
-    ├── airflow/
-    │   ├── dags/               # Airflow workflows
-    │   └── logs/               # Execution logs
+├── install.sh                  # 🚀 Main installer (START HERE)
+├── install-with-auth.sh        # 🔒 Secure team installer  
+├── start-lakehouse.sh          # ▶️  Service manager
+├── docker-compose.yml          # 🐳 Main stack definition
+├── docker-compose.*.yml        # 🔧 Service overlays (Iceberg, JupyterHub, Auth)
+├── .env.default                # ⚙️  Default configuration
+├── .env.fat-server             # 🖥️  High-performance config
+├── README.md                   # 📖 This file
+│
+├── docs/                       # 📚 All documentation
+│   ├── README.md               # Documentation index and navigation
+│   ├── QUICKSTART.md           # 15-minute setup guide
+│   ├── INSTALLATION.md         # Complete installation options
+│   ├── CONFIGURATION.md        # Service configuration guide
+│   ├── CHANGELOG.md            # Version history and features
+│   └── (specialized guides...)  # AI/ML, Cloud, Iceberg, etc.
+│
+├── scripts/                    # 🔧 Management and utility scripts
+│   ├── README.md               # Scripts documentation
+│   ├── backup-lakehouse.sh     # Comprehensive backup system
+│   ├── restore-lakehouse.sh    # Data restoration system
+│   ├── configure-services.sh   # Interactive service configuration
+│   ├── show-credentials.sh     # Display service URLs/credentials
+│   ├── install/                # Installation and migration scripts
+│   └── legacy/                 # Deprecated scripts (kept for compatibility)
+│
+├── tests/                      # 🧪 Testing framework
+│   ├── README.md               # Testing documentation
+│   ├── run_tests.sh            # Main test runner
+│   └── (test suites...)        # Unit and integration tests
+│
+├── examples/                   # 📋 Example configurations and setups
+├── templates/                  # 🎨 Service templates and configurations
+├── utils/                      # 🛠️  Standalone utilities (advanced users)
+│
+└── lakehouse-data/             # 💾 Runtime data directory (auto-created)
+    ├── airflow/dags/           # Workflow definitions
     ├── notebooks/              # Jupyter notebooks with examples
     ├── minio/                  # Object storage data
-    ├── postgres/               # Metadata database
-    ├── spark/jobs/             # Spark job files
-    └── homer/assets/           # Dashboard configuration
+    └── (service data...)       # PostgreSQL, Spark, etc.
 ```
 
 ## 🔧 Advanced Usage

@@ -179,7 +179,7 @@ jobs:
         
         # Test 5: Check smart upgrade system
         echo "=== Checking smart upgrade system ==="
-        if [ -f migrate-to-named-volumes.sh ] && [ -x migrate-to-named-volumes.sh ]; then
+        if [ -f scripts/install/migrate-to-named-volumes.sh ] && [ -x scripts/install/migrate-to-named-volumes.sh ]; then
           echo "✅ Smart upgrade migration script exists"
         else
           echo "❌ Smart upgrade system missing"
@@ -475,7 +475,7 @@ jobs:
     - name: Validate README and documentation
       run: |
         # Check that required documentation exists
-        required_docs=("README.md" "ICEBERG.md" "QUICKSTART.md" "INSTALLATION.md" "CONFIGURATION.md" "CHANGELOG.md" "TESTING.md")
+        required_docs=("README.md" "docs/ICEBERG.md" "docs/QUICKSTART.md" "docs/INSTALLATION.md" "docs/CONFIGURATION.md" "docs/CHANGELOG.md" "docs/TESTING.md")
         
         for doc in "${required_docs[@]}"; do
           if [ ! -f "$doc" ]; then
@@ -588,22 +588,22 @@ jobs:
           "docker-compose.yml"
           "docker-compose.iceberg.yml"
           "docker-compose.jupyterhub.yml"
-          "init-all-in-one-modular.sh"
+          "scripts/legacy/init-all-in-one-modular.sh"
           "start-lakehouse.sh"
           "install.sh"
           "install-with-auth.sh"
-          "migrate-to-named-volumes.sh"
+          "scripts/install/migrate-to-named-volumes.sh"
           "scripts/backup-lakehouse.sh"
           "scripts/restore-lakehouse.sh"
           "examples/cron-backup-setup.sh"
           "templates/airflow/dags/lakehouse_backup_dag.py"
           "README.md"
-          "ICEBERG.md"
-          "CHANGELOG.md"
-          "QUICKSTART.md"
-          "INSTALLATION.md"
-          "CONFIGURATION.md"
-          "TESTING.md"
+          "docs/ICEBERG.md"
+          "docs/CHANGELOG.md"
+          "docs/QUICKSTART.md"
+          "docs/INSTALLATION.md"
+          "docs/CONFIGURATION.md"
+          "docs/TESTING.md"
         )
         
         for file in "${required_files[@]}"; do
