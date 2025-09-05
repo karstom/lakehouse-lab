@@ -4,46 +4,37 @@
 [![Docker Compose](https://img.shields.io/badge/docker--compose-ready-blue)](https://docs.docker.com/compose/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](docs/CONTRIBUTING.md)
-[![Enterprise Auth](https://img.shields.io/badge/Enterprise-Authentication-green)](docs/CONFIGURATION.md)
+[![Learning Focused](https://img.shields.io/badge/Learning-Focused-green)](docs/CONFIGURATION.md)
 [![AI Ready](https://img.shields.io/badge/AI-Ready-purple)](docs/LAKEHOUSE_LLM_GUIDE.md)
 
 > **🎓 Modern Data Engineering Learning Platform in 15 Minutes**  
-> **🔒 Optional Team Authentication • 🤖 AI-Powered API • 📊 Modern Dashboards**
+> **🚀 One-Click Install • 🤖 AI-Powered API • 📊 Modern Dashboards**
 
-**Version 2.1.0** - A comprehensive lakehouse environment designed for learning modern data engineering practices and lab-scale projects. **Features integrated authentication, AI-powered data API, modern interactive dashboards, vector search, multi-user JupyterHub, and comprehensive backup systems - making advanced lakehouse technologies accessible to home-labbers and learning environments.**
+**Version 2.1.0** - A comprehensive lakehouse environment designed for learning modern data engineering practices and lab-scale projects. **Features AI-powered data API, modern interactive dashboards, vector search, multi-user JupyterHub, and comprehensive backup systems - making advanced lakehouse technologies accessible to home-labbers and learning environments.**
 
-### 🎯 Choose Your Experience
+### 🎯 Perfect for Learning & Lab Projects
 
 | **🏠 Individual Learning** | **🏢 Team Lab Environment** |
 |----------------------------|------------------------|
-| **One-click install** | **Secure team collaboration** |
-| No setup complexity | OAuth with Google/Microsoft/GitHub |
-| Perfect for learning data engineering | Multi-user JupyterHub environment |
-| Interactive dashboard development | Role-based access control |
-| AI-powered analytics exploration | Central user provisioning |
-| Local development & experimentation | Audit logging & compliance |
-| ⚡ 15-minute setup | 🔒 Lab-ready security |
+| **One-click install** | **Multi-user collaboration** |
+| No setup complexity | Multi-user JupyterHub environment |
+| Perfect for learning data engineering | Shared notebooks and data access |
+| Interactive dashboard development | Team-friendly configuration |
+| AI-powered analytics exploration | Multiple user workflows |
+| Local development & experimentation | Collaborative data science |
+| ⚡ 15-minute setup | 🤝 Team-ready setup |
 
 **⚠️ Important**: Lakehouse Lab is designed for **learning and lab-scale projects**. It provides a complete modern lakehouse experience to help you understand data engineering concepts and is suitable for home labs, but it is **not recommended for mission-critical or production-scale workloads**. For production use cases, consider commercial solutions that offer enterprise-grade support, SLA guarantees, and production-specific features.
 
 ## ⚡ Ultra-Quick Start
 
-### 🏠 Individual Developer (Simple & Fast)
+### 🚀 One-Command Installation
 
-**One-click install - no authentication setup needed:**
+**Simple one-click install for learning and lab use:**
 
 ```bash
-# Simple installation for individual use
+# Complete lakehouse installation - perfect for learning
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
-```
-
-### 🏢 Enterprise Team (Secure & Collaborative)
-
-**Secure installation with team authentication:**
-
-```bash
-# Enterprise installation with authentication
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install-with-auth.sh | bash
 ```
 
 ### 🎯 Interactive Setup Wizard (Recommended for Both)
@@ -188,13 +179,10 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 | **LanceDB** | Vector Database API | :9080 | 3GB | AI/ML, semantic search |
 | **Homer** | Service Links Dashboard | :9061 | 0.1GB | Easy service access |
 
-### 🔒 Enterprise Authentication Services (Optional)
+### 🤖 AI & Advanced Services (Optional)
 | Service | Purpose | URL | RAM | Use Case |
 |---------|---------|-----|-----|----------|
-| **Auth Service** | OAuth & Local Authentication | :9091 | 1GB | User management, federated login |
-| **Auth Proxy** | Service Access Control | :9092 | 0.5GB | Role-based access, audit logging |
-| **MCP Server** | AI-Powered Data API | :9090 | 2GB | Natural language data queries |
-| **Audit Service** | Compliance & Monitoring | - | 0.5GB | Activity logging, security monitoring |
+| **MCP Server** | AI-Powered Data API | :9090 | 2GB | Natural language data queries, AI analytics |
 
 📋 **Get exact URLs**: Run `./scripts/show-credentials.sh` to see service URLs with your detected IP address.
 
@@ -204,26 +192,12 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 - **📊 Analytics** (14GB): BI-focused with Superset + Vizro dashboards  
 - **🤖 ML/AI** (16GB): Machine learning with LanceDB vector search
 - **🚀 Full** (20GB): Complete data platform with all services
-- **🔒 Secure** (22GB): Full platform + enterprise authentication
 
 Configure services with: `./scripts/configure-services.sh` or use the setup wizard.
 
-## 👥 Team Management & Multi-User Features
+## 👥 Multi-User Features
 
-**Enterprise-grade user management across the entire lakehouse platform:**
-
-### 🎯 **Central User Provisioning**
-```bash
-# Provision users across all services with one command
-./scripts/provision-user.sh john.doe john.doe@company.com SecurePass123 analyst
-```
-
-**What this does:**
-- ✅ **Superset**: Creates BI dashboard user with appropriate role  
-- ✅ **Airflow**: Sets up workflow orchestration access
-- ✅ **MinIO**: Configures object storage permissions
-- ✅ **JupyterHub**: Creates containerized notebook environment
-- ✅ **Role Mapping**: Automatically maps lakehouse roles to service-specific permissions
+**Team collaboration features for learning and lab environments:**
 
 ### 🏗️ **Multi-User JupyterHub**
 Replace single-user Jupyter with team-ready JupyterHub:
@@ -237,16 +211,30 @@ docker compose -f docker-compose.yml -f docker-compose.jupyterhub.yml up -d
 - 👥 **Multi-user environment** with containerized isolation
 - 🔗 **Spark integration** for all users
 - 📁 **Shared notebooks** (readonly templates + collaborative workspace)  
-- 🔐 **User authentication** with role-based access
 - 📊 **Resource management** with per-user limits
 - 🏢 **Team collaboration** with shared data access
+- 🎓 **Learning-focused** user management for educational environments
 
-### 📋 **User Roles & Permissions**
-| Role | Superset | Airflow | MinIO | JupyterHub | Description |
-|------|----------|---------|-------|------------|-------------|
-| **admin** | Admin | Admin | consoleAdmin | sudo access | Full platform administration |
-| **analyst** | Alpha | User | readwrite | standard user | Create dashboards, run workflows |
-| **viewer** | Gamma | Viewer | readonly | standard user | View dashboards, read-only data |
+### 🎯 **Central User Provisioning**
+Create users across all services with one command:
+```bash
+# Provision users across all services with one command
+./scripts/provision-user.sh john.doe john.doe@company.com SecurePass123 analyst
+```
+
+**What this does:**
+- ✅ **Superset**: Creates BI dashboard user with appropriate role  
+- ✅ **Airflow**: Sets up workflow orchestration access
+- ✅ **MinIO**: Configures object storage permissions
+- ✅ **JupyterHub**: Creates containerized notebook environment
+- ✅ **Role Mapping**: Maps roles to service-specific permissions (admin/analyst/viewer)
+
+### 👥 **Individual Service Access**
+Each service also provides its own user management:
+- **Superset**: Create dashboard users with different permission levels
+- **Airflow**: Manage workflow access and execution permissions  
+- **MinIO**: Configure object storage access and bucket permissions
+- **JupyterHub**: Containerized notebook environments with shared resources
 
 ## 🔒 Secure Credential Management
 
@@ -277,79 +265,6 @@ docker compose -f docker-compose.yml -f docker-compose.jupyterhub.yml up -d
 
 **⚠️ Important**: Your credentials are stored in the `.env` file. Back it up securely and never commit it to version control.
 
-## 🔐 Enterprise Authentication & Team Collaboration
-
-### 🎯 Authentication Options
-
-**Hybrid Mode (Default for Enterprise)**
-- **Local Authentication**: Simple admin@localhost login for development
-- **Federated OAuth**: Google, Microsoft, GitHub for team access
-- **Role-Based Access Control**: Four user roles with granular permissions
-
-### 🚀 Quick Enterprise Setup
-
-**Option 1: Secure Installation from Start**
-```bash
-# Complete secure installation with authentication
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install-with-auth.sh | bash
-```
-
-**Option 2: Add Authentication to Existing Installation**
-```bash
-# Enable authentication on existing installation
-./scripts/enable-auth.sh
-```
-
-### ⚙️ Configure OAuth Providers
-
-**Setup OAuth integration with popular providers:**
-```bash
-# Interactive OAuth configuration wizard
-./scripts/setup-auth.sh
-```
-
-**Supported Providers:**
-- **Google Workspace**: Perfect for organizations using Gmail/Google
-- **Microsoft Azure AD**: Ideal for Office 365 environments  
-- **GitHub**: Great for development teams
-- **Custom OIDC**: Support for any OpenID Connect provider
-
-### 👥 User Roles & Permissions
-
-| Role | Permissions | Use Case |
-|------|-------------|----------|
-| **data_viewer** | Read-only access to dashboards and reports | Executives, stakeholders |
-| **data_analyst** | Query data, create charts, basic analysis | Business analysts |
-| **data_engineer** | ETL pipelines, data modeling, advanced queries | Data engineers |
-| **admin** | Full system access, user management | IT administrators |
-
-### 📊 Authentication Architecture
-
-**Service Access Control:**
-- **Authentication Service** (port 9091): OAuth login, user management
-- **Authentication Proxy** (port 9092): Secure access to all services
-- **Audit Logging**: Complete activity monitoring and compliance
-- **Role Enforcement**: Granular permissions per service and operation
-
-### 🔄 Migration from Simple to Secure
-
-**Seamless upgrade path:**
-```bash
-# Your existing data and configuration are preserved
-./scripts/enable-auth.sh
-```
-
-**What stays the same:**
-- ✅ All your existing data and notebooks
-- ✅ Service URLs and functionality  
-- ✅ Docker Compose workflow
-- ✅ One-click install still available
-
-**What gets enhanced:**
-- 🔐 OAuth login with federated providers
-- 👥 Multi-user access with roles
-- 📋 Complete audit trail
-- 🛡️ Secure service access control
 
 ## 📖 Documentation
 
@@ -438,12 +353,6 @@ ls -la backups/
 
 ```mermaid
 graph TB
-    subgraph "🔐 Authentication Layer (Optional)"
-        AU[Auth Service<br/>OAuth & Local Login]
-        AP[Auth Proxy<br/>Access Control]
-        AD[Audit Service<br/>Activity Logging]
-    end
-    
     subgraph "Data Sources"
         DS1[CSV Files]
         DS2[APIs] 
@@ -484,16 +393,7 @@ graph TB
         HO[Homer<br/>Service Dashboard]
     end
     
-    %% Authentication flows
-    AU --> AP
-    AP --> AF
-    AP --> SU
-    AP --> VZ
-    AP --> JU
-    AP --> MCP
-    AU --> AD
-    
-    %% Data flows
+    %% Direct data flows (no authentication layer)
     DS1 --> AF
     DS2 --> AF
     DS3 --> AF
@@ -531,8 +431,6 @@ graph TB
     PO -.-> MI
     PO -.-> PG
     PO -.-> LD
-    PO -.-> AU
-    PO -.-> AP
     HO -.-> AF
     HO -.-> SU
     HO -.-> VZ
@@ -542,14 +440,12 @@ graph TB
     classDef processing fill:#f3e5f5
     classDef visualization fill:#e8f5e8
     classDef management fill:#fff3e0
-    classDef security fill:#ffebee
     classDef ai fill:#f3e5f5
     
     class MI,PG,LD storage
     class AF,SP,JU processing
     class SU,VZ,JD visualization
     class PO,HO management
-    class AU,AP,AD security
     class MCP,VS ai
     class DU,SS,PA storage
 ```
@@ -558,7 +454,6 @@ graph TB
 
 | **Layer** | **Components** | **Purpose** |
 |-----------|----------------|-------------|
-| **Authentication** | Auth Service, Auth Proxy, Audit Service | OAuth/local login, access control, compliance |
 | **AI-Powered API** | MCP Server | Natural language data queries, AI-assisted analytics |
 | **Data Sources** | CSV Files, APIs, Databases | Raw data ingestion from various sources |
 | **Processing** | Apache Airflow, Apache Spark, Jupyter | ETL workflows, distributed processing, analysis |
@@ -569,14 +464,13 @@ graph TB
 
 ### **Data Flow**
 
-1. **Authenticate** → Login via OAuth providers or local authentication (optional)
-2. **Ingest** → Upload data files to MinIO or connect external sources
-3. **Process** → Transform data using Spark jobs orchestrated by Airflow  
-4. **Store** → Save processed data to MinIO (data lake), PostgreSQL (warehouse), and LanceDB (vectors)
-5. **Analyze** → Query data with DuckDB (data lake), PostgreSQL (structured), or natural language (MCP)
-6. **AI/ML** → Perform semantic search, vector similarity, and embedding operations via LanceDB
-7. **Visualize** → Create dashboards in Superset/Vizro or notebooks in Jupyter from all data sources
-8. **Monitor** → Manage services through Portainer, track access via audit logs
+1. **Ingest** → Upload data files to MinIO or connect external sources
+2. **Process** → Transform data using Spark jobs orchestrated by Airflow  
+3. **Store** → Save processed data to MinIO (data lake), PostgreSQL (warehouse), and LanceDB (vectors)
+4. **Analyze** → Query data with DuckDB (data lake), PostgreSQL (structured), or natural language (MCP)
+5. **AI/ML** → Perform semantic search, vector similarity, and embedding operations via LanceDB
+6. **Visualize** → Create dashboards in Superset/Vizro or notebooks in Jupyter from all data sources
+7. **Monitor** → Manage services through Portainer and service dashboard
 
 **Triple Analytics Architecture:**
 - **Data Lake (DuckDB + MinIO)**: Direct file queries, multi-format support, schema-on-read
@@ -586,7 +480,6 @@ graph TB
 
 ### **Key Architectural Benefits**
 
-- **🔐 Enterprise Security**: Optional OAuth authentication with role-based access control
 - **🤖 AI-Powered API**: Natural language data queries via Model Context Protocol (MCP)
 - **🚀 S3-Native Analytics**: Query files directly without data movement
 - **🏗️ Quadruple Analytics**: Data lake (DuckDB) + warehouse (PostgreSQL) + vector (LanceDB) + AI (MCP)
@@ -594,9 +487,9 @@ graph TB
 - **🔄 Scalable Processing**: Spark scales from single machine to cluster
 - **🤖 AI/ML Ready**: Vector search, embeddings, semantic similarity, and LLM integration
 - **📈 Modern Dashboards**: Interactive Vizro framework + traditional Superset BI
-- **👥 Team Collaboration**: Multi-user access with granular permissions and audit logging
+- **👥 Team Collaboration**: Multi-user JupyterHub with containerized isolation
 - **🎛️ Configurable Services**: Enable only what you need to save resources
-- **🎯 Lab-Ready**: Health checks, monitoring, orchestration, and compliance for learning environments
+- **🎯 Lab-Ready**: Health checks, monitoring, orchestration for learning environments
 - **🐳 Container-Based**: Consistent deployment across environments with Docker Compose
 - **🔄 Flexible Deployment**: Start simple, add features incrementally as needs grow
 
@@ -639,13 +532,7 @@ Use the configuration wizard to select which services to run:
 **Full Configuration (20GB RAM):**
 ```bash
 ./scripts/configure-services.sh preset full
-# Includes: All data services enabled (no authentication)
-```
-
-**Secure Configuration (22GB RAM):**
-```bash
-./scripts/configure-services.sh preset secure
-# Includes: All services + enterprise authentication + audit logging
+# Includes: All data services enabled
 ```
 
 ### 🖥️ Resource Configuration
@@ -893,7 +780,7 @@ docker compose restart postgres
 
 **Example natural language queries:**
 ```bash
-# Query via REST API (if authentication enabled, include JWT token)
+# Query via REST API
 curl -X POST http://localhost:9090/api/query \
   -H "Content-Type: application/json" \
   -d '{"query": "Show me the top 5 product categories by revenue", "limit": 5}'
@@ -974,10 +861,10 @@ similar_records = response.json()
 ```
 lakehouse-lab/
 ├── install.sh                  # 🚀 Main installer (START HERE)
-├── install-with-auth.sh        # 🔒 Secure team installer  
+  
 ├── start-lakehouse.sh          # ▶️  Service manager
 ├── docker-compose.yml          # 🐳 Main stack definition
-├── docker-compose.*.yml        # 🔧 Service overlays (Iceberg, JupyterHub, Auth)
+├── docker-compose.*.yml        # 🔧 Service overlays (Iceberg, JupyterHub)
 ├── .env.default                # ⚙️  Default configuration
 ├── .env.fat-server             # 🖥️  High-performance config
 ├── README.md                   # 📖 This file
@@ -1181,17 +1068,16 @@ Built with these amazing open source projects:
 ## 🌟 Key Features
 
 - ✅ **15-minute setup** - Complete lakehouse in minutes with one-click install
-- ✅ **Enterprise-ready security** - Optional OAuth authentication with federated providers
 - ✅ **AI-powered data API** - Natural language queries via Model Context Protocol (MCP)
 - ✅ **S3-native analytics** - Query files directly with DuckDB without data movement
 - ✅ **Modern interactive dashboards** - Vizro framework for dynamic, responsive visualizations
 - ✅ **Vector database integration** - LanceDB for semantic search and AI/ML workflows
 - ✅ **Multi-file processing** - Wildcard queries across datasets with format auto-detection
-- ✅ **Role-based access control** - Granular permissions for team collaboration
+- ✅ **Multi-user collaboration** - JupyterHub with containerized user environments
 - ✅ **Triple analytics architecture** - Data lake + warehouse + vector database unified
-- ✅ **Production patterns** - Learn real-world data engineering concepts with enterprise-grade features in a lab environment
-- ✅ **Container monitoring** - Full observability with Portainer and audit logging
-- ✅ **Scalable architecture** - From individual laptops to enterprise team deployments
+- ✅ **Production patterns** - Learn real-world data engineering concepts in a lab environment
+- ✅ **Container monitoring** - Full observability with Portainer
+- ✅ **Scalable architecture** - From individual laptops to team deployments
 - ✅ **Configurable deployment** - Enable only the services you need to optimize resources
 
 ---

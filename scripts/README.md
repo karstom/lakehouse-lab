@@ -17,7 +17,7 @@ scripts/
 ├── restore-lakehouse.sh        # Data restoration system  
 ├── generate-credentials.sh     # Secure credential generation
 ├── show-credentials.sh         # Display current credentials
-├── provision-user.sh          # Multi-service user provisioning
+├── provision-user.sh          # Direct user creation in services
 ├── configure-services.sh      # Service configuration wizard
 └── setup-wizard.sh           # Interactive setup wizard
 ```
@@ -35,7 +35,8 @@ scripts/
 - **`show-credentials.sh`** - Display service URLs and credentials
 
 ### User Management
-- **`provision-user.sh`** - Create users across all services (Superset, Airflow, etc.)
+- **`provision-user.sh`** - Create users directly in services (Superset, Airflow, etc.)
+
 
 ## 🛠️ Installation Scripts (`install/`)
 
