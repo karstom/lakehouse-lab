@@ -112,8 +112,11 @@ check_prerequisites() {
     # Check if old data directory exists
     if [[ ! -d "$LAKEHOUSE_ROOT" ]]; then
         log_warning "No existing data directory found at $LAKEHOUSE_ROOT"
-        log_info "This appears to be a fresh installation - no migration needed"
-        exit 0
+        log_info "This appears to be a fresh installation or already-migrated system"
+        log_info "Will ensure named volumes exist and start services..."
+        MIGRATION_MODE="ensure_volumes"
+    else
+        MIGRATION_MODE="migrate_data"
     fi
     
     # Check Docker
@@ -131,7 +134,21 @@ check_prerequisites() {
 }
 
 detect_existing_data() {
-    log_info "Scanning for existing data..."
+    if [[ "$MIGRATION_MODE" == "ensure_volumes" ]]; then
+        log_info "Checking for existing named volumes..."
+        local project_name=$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]')
+        local existing_volumes=$(docker volume ls -q | grep "^${project_name}_" | wc -l)
+        
+        if [[ $existing_volumes -gt 0 ]]; then
+            log_success "Found $existing_volumes existing named volumes for project $project_name"
+            echo -e "${GREEN}This system appears to already use named volumes${NC}"
+        else
+            log_info "No existing named volumes found - will create them"
+        fi
+        return 0
+    fi
+    
+    log_info "Scanning for existing data in bind mounts..."
     
     local data_found=false
     local data_summary=""
@@ -184,6 +201,19 @@ confirm_migration() {
         return 0
     fi
     
+    if [[ "$MIGRATION_MODE" == "ensure_volumes" ]]; then
+        echo -e "${YELLOW}${BOLD}VOLUME VERIFICATION MODE:${NC}"
+        echo ""
+        echo -e "${BLUE}This will:${NC}"
+        echo -e "${BLUE}  1. Ensure all required Docker named volumes exist${NC}"
+        echo -e "${BLUE}  2. Start services with named volume configuration${NC}"
+        echo -e "${BLUE}  3. Verify system is ready for use${NC}"
+        echo ""
+        echo -e "${GREEN}This is safe for already-migrated systems${NC}"
+        echo ""
+        return 0
+    fi
+    
     echo -e "${YELLOW}${BOLD}IMPORTANT MIGRATION INFORMATION:${NC}"
     echo ""
     echo -e "${RED}This migration will:${NC}"
@@ -205,7 +235,7 @@ confirm_migration() {
     read -p "Do you want to proceed with the migration? [y/N]: " -r
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         log_warning "Migration cancelled by user"
-        exit 0
+        exit 2  # Use exit code 2 to indicate user cancellation
     fi
     
     echo ""
@@ -213,6 +243,11 @@ confirm_migration() {
 }
 
 create_backup() {
+    if [[ "$MIGRATION_MODE" == "ensure_volumes" ]]; then
+        log_info "Skipping backup creation (volume verification mode)"
+        return 0
+    fi
+    
     log_info "Creating backup of current data..."
     
     if [[ "$DRY_RUN" == "true" ]]; then
@@ -272,7 +307,7 @@ create_named_volumes() {
         "spark_jobs"
         "spark_logs"
         "superset_data"
-        "homer_data"
+        "homepage_config"
         "vizro_data"
         "lancedb_data"
         "portainer_data"
@@ -307,6 +342,11 @@ create_named_volumes() {
 }
 
 migrate_data() {
+    if [[ "$MIGRATION_MODE" == "ensure_volumes" ]]; then
+        log_info "Skipping data migration (volume verification mode)"
+        return 0
+    fi
+    
     log_info "Migrating data to named volumes..."
     
     if [[ "$DRY_RUN" == "true" ]]; then
@@ -328,7 +368,7 @@ migrate_data() {
         "$LAKEHOUSE_ROOT/spark/jobs:${project_name}_spark_jobs:/jobs"
         "$LAKEHOUSE_ROOT/spark/logs:${project_name}_spark_logs:/logs"
         "$LAKEHOUSE_ROOT/superset:${project_name}_superset_data:/data"
-        "$LAKEHOUSE_ROOT/homer:${project_name}_homer_data:/data"
+        "$LAKEHOUSE_ROOT/homepage:${project_name}_homepage_config:/app/config"
         "$LAKEHOUSE_ROOT/vizro:${project_name}_vizro_data:/data"
         "$LAKEHOUSE_ROOT/lancedb:${project_name}_lancedb_data:/data"
     )
@@ -540,6 +580,11 @@ verify_migration() {
 }
 
 cleanup_old_data() {
+    if [[ "$MIGRATION_MODE" == "ensure_volumes" ]]; then
+        log_info "Volume verification complete - no cleanup needed"
+        return 0
+    fi
+    
     log_info "Old data cleanup options:"
     echo ""
     echo -e "${YELLOW}Your original data is still in: $LAKEHOUSE_ROOT${NC}"
@@ -555,12 +600,21 @@ cleanup_old_data() {
 
 print_summary() {
     echo ""
-    echo -e "${GREEN}${BOLD}🎉 Migration Complete!${NC}"
-    echo ""
-    echo -e "${BLUE}What was migrated:${NC}"
-    echo -e "  ✅ Bind mount storage → Named Docker volumes"
-    echo -e "  ✅ Data preservation and safety"
-    echo -e "  ✅ Overlay switching compatibility"
+    if [[ "$MIGRATION_MODE" == "ensure_volumes" ]]; then
+        echo -e "${GREEN}${BOLD}🎉 Volume Verification Complete!${NC}"
+        echo ""
+        echo -e "${BLUE}What was verified:${NC}"
+        echo -e "  ✅ Named Docker volumes confirmed"
+        echo -e "  ✅ Services restarted successfully"
+        echo -e "  ✅ System ready for use"
+    else
+        echo -e "${GREEN}${BOLD}🎉 Migration Complete!${NC}"
+        echo ""
+        echo -e "${BLUE}What was migrated:${NC}"
+        echo -e "  ✅ Bind mount storage → Named Docker volumes"
+        echo -e "  ✅ Data preservation and safety"
+        echo -e "  ✅ Overlay switching compatibility"
+    fi
     echo ""
     echo -e "${BLUE}Benefits you now have:${NC}"
     echo -e "  🛡️  Data survives container recreation"
@@ -568,11 +622,13 @@ print_summary() {
     echo -e "  🛡️  Data survives overlay switching"
     echo -e "  🛡️  Data survives upgrade processes"
     echo ""
-    echo -e "${BLUE}Next steps:${NC}"
-    echo -e "  1. Test your applications and data"
-    echo -e "  2. Verify notebooks, databases, etc. work correctly"
-    echo -e "  3. After verification, clean up old data directories"
-    echo ""
+    if [[ "$MIGRATION_MODE" != "ensure_volumes" ]]; then
+        echo -e "${BLUE}Next steps:${NC}"
+        echo -e "  1. Test your applications and data"
+        echo -e "  2. Verify notebooks, databases, etc. work correctly"
+        echo -e "  3. After verification, clean up old data directories"
+        echo ""
+    fi
     echo -e "${CYAN}Happy data engineering with persistent storage! 🚀${NC}"
 }
 

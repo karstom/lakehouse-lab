@@ -377,9 +377,16 @@ perform_smart_upgrade() {
     cd "$original_dir"
     
     if [[ $migration_result -ne 0 ]]; then
-        print_error "Data migration failed. Your upgrade was completed but data is still in bind mounts."
-        print_info "You can run the migration manually: cd $abs_install_dir && bash scripts/install/migrate-to-named-volumes.sh"
-        exit 1
+        if [[ $migration_result -eq 2 ]]; then
+            print_warning "Migration cancelled by user."
+            print_info "Your upgrade was completed but data migration was skipped."
+            print_info "You can run the migration later: cd $abs_install_dir && bash scripts/install/migrate-to-named-volumes.sh"
+            exit 0
+        else
+            print_error "Data migration failed. Your upgrade was completed but data is still in bind mounts."
+            print_info "You can run the migration manually: cd $abs_install_dir && bash scripts/install/migrate-to-named-volumes.sh"
+            exit 1
+        fi
     fi
     
     # Run credential fix to ensure passwords are synchronized after migration
