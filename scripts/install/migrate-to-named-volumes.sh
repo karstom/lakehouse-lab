@@ -311,7 +311,7 @@ migrate_data() {
                     }
                     
                     # Use rsync for reliable, complete data migration
-                    rsync -av --progress /source/ /target/ 2>/dev/null || {
+                    rsync -a /source/ /target/ >/dev/null 2>&1 || {
                         echo 'rsync failed, using cp fallback'
                         cp -r /source/. /target/ 2>/dev/null || true
                     }
@@ -335,7 +335,7 @@ migrate_data() {
                     exit 0
                 }
                 # Use rsync for shared data
-                rsync -av /source/ /target/ 2>/dev/null || cp -r /source/* /target/ 2>/dev/null || true
+                rsync -a /source/ /target/ >/dev/null 2>&1 || cp -r /source/* /target/ 2>/dev/null || true
             " || {
             log_warning "Shared data migration may have failed"
         }

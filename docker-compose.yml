@@ -154,7 +154,7 @@ services:
       HOST_IP: ${HOST_IP:-}
     volumes:
       - lakehouse_shared:/mnt/lakehouse
-      - ./init-all-in-one-modular.sh:/host/init-all-in-one-modular.sh:ro
+      - ./scripts/legacy/init-all-in-one-modular.sh:/host/init-all-in-one-modular.sh:ro
       - ./scripts:/host/scripts:ro
       - ./templates:/host/templates:ro
     networks:
