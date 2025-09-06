@@ -52,6 +52,53 @@ log_error() {
     echo -e "${RED}❌ $1${NC}"
 }
 
+sync_postgresql_password() {
+    local max_attempts=10
+    local attempt=1
+    local current_postgres_password
+    
+    # Try to get password from .env file
+    if [[ -f ".env" ]]; then
+        current_postgres_password=$(grep "^POSTGRES_PASSWORD=" .env | cut -d'=' -f2- | tr -d '"')
+    fi
+    
+    if [[ -z "$current_postgres_password" ]]; then
+        log_warning "No POSTGRES_PASSWORD found in .env - skipping PostgreSQL sync"
+        return 0
+    fi
+    
+    log_info "Synchronizing PostgreSQL password with .env file..."
+    
+    while [[ $attempt -le $max_attempts ]]; do
+        # Try to update PostgreSQL password to match .env
+        if docker compose exec -T postgres psql -U postgres -d postgres -c "ALTER USER postgres PASSWORD '$current_postgres_password';" >/dev/null 2>&1; then
+            log_success "PostgreSQL password synchronized successfully"
+            
+            # Verify the password works by testing connection
+            if docker compose exec -T postgres psql -U postgres -d postgres -c "SELECT 1;" >/dev/null 2>&1; then
+                log_success "PostgreSQL password verification successful"
+                return 0
+            else
+                log_warning "PostgreSQL password update succeeded but verification failed"
+                return 1
+            fi
+        else
+            log_warning "PostgreSQL password sync attempt $attempt/$max_attempts failed"
+            if [[ $attempt -lt $max_attempts ]]; then
+                log_info "Waiting 5 seconds before retry..."
+                sleep 5
+            fi
+        fi
+        
+        attempt=$((attempt + 1))
+    done
+    
+    log_error "PostgreSQL password synchronization failed after $max_attempts attempts"
+    log_warning "You may need to manually update the PostgreSQL password:"
+    log_info "  docker compose exec postgres psql -U postgres -d postgres -c \"ALTER USER postgres PASSWORD '$current_postgres_password';\""
+    return 1
+}
+
 check_prerequisites() {
     log_info "Checking prerequisites..."
     
@@ -455,6 +502,14 @@ start_services() {
                         log_warning "LanceDB may not be responding - check service logs"
                     fi
                 done
+            fi
+            
+            # Synchronize PostgreSQL password after all services are running (unless disabled)
+            if [[ "${SKIP_PG_SYNC:-false}" != "true" ]]; then
+                log_info "Synchronizing PostgreSQL password after migration..."
+                sync_postgresql_password || log_warning "PostgreSQL password sync failed - may need manual fix"
+            else
+                log_info "Skipping PostgreSQL password sync (will be handled externally)"
             fi
         else
             log_error "Failed to start all services"

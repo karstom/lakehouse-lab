@@ -370,9 +370,9 @@ perform_smart_upgrade() {
         exit 1
     fi
     
-    # Run migration from the correct directory
+    # Run migration from the correct directory (skip PG sync since fix-credentials will handle it)
     cd "$abs_install_dir"
-    bash scripts/install/migrate-to-named-volumes.sh
+    SKIP_PG_SYNC=true bash scripts/install/migrate-to-named-volumes.sh
     migration_result=$?
     cd "$original_dir"
     
@@ -381,6 +381,16 @@ perform_smart_upgrade() {
         print_info "You can run the migration manually: cd $abs_install_dir && bash scripts/install/migrate-to-named-volumes.sh"
         exit 1
     fi
+    
+    # Run credential fix to ensure passwords are synchronized after migration
+    print_step "Fixing credential synchronization after migration..."
+    cd "$abs_install_dir"
+    if [[ -f "scripts/install/fix-credentials.sh" ]]; then
+        bash scripts/install/fix-credentials.sh || print_warning "Credential fix failed - may need manual sync"
+    else
+        print_warning "Credential fix script not found - passwords may need manual sync"
+    fi
+    cd "$original_dir"
     
     print_success "Smart upgrade completed successfully!"
     print_info "Your data is now stored in named Docker volumes for maximum safety."
@@ -393,8 +403,27 @@ perform_legacy_upgrade() {
     print_info "Consider running Smart Upgrade later for better data protection."
     echo ""
     
+    # Remember the current working directory
+    local original_dir="$(pwd)"
+    local abs_install_dir
+    if [[ "$INSTALL_DIR" = /* ]]; then
+        abs_install_dir="$INSTALL_DIR"
+    else
+        abs_install_dir="$(dirname "$original_dir")/$INSTALL_DIR"
+    fi
+    
     # This is essentially the same as the regular upgrade
     perform_upgrade
+    
+    # Run credential fix to ensure passwords are synchronized after upgrade
+    print_step "Fixing credential synchronization after upgrade..."
+    cd "$abs_install_dir" || cd "$INSTALL_DIR"
+    if [[ -f "scripts/install/fix-credentials.sh" ]]; then
+        bash scripts/install/fix-credentials.sh || print_warning "Credential fix failed - may need manual sync"
+    else
+        print_warning "Credential fix script not found - passwords may need manual sync"
+    fi
+    cd "$original_dir"
 }
 
 perform_replace() {
