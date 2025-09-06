@@ -112,10 +112,10 @@ else
     echo -e "${GREEN}   Using detected IP: $HOST_IP${NC}"
     echo -e "${BLUE}   Services will be accessible remotely at this IP${NC}"
     
-    # Check if Homer config needs updating (contains Docker IPs)
-    homer_config="${LAKEHOUSE_ROOT:-./lakehouse-data}/homer/assets/config.yml"
-    if [[ -f "$homer_config" ]] && grep -q "172\.[0-9]\+\.[0-9]\+\.[0-9]\+" "$homer_config" 2>/dev/null; then
-        echo -e "${YELLOW}   📋 Note: Homer dashboard will be updated with new IP addresses${NC}"
+    # Check if Homepage config needs updating (contains Docker IPs)
+    homepage_config="${LAKEHOUSE_ROOT:-./lakehouse-data}/homepage/config/services.yaml"
+    if [[ -f "$homepage_config" ]] && grep -q "172\.[0-9]\+\.[0-9]\+\.[0-9]\+" "$homepage_config" 2>/dev/null; then
+        echo -e "${YELLOW}   📋 Note: Homepage dashboard will be updated with new IP addresses${NC}"
     fi
 fi
 echo ""
@@ -179,7 +179,8 @@ create_named_volumes() {
         "spark_jobs"
         "spark_logs"
         "superset_data"
-        "homer_data"
+        "homepage_config"
+        "homepage_images"
         "vizro_data"
         "lancedb_data"
         "portainer_data"
@@ -240,8 +241,8 @@ start_with_dependencies() {
             echo -e "${BLUE}🔧 Running initialization...${NC}"
             docker compose up lakehouse-init
             
-            # Start Homer for service links
-            docker compose up -d homer
+            # Start Homepage for service links
+            docker compose up -d homepage
             ;;
             
         "debug")
@@ -282,7 +283,7 @@ start_with_dependencies() {
             
             # Optional services
             echo -e "${BLUE}Layer 6: Optional services${NC}"
-            docker compose --profile optional up -d homer || echo -e "${YELLOW}⚠️  Homer is optional and may not start${NC}"
+            docker compose --profile optional up -d homepage || echo -e "${YELLOW}⚠️  Homepage is optional and may not start${NC}"
             ;;
             
         "normal"|*)

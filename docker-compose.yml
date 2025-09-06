@@ -507,25 +507,30 @@ services:
         reservations:
           memory: ${PORTAINER_MEMORY_RESERVATION:-128M}
 
-  # Homer Dashboard (Optional)
-  homer:
-    image: b4bz/homer:latest
-    container_name: homer
+  # Homepage Dashboard
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
     restart: unless-stopped
     ports:
-      - "9061:8080"
+      - "9061:3000"
     volumes:
-      - homer_data:/www/assets
+      - homepage_config:/app/config
+      - homepage_images:/app/public/images
+      - /var/run/docker.sock:/var/run/docker.sock:ro # Docker integration
     networks:
       - lakehouse
     environment:
-      INIT_ASSETS: 1
+      HOMEPAGE_VAR_TITLE: "Lakehouse Lab"
+      HOMEPAGE_VAR_SEARCH_PROVIDER: "duckduckgo"
+      HOMEPAGE_VAR_HEADER_STYLE: "clean"
+      HOMEPAGE_VAR_HIDEVERSION: "true"
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 512M
         reservations:
-          memory: 64M
+          memory: 128M
 
   # Vizro Dashboard Framework
   vizro:
@@ -652,9 +657,12 @@ volumes:
   superset_data:
     external: true
     name: lakehouse-lab_superset_data
-  homer_data:
+  homepage_config:
     external: true
-    name: lakehouse-lab_homer_data
+    name: lakehouse-lab_homepage_config
+  homepage_images:
+    external: true
+    name: lakehouse-lab_homepage_images
   vizro_data:
     external: true
     name: lakehouse-lab_vizro_data

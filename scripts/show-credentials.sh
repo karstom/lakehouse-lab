@@ -156,7 +156,7 @@ echo -e "│"
 echo -e "${GREEN}├── Portainer (Docker Management):${NC}"
 echo -e "│   └── URL:      ${BLUE}http://${HOST_IP}:9060${NC}"
 echo -e "│"
-echo -e "${GREEN}└── Homer Dashboard:${NC}"
+echo -e "${GREEN}└── Homepage Dashboard:${NC}"
 echo -e "    └── URL:      ${BLUE}http://${HOST_IP}:9061${NC}"
 
 echo

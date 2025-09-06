@@ -46,7 +46,7 @@ SERVICES[jupyter]="JupyterLab (Data Science Notebooks)"
 SERVICES[vizro]="Vizro (Interactive Dashboards)"
 SERVICES[lancedb]="LanceDB (Vector Database)"
 SERVICES[portainer]="Portainer (Docker Management)"
-SERVICES[homer]="Homer (Service Dashboard)"
+SERVICES[homepage]="Homepage (Service Dashboard)"
 
 # Service descriptions
 SERVICE_DESCRIPTIONS[airflow]="Workflow orchestration and scheduling platform for data pipelines"
@@ -55,7 +55,7 @@ SERVICE_DESCRIPTIONS[jupyter]="Interactive development environment for data scie
 SERVICE_DESCRIPTIONS[vizro]="Low-code dashboard framework for interactive data visualization"
 SERVICE_DESCRIPTIONS[lancedb]="High-performance vector database for AI/ML applications"
 SERVICE_DESCRIPTIONS[portainer]="Web-based Docker container management interface"
-SERVICE_DESCRIPTIONS[homer]="Static service dashboard with links to all running services"
+SERVICE_DESCRIPTIONS[homepage]="Modern service dashboard with Docker integration and real-time monitoring"
 
 # Service dependencies (services that depend on this service)
 SERVICE_DEPENDENCIES[airflow]="lakehouse-init postgres"
@@ -64,7 +64,7 @@ SERVICE_DEPENDENCIES[jupyter]="lakehouse-init postgres minio"
 SERVICE_DEPENDENCIES[vizro]="postgres minio lakehouse-init"
 SERVICE_DEPENDENCIES[lancedb]="lakehouse-init"
 SERVICE_DEPENDENCIES[portainer]=""
-SERVICE_DEPENDENCIES[homer]=""
+SERVICE_DEPENDENCIES[homepage]="lakehouse-init"
 
 # Service ports
 SERVICE_PORTS[airflow]="9020"
@@ -73,7 +73,7 @@ SERVICE_PORTS[jupyter]="9040"
 SERVICE_PORTS[vizro]="9050"
 SERVICE_PORTS[lancedb]="9080"
 SERVICE_PORTS[portainer]="9060"
-SERVICE_PORTS[homer]="9061"
+SERVICE_PORTS[homepage]="9061"
 
 # Resource requirements (RAM in GB)
 SERVICE_RESOURCES[airflow]="4"
@@ -82,7 +82,7 @@ SERVICE_RESOURCES[jupyter]="8"
 SERVICE_RESOURCES[vizro]="2"
 SERVICE_RESOURCES[lancedb]="3"
 SERVICE_RESOURCES[portainer]="0.5"
-SERVICE_RESOURCES[homer]="0.1"
+SERVICE_RESOURCES[homepage]="0.5"
 
 # Configuration file
 CONFIG_FILE=".lakehouse-services.conf"
@@ -95,7 +95,7 @@ jupyter=true
 vizro=true
 lancedb=true
 portainer=true
-homer=true"
+homepage=true"
 
 # Function to load existing configuration
 load_config() {
@@ -365,7 +365,7 @@ jupyter=true
 vizro=true
 lancedb=false
 portainer=true
-homer=true
+homepage=true
 EOF
             ;;
         "ml")
@@ -378,7 +378,7 @@ jupyter=true
 vizro=false
 lancedb=true
 portainer=true
-homer=true
+homepage=true
 EOF
             ;;
         "full")

@@ -1,0 +1,6 @@
+---
+# Docker Configuration for Homepage
+# Enables Homepage to monitor Docker containers
+
+my-docker:
+  socket: /var/run/docker.sock
