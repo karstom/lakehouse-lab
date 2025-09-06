@@ -137,7 +137,24 @@ services:
     entrypoint:
       - /bin/sh
       - -c
-      - "apk add --no-cache bash && /bin/bash /host/init-all-in-one-modular.sh"
+      - |
+        apk add --no-cache bash envsubst
+        echo "🏠 Deploying Homepage configuration..."
+        
+        # Deploy Homepage configuration files with variable substitution
+        mkdir -p /homepage-config
+        for template in /host/templates/homepage/*.yaml; do
+          if [ -f "$template" ]; then
+            filename=$(basename "$template")
+            echo "Processing $filename..."
+            envsubst < "$template" > "/homepage-config/$filename"
+            echo "Deployed: $filename"
+          fi
+        done
+        
+        echo "✅ Homepage configuration deployed"
+        echo "🚀 Running main initialization..."
+        /bin/bash /host/init-all-in-one-modular.sh
     environment:
       INSTALL_SAMPLES: "true"
       LAKEHOUSE_ROOT: /mnt/lakehouse
@@ -150,10 +167,17 @@ services:
       MINIO_READY_INTERVAL: ${MINIO_READY_INTERVAL:-3}         # seconds between attempts
       BUCKET_CREATE_RETRIES: ${BUCKET_CREATE_RETRIES:-8}       # bucket creation retry attempts
       SKIP_MINIO_READY_CHECK: ${SKIP_MINIO_READY_CHECK:-false} # set to 'true' to skip readiness check
-      # Host IP for Homer dashboard (detected from host system)
-      HOST_IP: ${HOST_IP:-}
+      # Host IP for Homepage dashboard (detected from host system)  
+      HOST_IP: ${HOST_IP:-localhost}
+      # Homepage template variables
+      HOMEPAGE_VAR_TITLE: "Lakehouse Lab"
+      HOMEPAGE_VAR_SEARCH_PROVIDER: "duckduckgo"
+      HOMEPAGE_VAR_HEADER_STYLE: "clean"
+      HOMEPAGE_VAR_HIDEVERSION: "true"
+      HOMEPAGE_VAR_HOST_IP: ${HOST_IP:-localhost}
     volumes:
       - lakehouse_shared:/mnt/lakehouse
+      - homepage_config:/homepage-config
       - ./scripts/legacy/init-all-in-one-modular.sh:/host/init-all-in-one-modular.sh:ro
       - ./scripts:/host/scripts:ro
       - ./templates:/host/templates:ro
