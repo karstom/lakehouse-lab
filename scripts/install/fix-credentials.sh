@@ -185,31 +185,39 @@ sync_postgresql_password
 echo ""
 log_success "✅ Credential fix completed!"
 echo ""
-echo -e "${CYAN}📋 Your new credentials:${NC}"
+
+# Read the actual values from .env file to display correct credentials
+ACTUAL_POSTGRES_PASSWORD=$(grep "^POSTGRES_PASSWORD=" .env | cut -d'=' -f2- | tr -d '"')
+ACTUAL_MINIO_ROOT_PASSWORD=$(grep "^MINIO_ROOT_PASSWORD=" .env | cut -d'=' -f2- | tr -d '"')
+ACTUAL_JUPYTER_TOKEN=$(grep "^JUPYTER_TOKEN=" .env | cut -d'=' -f2- | tr -d '"')
+ACTUAL_AIRFLOW_ADMIN_PASSWORD=$(grep "^AIRFLOW_ADMIN_PASSWORD=" .env | cut -d'=' -f2- | tr -d '"')
+ACTUAL_SUPERSET_ADMIN_PASSWORD=$(grep "^SUPERSET_ADMIN_PASSWORD=" .env | cut -d'=' -f2- | tr -d '"')
+
+echo -e "${CYAN}📋 Your current credentials:${NC}"
 echo -e "${YELLOW}────────────────────────────${NC}"
 echo -e "🗄️  ${BOLD}PostgreSQL:${NC}"
 echo -e "   • User: postgres"
-echo -e "   • Password: ${POSTGRES_PASSWORD}"
+echo -e "   • Password: ${ACTUAL_POSTGRES_PASSWORD}"
 echo -e "   • Database: lakehouse"
 echo ""
 echo -e "📦 ${BOLD}MinIO (Object Storage):${NC}"
 echo -e "   • User: admin"
-echo -e "   • Password: ${MINIO_ROOT_PASSWORD}"
+echo -e "   • Password: ${ACTUAL_MINIO_ROOT_PASSWORD}"
 echo -e "   • Console: http://${HOST_IP}:9001"
 echo ""
 echo -e "📓 ${BOLD}Jupyter:${NC}"
 echo -e "   • URL: http://${HOST_IP}:9040"
-echo -e "   • Token: ${JUPYTER_TOKEN}"
+echo -e "   • Token: ${ACTUAL_JUPYTER_TOKEN}"
 echo ""
 echo -e "🌊 ${BOLD}Airflow:${NC}"
 echo -e "   • URL: http://${HOST_IP}:9020"
 echo -e "   • User: admin"
-echo -e "   • Password: ${AIRFLOW_ADMIN_PASSWORD}"
+echo -e "   • Password: ${ACTUAL_AIRFLOW_ADMIN_PASSWORD}"
 echo ""
 echo -e "📊 ${BOLD}Superset:${NC}"
 echo -e "   • URL: http://${HOST_IP}:9030"
 echo -e "   • User: admin"
-echo -e "   • Password: ${SUPERSET_ADMIN_PASSWORD}"
+echo -e "   • Password: ${ACTUAL_SUPERSET_ADMIN_PASSWORD}"
 echo ""
 echo -e "${BLUE}💡 To see all credentials anytime: ./scripts/show-credentials.sh${NC}"
 echo -e "${BLUE}💾 Backup saved as: .env.backup.$(date +%Y%m%d_%H%M%S)${NC}"
