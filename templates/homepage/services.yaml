@@ -21,10 +21,6 @@
         icon: minio.png
         href: http://${HOMEPAGE_VAR_HOST_IP}:9001
         description: Object Storage (S3-Compatible)
-        widget:
-          type: customapi
-          url: http://minio:9000/minio/health/live
-          hide_errors: true
 
 - Analytics & BI:
     - Apache Airflow:
@@ -40,10 +36,6 @@
         icon: si-apachesuperset
         href: http://${HOMEPAGE_VAR_HOST_IP}:9030
         description: Business Intelligence & Dashboards
-        widget:
-          type: customapi
-          url: http://superset:8088/health
-          hide_errors: true
           
     - Vizro:
         icon: si-plotly
@@ -55,10 +47,6 @@
         icon: jupyter.png
         href: http://${HOMEPAGE_VAR_HOST_IP}:9040
         description: Data Science Notebooks
-        widget:
-          type: customapi
-          url: http://jupyter:8888/api/status
-          hide_errors: true
           
     - LanceDB:
         icon: mdi-database
@@ -74,8 +62,3 @@
         icon: portainer.png
         href: http://${HOMEPAGE_VAR_HOST_IP}:9060
         description: Docker Container Management
-        widget:
-          type: portainer
-          url: http://portainer:9000
-          env: 2
-          hide_errors: true
