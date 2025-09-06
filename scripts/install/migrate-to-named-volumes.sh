@@ -500,26 +500,9 @@ start_services() {
         log_success "Core services started"
         sleep 15
         
-        # Restart MinIO to ensure it picks up migrated IAM configuration
-        log_info "Restarting MinIO to reload access keys and policies..."
-        docker compose restart minio
-        sleep 10
-        
-        # Verify MinIO is healthy after restart
-        local minio_attempts=0
-        while [[ $minio_attempts -lt 6 ]]; do
-            if docker compose exec minio mc admin info local >/dev/null 2>&1; then
-                log_success "MinIO is healthy and access keys loaded"
-                break
-            fi
-            minio_attempts=$((minio_attempts + 1))
-            if [[ $minio_attempts -lt 6 ]]; then
-                log_info "Waiting for MinIO to reload configuration... (attempt $minio_attempts/6)"
-                sleep 5
-            else
-                log_warning "MinIO may not have loaded all access keys - check admin console"
-            fi
-        done
+        # MinIO loads configuration from environment variables on startup
+        # No restart needed as credentials are set via environment variables
+        log_info "MinIO is running with environment-based configuration"
         
         # Start remaining services
         if docker compose up -d; then
