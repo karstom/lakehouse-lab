@@ -525,6 +525,8 @@ services:
       HOMEPAGE_VAR_SEARCH_PROVIDER: "duckduckgo"
       HOMEPAGE_VAR_HEADER_STYLE: "clean"
       HOMEPAGE_VAR_HIDEVERSION: "true"
+      HOMEPAGE_VAR_HOST_IP: "${HOST_IP:-localhost}"
+      HOMEPAGE_ALLOWED_HOSTS: "*"
     deploy:
       resources:
         limits:
