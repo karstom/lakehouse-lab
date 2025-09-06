@@ -1,0 +1,119 @@
+---
+# Dashy Configuration for Lakehouse Lab
+# Auto-discovery enabled via Docker labels
+
+pageInfo:
+  title: 'Lakehouse Lab Dashboard'
+  description: 'Data Engineering Platform'
+  logo: 'https://raw.githubusercontent.com/lissy93/dashy/master/public/web-icons/dashy-logo.png'
+  
+appConfig:
+  theme: 'nord'
+  layout: 'auto'
+  iconSize: 'medium'
+  language: 'en'
+  startingView: 'default'
+  defaultOpeningMethod: 'newtab'
+  statusCheck: true
+  statusCheckInterval: 300
+  faviconApi: 'besticon'
+  routingMode: 'hash'
+  enableMultiTasking: false
+  widgetsAlwaysUseProxy: false
+  webSearch:
+    disableWebSearch: false
+    searchEngine: 'duckduckgo'
+  hideComponents:
+    hideHeading: false
+    hideNav: false
+    hideSearch: false
+    hideSettings: false
+    hideFooter: true
+  auth:
+    enableGuestAccess: true
+  showSplashScreen: false
+  preventWriteToDisk: false
+  preventLocalSave: false
+  disableConfiguration: false
+  allowConfigEdit: true
+  enableServiceWorker: false
+  disableContextMenu: false
+  disableUpdateChecks: false
+  disableSmartSort: false
+  enableErrorReporting: false
+  
+# Manual service definitions (will be supplemented by auto-discovery)
+sections:
+  - name: 'Lakehouse Core'
+    icon: 'fas fa-database'
+    items:
+      - title: 'Spark Master'
+        description: 'Distributed Computing Engine'
+        icon: 'https://spark.apache.org/images/spark-logo-trademark.png'
+        url: 'http://${HOST_IP}:8080'
+        statusCheck: true
+        tags: ['spark', 'compute']
+      
+      - title: 'PostgreSQL Admin'
+        description: 'Database Management'
+        icon: 'si-postgresql'
+        url: 'http://${HOST_IP}:5432'
+        tags: ['database', 'sql']
+      
+      - title: 'MinIO Console'
+        description: 'Object Storage (S3-Compatible)'
+        icon: 'si-minio'
+        url: 'http://${HOST_IP}:9001'
+        statusCheck: true
+        tags: ['storage', 's3']
+  
+  - name: 'Analytics & BI'
+    icon: 'fas fa-chart-line'
+    items:
+      - title: 'Apache Airflow'
+        description: 'Workflow Orchestration'
+        icon: 'si-apacheairflow'
+        url: 'http://${HOST_IP}:9020'
+        statusCheck: true
+        tags: ['airflow', 'workflow']
+      
+      - title: 'Apache Superset'
+        description: 'Business Intelligence & Dashboards'
+        icon: 'si-apachesuperset'
+        url: 'http://${HOST_IP}:9030'
+        statusCheck: true
+        tags: ['bi', 'dashboards']
+      
+      - title: 'Vizro'
+        description: 'Interactive Dashboards'
+        icon: 'si-plotly'
+        url: 'http://${HOST_IP}:9050'
+        statusCheck: true
+        tags: ['visualization', 'plotly']
+  
+  - name: 'Development & ML'
+    icon: 'fas fa-code'
+    items:
+      - title: 'JupyterLab'
+        description: 'Data Science Notebooks'
+        icon: 'si-jupyter'
+        url: 'http://${HOST_IP}:9040'
+        statusCheck: true
+        tags: ['jupyter', 'notebooks', 'ml']
+      
+      - title: 'LanceDB'
+        description: 'Vector Database for AI/ML'
+        icon: 'fas fa-database'
+        url: 'http://${HOST_IP}:9080'
+        statusCheck: true
+        tags: ['vector', 'ml', 'ai']
+  
+  - name: 'Management'
+    icon: 'fas fa-cogs'
+    items:
+      - title: 'Portainer'
+        description: 'Docker Container Management'
+        icon: 'si-portainer'
+        url: 'http://${HOST_IP}:9060'
+        statusCheck: true
+        tags: ['docker', 'containers']

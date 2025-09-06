@@ -141,18 +141,7 @@ services:
         apk add --no-cache bash envsubst
         echo "🏠 Deploying Homepage configuration..."
         
-        # Deploy Homepage configuration files with variable substitution
-        mkdir -p /homepage-config
-        for template in /host/templates/homepage/*.yaml; do
-          if [ -f "$$template" ]; then
-            filename=$$(basename "$$template")
-            echo "Processing $$filename..."
-            envsubst < "$$template" > "/homepage-config/$$filename"
-            echo "Deployed: $$filename"
-          fi
-        done
-        
-        echo "✅ Homepage configuration deployed"
+        echo "✅ Dashboard setup skipped (using Dashy auto-discovery)"
         echo "🚀 Running main initialization..."
         /bin/bash /host/init-all-in-one-modular.sh
     environment:
@@ -177,7 +166,6 @@ services:
       HOMEPAGE_VAR_HOST_IP: ${HOST_IP:-localhost}
     volumes:
       - lakehouse_shared:/mnt/lakehouse
-      - homepage_config:/homepage-config
       - ./scripts/legacy/init-all-in-one-modular.sh:/host/init-all-in-one-modular.sh:ro
       - ./scripts:/host/scripts:ro
       - ./templates:/host/templates:ro
@@ -531,26 +519,20 @@ services:
         reservations:
           memory: ${PORTAINER_MEMORY_RESERVATION:-128M}
 
-  # Homepage Dashboard
-  homepage:
-    image: ghcr.io/gethomepage/homepage:latest
-    container_name: homepage
+  # Dashy Dashboard
+  dashy:
+    image: lissy93/dashy:latest
+    container_name: dashy
     restart: unless-stopped
     ports:
-      - "9061:3000"
+      - "9061:8080"
     volumes:
-      - homepage_config:/app/config
-      - homepage_images:/app/public/images
+      - dashy_config:/app/user-data
       - /var/run/docker.sock:/var/run/docker.sock:ro # Docker integration
     networks:
       - lakehouse
     environment:
-      HOMEPAGE_VAR_TITLE: "Lakehouse Lab"
-      HOMEPAGE_VAR_SEARCH_PROVIDER: "duckduckgo"
-      HOMEPAGE_VAR_HEADER_STYLE: "clean"
-      HOMEPAGE_VAR_HIDEVERSION: "true"
-      HOMEPAGE_VAR_HOST_IP: "${HOST_IP:-localhost}"
-      HOMEPAGE_ALLOWED_HOSTS: "*"
+      - NODE_ENV=production
     deploy:
       resources:
         limits:
@@ -683,12 +665,9 @@ volumes:
   superset_data:
     external: true
     name: lakehouse-lab_superset_data
-  homepage_config:
+  dashy_config:
     external: true
-    name: lakehouse-lab_homepage_config
-  homepage_images:
-    external: true
-    name: lakehouse-lab_homepage_images
+    name: lakehouse-lab_dashy_config
   vizro_data:
     external: true
     name: lakehouse-lab_vizro_data
