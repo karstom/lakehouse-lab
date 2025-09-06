@@ -2,7 +2,7 @@
 # Homepage Widgets Configuration for Lakehouse Lab
 
 - search:
-    provider: "{{HOMEPAGE_VAR_SEARCH_PROVIDER}}"
+    provider: "duckduckgo"
     target: _blank
 
 - datetime:

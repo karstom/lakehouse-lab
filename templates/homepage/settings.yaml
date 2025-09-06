@@ -1,7 +1,7 @@
 ---
 # Homepage Settings Configuration for Lakehouse Lab
 
-title: "{{HOMEPAGE_VAR_TITLE}}"
+title: "Lakehouse Lab"
 favicon: https://raw.githubusercontent.com/gethomepage/homepage/main/public/android-chrome-192x192.png
 
 theme: dark
@@ -21,8 +21,8 @@ layout:
     style: row
     columns: 2
 
-headerStyle: "{{HOMEPAGE_VAR_HEADER_STYLE}}"
-hideVersion: "{{HOMEPAGE_VAR_HIDEVERSION}}"
+headerStyle: "clean"
+hideVersion: true
 
 quicklaunch:
   searchDescriptions: true
