@@ -5,7 +5,7 @@
 - Lakehouse Core:
     - Spark Master:
         icon: apache.png
-        href: http://{{HOMEPAGE_VAR_HOST_IP}}:8080
+        href: http://${HOMEPAGE_VAR_HOST_IP}:8080
         description: Distributed Computing Engine
         widget:
           type: customapi
@@ -13,12 +13,12 @@
           
     - PostgreSQL:
         icon: postgres.png
-        href: http://{{HOMEPAGE_VAR_HOST_IP}}:5432
+        href: http://${HOMEPAGE_VAR_HOST_IP}:5432
         description: Analytics Database
         
     - MinIO Console:
         icon: minio.png
-        href: http://{{HOMEPAGE_VAR_HOST_IP}}:9001
+        href: http://${HOMEPAGE_VAR_HOST_IP}:9001
         description: Object Storage (S3-Compatible)
         widget:
           type: customapi
@@ -27,7 +27,7 @@
 - Analytics & BI:
     - Apache Airflow:
         icon: airflow.png
-        href: http://{{HOMEPAGE_VAR_HOST_IP}}:9020
+        href: http://${HOMEPAGE_VAR_HOST_IP}:9020
         description: Workflow Orchestration
         widget:
           type: customapi
@@ -35,7 +35,7 @@
           
     - Apache Superset:
         icon: superset.png
-        href: http://{{HOMEPAGE_VAR_HOST_IP}}:9030
+        href: http://${HOMEPAGE_VAR_HOST_IP}:9030
         description: Business Intelligence & Dashboards
         widget:
           type: customapi
@@ -43,13 +43,13 @@
           
     - Vizro:
         icon: plotly.png
-        href: http://{{HOMEPAGE_VAR_HOST_IP}}:9050
+        href: http://${HOMEPAGE_VAR_HOST_IP}:9050
         description: Interactive Dashboards
 
 - Development & ML:
     - JupyterLab:
         icon: jupyter.png
-        href: http://{{HOMEPAGE_VAR_HOST_IP}}:9040
+        href: http://${HOMEPAGE_VAR_HOST_IP}:9040
         description: Data Science Notebooks
         widget:
           type: customapi
@@ -57,7 +57,7 @@
           
     - LanceDB:
         icon: database.png
-        href: http://{{HOMEPAGE_VAR_HOST_IP}}:9080
+        href: http://${HOMEPAGE_VAR_HOST_IP}:9080
         description: Vector Database for AI/ML
         widget:
           type: customapi
@@ -66,7 +66,7 @@
 - Management:
     - Portainer:
         icon: portainer.png
-        href: http://{{HOMEPAGE_VAR_HOST_IP}}:9060
+        href: http://${HOMEPAGE_VAR_HOST_IP}:9060
         description: Docker Container Management
         widget:
           type: portainer
