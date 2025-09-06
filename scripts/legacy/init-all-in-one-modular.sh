@@ -162,7 +162,7 @@ main() {
     echo "   • JupyterLab:        http://localhost:9040 (token: lakehouse)"
     echo "   • MinIO Console:     http://localhost:9001 (minio/minio123)"
     echo "   • Spark Master:      http://localhost:8080"
-    echo "   • Homer Dashboard:   http://localhost:9061"
+    echo "   • Homepage Dashboard: http://localhost:9061"
     echo "   • Vizro Dashboard:   http://localhost:9050 (interactive visualizations)"
     echo "   • LanceDB API:       http://localhost:9080 (vector database)"
     echo ""
