@@ -144,11 +144,11 @@ services:
         # Deploy Homepage configuration files with variable substitution
         mkdir -p /homepage-config
         for template in /host/templates/homepage/*.yaml; do
-          if [ -f "$template" ]; then
-            filename=$(basename "$template")
-            echo "Processing $filename..."
-            envsubst < "$template" > "/homepage-config/$filename"
-            echo "Deployed: $filename"
+          if [ -f "$$template" ]; then
+            filename=$$(basename "$$template")
+            echo "Processing $$filename..."
+            envsubst < "$$template" > "/homepage-config/$$filename"
+            echo "Deployed: $$filename"
           fi
         done
         
