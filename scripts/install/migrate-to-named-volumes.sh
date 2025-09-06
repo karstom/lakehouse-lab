@@ -491,6 +491,10 @@ start_services() {
     
     log_info "All critical volumes verified, starting services..."
     
+    # Remove any orphaned containers from service changes before starting
+    log_info "Cleaning up orphaned containers from previous versions..."
+    docker compose down --remove-orphans >/dev/null 2>&1 || log_warning "Could not remove orphaned containers"
+    
     # Start core services first
     if docker compose up -d postgres minio lakehouse-init; then
         log_success "Core services started"

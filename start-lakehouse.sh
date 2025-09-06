@@ -234,7 +234,7 @@ start_with_dependencies() {
     case "$STARTUP_MODE" in
         "minimal")
             echo -e "${YELLOW}📦 Starting minimal services (storage + basic query)...${NC}"
-            docker compose up -d postgres minio
+            docker compose up -d --remove-orphans postgres minio
             check_service_health "MinIO" "http://localhost:9000/minio/health/live"
             
             # Start lakehouse-init to set up buckets and sample data
@@ -242,7 +242,7 @@ start_with_dependencies() {
             docker compose up lakehouse-init
             
             # Start Homepage for service links
-            docker compose up -d homepage
+            docker compose up -d --remove-orphans homepage
             ;;
             
         "debug")
@@ -259,12 +259,12 @@ start_with_dependencies() {
             
             # Layer 1: Storage
             echo -e "${BLUE}Layer 1: Storage services${NC}"
-            docker compose $compose_files up -d postgres minio
+            docker compose $compose_files up -d --remove-orphans postgres minio
             check_service_health "MinIO" "http://localhost:9000/minio/health/live"
             
             # Layer 2: Processing
             echo -e "${BLUE}Layer 2: Compute engines${NC}"
-            docker compose $compose_files up -d spark-master spark-worker
+            docker compose $compose_files up -d --remove-orphans spark-master spark-worker
             check_service_health "Spark Master" "http://localhost:8080" 15
             
             # Layer 3: Initialization
@@ -273,17 +273,17 @@ start_with_dependencies() {
             
             # Layer 4: Applications
             echo -e "${BLUE}Layer 4: User applications${NC}"
-            docker compose $compose_files up -d jupyter airflow-init
+            docker compose $compose_files up -d --remove-orphans jupyter airflow-init
             sleep 30  # Give airflow-init time to complete
-            docker compose $compose_files up -d airflow-scheduler airflow-webserver
+            docker compose $compose_files up -d --remove-orphans airflow-scheduler airflow-webserver
             
             # Layer 5: BI and monitoring
             echo -e "${BLUE}Layer 5: BI and monitoring${NC}"
-            docker compose $compose_files up -d superset portainer
+            docker compose $compose_files up -d --remove-orphans superset portainer
             
             # Optional services
             echo -e "${BLUE}Layer 6: Optional services${NC}"
-            docker compose --profile optional up -d homepage || echo -e "${YELLOW}⚠️  Homepage is optional and may not start${NC}"
+            docker compose --profile optional up -d --remove-orphans homepage || echo -e "${YELLOW}⚠️  Homepage is optional and may not start${NC}"
             ;;
             
         "normal"|*)
@@ -301,18 +301,18 @@ start_with_dependencies() {
                 echo -e "${BLUE}🧊 Iceberg support detected - using enhanced configuration...${NC}"
                 compose_files="$compose_files -f docker-compose.iceberg.yml"
                 # Try Iceberg startup first
-                if docker compose $compose_files up -d; then
+                if docker compose $compose_files up -d --remove-orphans; then
                     echo -e "${GREEN}✅ All services with Iceberg support started successfully${NC}"
                     # Create marker file for future starts
                     touch .iceberg-enabled
                 else
                     echo -e "${YELLOW}⚠️  Iceberg startup failed, falling back to standard configuration...${NC}"
-                    if docker compose -f docker-compose.yml up -d; then
+                    if docker compose -f docker-compose.yml up -d --remove-orphans; then
                         echo -e "${GREEN}✅ Standard services started successfully${NC}"
                     fi
                 fi
             # Try normal startup first
-            elif docker compose $compose_files up -d; then
+            elif docker compose $compose_files up -d --remove-orphans; then
                 echo -e "${GREEN}✅ All services started successfully${NC}"
                 
                 # Check key services

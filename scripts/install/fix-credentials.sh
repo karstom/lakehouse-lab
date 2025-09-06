@@ -176,7 +176,7 @@ sleep 15
 
 # Check if any services failed to start and try to bring them up
 log_info "Ensuring all services are running..."
-docker compose up -d
+docker compose up -d --remove-orphans
 
 # Fix PostgreSQL password synchronization after restart
 log_info "Synchronizing PostgreSQL password..."
