@@ -141,6 +141,10 @@ services:
         apk add --no-cache bash envsubst
         echo "🏠 Deploying Lakehouse Dashboard..."
         
+        # Get HOST_IP from environment or detect it
+        export HOST_IP="${HOST_IP:-$(hostname -I | awk '{print $1}' 2>/dev/null || echo "localhost")}"
+        echo "Using HOST_IP: $HOST_IP"
+        
         # Deploy static HTML dashboard with variable substitution
         mkdir -p /dashboard-html
         envsubst < /host/templates/dashboard/index.html > /dashboard-html/index.html
