@@ -139,9 +139,13 @@ services:
       - -c
       - |
         apk add --no-cache bash envsubst
-        echo "🏠 Deploying Homepage configuration..."
+        echo "🏠 Deploying Lakehouse Dashboard..."
         
-        echo "✅ Dashboard setup skipped (using Dashy auto-discovery)"
+        # Deploy static HTML dashboard with variable substitution
+        mkdir -p /dashboard-html
+        envsubst < /host/templates/dashboard/index.html > /dashboard-html/index.html
+        
+        echo "✅ Dashboard deployed successfully"
         echo "🚀 Running main initialization..."
         /bin/bash /host/init-all-in-one-modular.sh
     environment:
@@ -166,6 +170,7 @@ services:
       HOMEPAGE_VAR_HOST_IP: ${HOST_IP:-localhost}
     volumes:
       - lakehouse_shared:/mnt/lakehouse
+      - dashboard_html:/dashboard-html
       - ./scripts/legacy/init-all-in-one-modular.sh:/host/init-all-in-one-modular.sh:ro
       - ./scripts:/host/scripts:ro
       - ./templates:/host/templates:ro
@@ -519,20 +524,17 @@ services:
         reservations:
           memory: ${PORTAINER_MEMORY_RESERVATION:-128M}
 
-  # Dashy Dashboard
-  dashy:
-    image: lissy93/dashy:latest
-    container_name: dashy
+  # Lakehouse Dashboard (Static HTML)
+  dashboard:
+    image: nginx:alpine
+    container_name: lakehouse-dashboard
     restart: unless-stopped
     ports:
-      - "9061:8080"
+      - "9061:80"
     volumes:
-      - dashy_config:/app/user-data
-      - /var/run/docker.sock:/var/run/docker.sock:ro # Docker integration
+      - dashboard_html:/usr/share/nginx/html:ro
     networks:
       - lakehouse
-    environment:
-      - NODE_ENV=production
     deploy:
       resources:
         limits:
@@ -665,9 +667,9 @@ volumes:
   superset_data:
     external: true
     name: lakehouse-lab_superset_data
-  dashy_config:
+  dashboard_html:
     external: true
-    name: lakehouse-lab_dashy_config
+    name: lakehouse-lab_dashboard_html
   vizro_data:
     external: true
     name: lakehouse-lab_vizro_data
