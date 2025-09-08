@@ -1,5 +1,34 @@
 # Changelog
 
+## [2.1.1] - 2025-09-08
+
+### 🏗️ Infrastructure Stability & Core Stack Focus
+- **🎯 Dashboard System Removal**: Removed all dashboard functionality (Homer, Homepage, Dashy) to focus on core stack reliability
+- **🛠️ Docker Compose Fixes**: Fixed duplicate YAML keys and orphaned container warnings preventing installations
+- **🔧 Installation Process Improvements**: Resolved YAML syntax errors and volume creation issues blocking upgrades
+- **⚡ Service Integration**: Added Vizro Dashboard Framework and LanceDB Vector Database to core stack
+
+### 🐛 Critical Bug Fixes
+- **📋 YAML Syntax Error**: Fixed duplicate 'deploy' key in Portainer service causing installation failures
+- **🐳 Orphaned Containers**: Added `--remove-orphans` flags across all Docker Compose commands to eliminate warnings
+- **🔍 MinIO Configuration**: Removed unnecessary MinIO restarts during Smart Upgrade preventing timeout issues
+- **🔗 Host Validation**: Fixed Homepage host validation errors when accessing from external IP addresses
+- **💾 Credential Display**: Fixed misleading credential displays by reading actual values from .env files
+
+### 🚀 Service & Network Improvements  
+- **🌐 Dynamic HOST_IP Detection**: Enhanced IP detection and configuration for external access scenarios
+- **🔄 PostgreSQL Synchronization**: Improved password synchronization between .env files and container state
+- **📊 Variable Handling**: Fixed Docker Compose variable warnings by properly escaping shell variables
+- **🔧 Service Dependencies**: Better error handling for service startup and dependency management
+
+### 📚 Architecture Simplification
+- **🎯 Core Focus**: Eliminated complex dashboard dependencies and potential failure points
+- **⚡ Reduced Overhead**: Removed dashboard services improving overall system performance
+- **🛡️ Enhanced Reliability**: Simplified initialization process focusing on data engineering functionality
+- **📋 Clean Configuration**: Streamlined docker-compose.yml without dashboard-related complexity
+
+This patch release prioritizes **rock-solid stability** and **installation reliability** while maintaining all core data engineering capabilities. All services remain fully accessible via direct URLs without dashboard overhead.
+
 ## [2.1.0] - 2025-09-05
 
 ### 💾 Comprehensive Backup & Restore System
