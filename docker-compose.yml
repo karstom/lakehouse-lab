@@ -138,19 +138,8 @@ services:
       - /bin/sh
       - -c
       - |
-        apk add --no-cache bash envsubst
-        echo "🏠 Deploying Lakehouse Dashboard..."
-        
-        # Get HOST_IP from environment or detect it
-        export HOST_IP="${HOST_IP:-$(hostname -I | awk '{print $1}' 2>/dev/null || echo "localhost")}"
-        echo "Using HOST_IP: $HOST_IP"
-        
-        # Deploy static HTML dashboard with variable substitution
-        mkdir -p /dashboard-html
-        envsubst < /host/templates/dashboard/index.html > /dashboard-html/index.html
-        
-        echo "✅ Dashboard deployed successfully"
-        echo "🚀 Running main initialization..."
+        apk add --no-cache bash
+        echo "🚀 Running Lakehouse Lab initialization..."
         /bin/bash /host/init-all-in-one-modular.sh
     environment:
       INSTALL_SAMPLES: "true"
@@ -174,7 +163,6 @@ services:
       HOMEPAGE_VAR_HOST_IP: ${HOST_IP:-localhost}
     volumes:
       - lakehouse_shared:/mnt/lakehouse
-      - dashboard_html:/dashboard-html
       - ./scripts/legacy/init-all-in-one-modular.sh:/host/init-all-in-one-modular.sh:ro
       - ./scripts:/host/scripts:ro
       - ./templates:/host/templates:ro
@@ -528,17 +516,6 @@ services:
         reservations:
           memory: ${PORTAINER_MEMORY_RESERVATION:-128M}
 
-  # Lakehouse Dashboard (Static HTML)
-  dashboard:
-    image: nginx:alpine
-    container_name: lakehouse-dashboard
-    restart: unless-stopped
-    ports:
-      - "9061:80"
-    volumes:
-      - dashboard_html:/usr/share/nginx/html:ro
-    networks:
-      - lakehouse
     deploy:
       resources:
         limits:
@@ -671,9 +648,6 @@ volumes:
   superset_data:
     external: true
     name: lakehouse-lab_superset_data
-  dashboard_html:
-    external: true
-    name: lakehouse-lab_dashboard_html
   vizro_data:
     external: true
     name: lakehouse-lab_vizro_data
