@@ -212,16 +212,33 @@ show_upgrade_options() {
         docker ps --format "table {{.Names}}\t{{.Status}}" | grep "lakehouse-lab" | sed 's/^/     /'
     fi
     
+    local has_bind_mount_data=false
     if [[ -d "$INSTALL_DIR/lakehouse-data" ]] || [[ -d "./lakehouse-data" ]]; then
         echo -e "${BLUE}💾 Found data directory with your analytics data${NC}"
+        
+        # Check if this is old bind mount data that needs migration
+        if [[ -d "$INSTALL_DIR/lakehouse-data/postgres" ]] || [[ -d "./lakehouse-data/postgres" ]]; then
+            has_bind_mount_data=true
+            echo -e "${YELLOW}⚠️  Detected old bind mount storage (needs migration for safety)${NC}"
+        fi
     fi
     
     echo ""
     echo -e "${BLUE}${BOLD}What would you like to do?${NC}"
     echo ""
-    echo -e "${GREEN}1) Upgrade${NC} - Update to latest version (keeps your data and settings)"
-    echo -e "${YELLOW}2) Replace${NC} - Fresh installation (⚠️  removes all data and starts over)"
-    echo -e "${CYAN}3) Cancel${NC} - Exit without making changes"
+    
+    if $has_bind_mount_data; then
+        echo -e "${GREEN}1) Smart Upgrade${NC} - Update + migrate data to safe storage (RECOMMENDED)"
+        echo -e "${CYAN}2) Legacy Upgrade${NC} - Update code only (keeps old storage system)"
+        echo -e "${YELLOW}3) Replace${NC} - Fresh installation (⚠️  removes all data and starts over)"
+        echo -e "${CYAN}4) Cancel${NC} - Exit without making changes"
+        echo ""
+        echo -e "${BLUE}💡 Smart Upgrade migrates to named volumes for data safety${NC}"
+    else
+        echo -e "${GREEN}1) Upgrade${NC} - Update to latest version (keeps your data and settings)"
+        echo -e "${YELLOW}2) Replace${NC} - Fresh installation (⚠️  removes all data and starts over)"
+        echo -e "${CYAN}3) Cancel${NC} - Exit without making changes"
+    fi
     echo ""
     
     if [[ $UNATTENDED == "true" ]]; then
@@ -231,35 +248,60 @@ show_upgrade_options() {
     fi
     
     while true; do
-        read -p "Please choose (1/2/3): " choice </dev/tty
-        case $choice in
-            1|upgrade|Upgrade|UPGRADE)
-                UPGRADE_CHOICE="upgrade"
-                return 0
-                ;;
-            2|replace|Replace|REPLACE)
-                UPGRADE_CHOICE="replace"
-                return 0
-                ;;
-            3|cancel|Cancel|CANCEL|q|quit)
-                UPGRADE_CHOICE="cancel"
-                return 0
-                ;;
-            *)
-                echo -e "${RED}Invalid choice. Please enter 1, 2, or 3.${NC}"
-                ;;
-        esac
+        if $has_bind_mount_data; then
+            read -p "Please choose (1/2/3/4): " choice </dev/tty
+            case $choice in
+                1|smart|Smart|SMART)
+                    UPGRADE_CHOICE="smart-upgrade"
+                    return 0
+                    ;;
+                2|legacy|Legacy|LEGACY)
+                    UPGRADE_CHOICE="legacy-upgrade"
+                    return 0
+                    ;;
+                3|replace|Replace|REPLACE)
+                    UPGRADE_CHOICE="replace"
+                    return 0
+                    ;;
+                4|cancel|Cancel|CANCEL|q|quit)
+                    UPGRADE_CHOICE="cancel"
+                    return 0
+                    ;;
+                *)
+                    echo -e "${RED}Invalid choice. Please enter 1, 2, 3, or 4.${NC}"
+                    ;;
+            esac
+        else
+            read -p "Please choose (1/2/3): " choice </dev/tty
+            case $choice in
+                1|upgrade|Upgrade|UPGRADE)
+                    UPGRADE_CHOICE="upgrade"
+                    return 0
+                    ;;
+                2|replace|Replace|REPLACE)
+                    UPGRADE_CHOICE="replace"
+                    return 0
+                    ;;
+                3|cancel|Cancel|CANCEL|q|quit)
+                    UPGRADE_CHOICE="cancel"
+                    return 0
+                    ;;
+                *)
+                    echo -e "${RED}Invalid choice. Please enter 1, 2, or 3.${NC}"
+                    ;;
+            esac
+        fi
     done
 }
 
 perform_upgrade() {
     print_step "Upgrading existing Lakehouse Lab installation..."
     
-    # Stop running services gracefully
+    # Stop running services gracefully without removing volumes
     if check_command docker && docker ps --format "table {{.Names}}" 2>/dev/null | grep -q "lakehouse-lab"; then
-        print_step "Stopping running services..."
+        print_step "Stopping running services (preserving data)..."
         cd "$INSTALL_DIR" 2>/dev/null || true
-        docker compose down || print_warning "Could not stop some services"
+        docker compose stop || print_warning "Could not stop some services"
         cd - >/dev/null
     fi
     
@@ -273,6 +315,12 @@ perform_upgrade() {
     
     # Download latest version
     download_lakehouse_lab
+    
+    # Clean up orphaned containers from service changes (e.g., Homer -> Homepage)
+    print_step "Cleaning up orphaned containers from previous versions..."
+    cd "$INSTALL_DIR" 2>/dev/null || true
+    docker compose down --remove-orphans >/dev/null 2>&1 || print_warning "Could not remove orphaned containers"
+    cd - >/dev/null
     
     # Restore data directory if it exists in backup
     if [[ -d "$backup_dir/lakehouse-data" ]]; then
@@ -294,12 +342,127 @@ perform_upgrade() {
     print_warning "Backup available at: $backup_dir"
 }
 
+perform_smart_upgrade() {
+    print_step "🚀 Performing Smart Upgrade (with data migration to named volumes)..."
+    print_info "This will:"
+    echo -e "  ✅ Stop services safely (preserving data)"
+    echo -e "  ✅ Update to latest Lakehouse Lab"
+    echo -e "  ✅ Migrate your data to persistent storage"
+    echo -e "  ✅ Ensure data survives container recreation"
+    echo ""
+    
+    # Remember the current working directory and ensure we use absolute paths
+    local original_dir="$(pwd)"
+    local abs_install_dir
+    if [[ "$INSTALL_DIR" = /* ]]; then
+        abs_install_dir="$INSTALL_DIR"
+    else
+        # If INSTALL_DIR is relative, make it relative to the original directory
+        abs_install_dir="$(dirname "$original_dir")/$INSTALL_DIR"
+    fi
+    
+    # First perform the regular upgrade steps
+    perform_upgrade
+    
+    # Then run the migration script from the updated directory
+    print_step "Running data migration to named volumes..."
+    
+    # Check if migration script exists in the new installation
+    if [[ ! -f "$abs_install_dir/scripts/install/migrate-to-named-volumes.sh" ]]; then
+        print_error "Migration script not found at: $abs_install_dir/scripts/install/migrate-to-named-volumes.sh"
+        print_warning "Your upgrade was completed but data migration failed."
+        print_info "Directory contents:"
+        ls -la "$abs_install_dir/" || echo "Directory not accessible"
+        exit 1
+    fi
+    
+    # Run migration from the correct directory (skip PG sync since fix-credentials will handle it)
+    cd "$abs_install_dir"
+    SKIP_PG_SYNC=true bash scripts/install/migrate-to-named-volumes.sh
+    migration_result=$?
+    cd "$original_dir"
+    
+    if [[ $migration_result -ne 0 ]]; then
+        if [[ $migration_result -eq 2 ]]; then
+            print_warning "Migration cancelled by user."
+            print_info "Your upgrade was completed but data migration was skipped."
+            print_info "You can run the migration later: cd $abs_install_dir && bash scripts/install/migrate-to-named-volumes.sh"
+            exit 0
+        else
+            print_error "Data migration failed. Your upgrade was completed but data is still in bind mounts."
+            print_info "You can run the migration manually: cd $abs_install_dir && bash scripts/install/migrate-to-named-volumes.sh"
+            exit 1
+        fi
+    fi
+    
+    # Run credential fix to ensure passwords are synchronized after migration
+    print_step "Fixing credential synchronization after migration..."
+    cd "$abs_install_dir"
+    if [[ -f "scripts/install/fix-credentials.sh" ]]; then
+        bash scripts/install/fix-credentials.sh || print_warning "Credential fix failed - may need manual sync"
+    else
+        print_warning "Credential fix script not found - passwords may need manual sync"
+    fi
+    cd "$original_dir"
+    
+    print_success "Smart upgrade completed successfully!"
+    print_info "Your data is now stored in named Docker volumes for maximum safety."
+}
+
+perform_legacy_upgrade() {
+    print_step "⚠️  Performing Legacy Upgrade (keeping bind mount storage)..."
+    print_warning "This upgrade preserves your current storage system but doesn't provide"
+    print_warning "protection against data loss during 'docker compose down' operations."
+    print_info "Consider running Smart Upgrade later for better data protection."
+    echo ""
+    
+    # Remember the current working directory
+    local original_dir="$(pwd)"
+    local abs_install_dir
+    if [[ "$INSTALL_DIR" = /* ]]; then
+        abs_install_dir="$INSTALL_DIR"
+    else
+        abs_install_dir="$(dirname "$original_dir")/$INSTALL_DIR"
+    fi
+    
+    # This is essentially the same as the regular upgrade
+    perform_upgrade
+    
+    # Run credential fix to ensure passwords are synchronized after upgrade
+    print_step "Fixing credential synchronization after upgrade..."
+    cd "$abs_install_dir" || cd "$INSTALL_DIR"
+    if [[ -f "scripts/install/fix-credentials.sh" ]]; then
+        bash scripts/install/fix-credentials.sh || print_warning "Credential fix failed - may need manual sync"
+    else
+        print_warning "Credential fix script not found - passwords may need manual sync"
+    fi
+    cd "$original_dir"
+}
+
 perform_replace() {
     print_step "Performing fresh installation (replacing existing)..."
+    print_warning "⚠️  This will PERMANENTLY DELETE all data including MinIO storage, databases, and notebooks!"
     
-    # Stop and remove all services
+    # Give user final chance to cancel
+    if [[ -t 0 && $UNATTENDED != "true" ]]; then
+        echo ""
+        echo -e "${RED}${BOLD}WARNING: ALL DATA WILL BE LOST!${NC}"
+        echo -e "${RED}This includes:${NC}"
+        echo -e "${RED}  • MinIO object storage and files${NC}"
+        echo -e "${RED}  • PostgreSQL databases${NC}"
+        echo -e "${RED}  • Jupyter notebooks${NC}"
+        echo -e "${RED}  • All analytics data${NC}"
+        echo ""
+        read -p "Type 'DELETE ALL DATA' to confirm: " -r </dev/tty
+        if [[ $REPLY != "DELETE ALL DATA" ]]; then
+            print_warning "Replace operation cancelled - data preserved"
+            exit 0
+        fi
+    fi
+    
+    # Stop and remove all services with volumes
     if check_command docker && docker ps --format "table {{.Names}}" 2>/dev/null | grep -q "lakehouse-lab"; then
-        print_step "Stopping and removing all services..."
+        print_step "Stopping and removing all services and data volumes..."
         cd "$INSTALL_DIR" 2>/dev/null || true
         docker compose down -v || print_warning "Could not stop some services"
         cd - >/dev/null
@@ -312,10 +475,11 @@ perform_replace() {
         print_success "Existing installation removed"
     fi
     
-    # Remove any lakehouse-data directories
+    # Remove any lakehouse-data directories (with confirmation)
     if [[ -d "./lakehouse-data" ]]; then
-        print_warning "Removing existing data directory..."
+        print_step "Removing existing data directory..."
         rm -rf "./lakehouse-data"
+        print_success "Data directory removed"
     fi
     
     # Remove any partial initialization markers
@@ -546,17 +710,43 @@ check_dependencies() {
 download_lakehouse_lab() {
     print_step "Downloading Lakehouse Lab..."
     
-    # Only remove directory if not in upgrade/replace mode (those handle it)
-    if [[ -d "$INSTALL_DIR" ]] && [[ $UPGRADE_MODE != "true" ]] && [[ $REPLACE_MODE != "true" ]]; then
+    # Detect if we're already in a directory with the same name as INSTALL_DIR
+    # This prevents nesting like ~/lakehouse-lab/lakehouse-lab
+    local current_dir_name=$(basename "$(pwd)")
+    local target_dir="$INSTALL_DIR"
+    
+    if [[ "$current_dir_name" == "$target_dir" ]] && [[ ! -f "docker-compose.yml" ]]; then
+        # We're in a directory with the target name but it's not a lakehouse installation
+        # Install directly in current directory instead of creating subdirectory
+        print_info "Installing directly in current directory ($current_dir_name) to avoid nesting"
+        target_dir="."
+        
+        # Remove any existing lakehouse files (but preserve other files)
+        rm -rf docker-compose*.yml .env* scripts/ templates/ *.sh README.md 2>/dev/null || true
+    elif [[ -d "$INSTALL_DIR" ]] && [[ $UPGRADE_MODE != "true" ]] && [[ $UPGRADE_MODE != "smart-upgrade" ]] && [[ $UPGRADE_MODE != "legacy-upgrade" ]] && [[ $REPLACE_MODE != "true" ]]; then
         print_warning "Directory $INSTALL_DIR already exists. Removing..."
         rm -rf "$INSTALL_DIR"
     fi
     
     # Clone repository
-    git clone --branch "$BRANCH" "$REPO_URL" "$INSTALL_DIR"
-    cd "$INSTALL_DIR"
-    
-    print_success "Lakehouse Lab downloaded successfully"
+    if [[ "$target_dir" == "." ]]; then
+        # Clone to temporary directory then move contents
+        local temp_dir="lakehouse-temp-$$"
+        git clone --branch "$BRANCH" "$REPO_URL" "$temp_dir"
+        
+        # Move contents to current directory
+        mv "$temp_dir"/* . 2>/dev/null || true
+        mv "$temp_dir"/.[^.]* . 2>/dev/null || true
+        rmdir "$temp_dir"
+        
+        # Update INSTALL_DIR to reflect actual installation location
+        INSTALL_DIR="$(pwd)"
+        print_success "Lakehouse Lab installed in current directory"
+    else
+        git clone --branch "$BRANCH" "$REPO_URL" "$target_dir"
+        cd "$target_dir"
+        print_success "Lakehouse Lab downloaded successfully"
+    fi
 }
 
 configure_environment() {
@@ -656,6 +846,12 @@ show_completion_message() {
     if [[ $UPGRADE_MODE == "true" ]]; then
         echo -e "${GREEN}${BOLD}🎉 Upgrade Complete!${NC}"
         echo -e "${BLUE}Your data and settings have been preserved${NC}"
+    elif [[ $UPGRADE_MODE == "smart-upgrade" ]]; then
+        echo -e "${GREEN}${BOLD}🎉 Smart Upgrade Complete!${NC}"
+        echo -e "${BLUE}Your data has been migrated to persistent storage for maximum safety${NC}"
+    elif [[ $UPGRADE_MODE == "legacy-upgrade" ]]; then
+        echo -e "${GREEN}${BOLD}🎉 Legacy Upgrade Complete!${NC}"
+        echo -e "${BLUE}Your data and settings have been preserved (using bind mount storage)${NC}"
     elif [[ $REPLACE_MODE == "true" ]]; then
         echo -e "${GREEN}${BOLD}🎉 Fresh Installation Complete!${NC}"
         echo -e "${BLUE}Starting with a clean slate${NC}"
@@ -705,12 +901,18 @@ main() {
     print_header
     
     # Check for existing installation first (unless explicitly told to upgrade/replace)
-    if [[ $UPGRADE_MODE != "true" ]] && [[ $REPLACE_MODE != "true" ]]; then
+    if [[ $UPGRADE_MODE != "true" ]] && [[ $UPGRADE_MODE != "smart-upgrade" ]] && [[ $UPGRADE_MODE != "legacy-upgrade" ]] && [[ $REPLACE_MODE != "true" ]]; then
         if detect_existing_installation; then
             show_upgrade_options
             case $UPGRADE_CHOICE in
-                upgrade)  # Upgrade
+                upgrade)  # Standard upgrade
                     UPGRADE_MODE="true"
+                    ;;
+                smart-upgrade)  # Smart upgrade with migration
+                    UPGRADE_MODE="smart-upgrade"
+                    ;;
+                legacy-upgrade)  # Legacy upgrade (bind mounts)
+                    UPGRADE_MODE="legacy-upgrade"
                     ;;
                 replace)  # Replace
                     REPLACE_MODE="true"
@@ -730,6 +932,10 @@ main() {
     echo -e "  Iceberg: ${YELLOW}$ENABLE_ICEBERG${NC}"
     if [[ $UPGRADE_MODE == "true" ]]; then
         echo -e "  Mode: ${GREEN}Upgrade (preserving data)${NC}"
+    elif [[ $UPGRADE_MODE == "smart-upgrade" ]]; then
+        echo -e "  Mode: ${GREEN}Smart Upgrade (migrate to named volumes)${NC}"
+    elif [[ $UPGRADE_MODE == "legacy-upgrade" ]]; then
+        echo -e "  Mode: ${GREEN}Legacy Upgrade (keep bind mounts)${NC}"
     elif [[ $REPLACE_MODE == "true" ]]; then
         echo -e "  Mode: ${YELLOW}Replace (fresh install)${NC}"
     else
@@ -750,7 +956,7 @@ main() {
     echo ""
     
     # Confirm installation (only if not already chosen via upgrade options)
-    if [[ -t 0 && $UNATTENDED != "true" ]] && [[ $UPGRADE_MODE != "true" ]] && [[ $REPLACE_MODE != "true" ]]; then
+    if [[ -t 0 && $UNATTENDED != "true" ]] && [[ $UPGRADE_MODE != "true" ]] && [[ $UPGRADE_MODE != "smart-upgrade" ]] && [[ $UPGRADE_MODE != "legacy-upgrade" ]] && [[ $REPLACE_MODE != "true" ]]; then
         read -p "Continue with installation? [Y/n]: " -n 1 -r </dev/tty
         echo
         if [[ $REPLY =~ ^[Nn]$ ]]; then
@@ -767,6 +973,10 @@ main() {
     
     if [[ $UPGRADE_MODE == "true" ]]; then
         perform_upgrade
+    elif [[ $UPGRADE_MODE == "smart-upgrade" ]]; then
+        perform_smart_upgrade
+    elif [[ $UPGRADE_MODE == "legacy-upgrade" ]]; then
+        perform_legacy_upgrade
     elif [[ $REPLACE_MODE == "true" ]]; then
         perform_replace
     else

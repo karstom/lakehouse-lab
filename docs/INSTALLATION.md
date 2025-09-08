@@ -1,31 +1,50 @@
 # 🚀 Lakehouse Lab Installation Guide
 
-Complete installation options for all platforms and use cases.
+**Version 2.1.0** - Complete installation options for all platforms and use cases, from individual learning to educational institutions with multi-user JupyterHub environments.
 
 > ⚠️ **Critical for New Users**: You **MUST** use `./install.sh` for first-time installation. Running `docker compose up -d` directly will fail because it requires secure credentials and proper initialization that only the installer provides.
 
 ## ⚡ One-Command Installation
 
-### **Standard Installation (Recommended)**
+### 🎓 **Individual Student Installation (Simple & Fast)**
+
+**Standard Installation (Recommended for Learning):**
 ```bash
-# For laptops, workstations, small servers (16GB RAM, 4+ cores)
+# For laptops, workstations, small servers (8-16GB RAM)
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
+```
+
+**High-Performance Installation:**
+```bash
+# For powerful servers (32+ cores, 64GB+ RAM)
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --fat-server
+```
+
+### 🏫 **Educational Institution Installation (Multi-User & Collaborative)**
+
+**Standard Multi-User Installation:**
+```bash
+# Complete installation for classrooms and computer labs
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
+```
+
+### 🎯 **Interactive Setup Wizard (Recommended)**
+
+**Configure Services and Choose Deployment:**
+```bash
+# Interactive installation with service selection
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --wizard
+
+# Or use presets
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --preset minimal
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --preset analytics
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --preset ml
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --preset full
 ```
 
 **Windows WSL or macOS users** (if piping fails):
 ```bash
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh
-```
-
-### **High-Performance Installation**
-```bash
-# For powerful servers (64GB+ RAM, 16+ cores)
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --fat-server
-```
-
-**Windows WSL or macOS users:**
-```bash
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh -o /tmp/install.sh && bash /tmp/install.sh --fat-server
 ```
 
 ### **Unattended Installation (CI/CD)**
@@ -111,11 +130,27 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 | **Starting fresh** | Replace | Removes all old data |
 | **After failed initial install** | Replace | Cleans up any partial state |
 
+## 🔧 Service Configuration
+
+### **Service Configuration Presets**
+```bash
+# Configure which services to enable
+./scripts/configure-services.sh
+
+# Use presets
+./scripts/configure-services.sh preset minimal     # 8GB RAM
+./scripts/configure-services.sh preset analytics  # 14GB RAM  
+./scripts/configure-services.sh preset ml         # 16GB RAM
+./scripts/configure-services.sh preset full       # 20GB RAM
+```
+
 ## 🔧 Installation Options
 
 | Option | Description | Example |
 |--------|-------------|---------|
-| `--fat-server` | High-performance config (64GB+ RAM) | `--fat-server` |
+| `--fat-server` | High-performance config (32+ cores, 64GB+ RAM) | `--fat-server` |
+| `--wizard` | Interactive service selection wizard | `--wizard` |
+| `--preset NAME` | Use configuration preset (minimal/analytics/ml/full) | `--preset full` |
 | `--no-start` | Download only, don't start services | `--no-start` |
 | `--unattended` | No prompts, assume yes to all | `--unattended` |
 | `--skip-deps` | Skip dependency installation | `--skip-deps` |
@@ -183,18 +218,22 @@ cd lakehouse-lab
 
 ## 📋 System Requirements
 
-### **Minimum Requirements**
-- **OS**: Linux, macOS, or Windows with WSL2
-- **RAM**: 8GB (16GB recommended)
-- **CPU**: 2 cores (4+ recommended)
-- **Storage**: 20GB free space (50GB recommended)
-- **Docker**: Auto-installed if missing
+### **Configuration-Based Requirements**
 
-### **Recommended for Fat Server**
-- **RAM**: 64GB+
-- **CPU**: 16+ cores
-- **Storage**: 500GB+ SSD
-- **Network**: Gigabit connection
+| Configuration | RAM Needed | CPU Cores | Storage | Use Case |
+|---------------|------------|-----------|---------|----------|
+| **Minimal** | 8GB | 2+ | 20GB | Core services + Jupyter |
+| **Analytics** | 14GB | 4+ | 50GB | BI dashboards + visualization |
+| **ML/AI** | 16GB | 6+ | 100GB | Vector database + ML workflows |
+| **Full** | 20GB | 8+ | 200GB | All data services |
+| **Fat Server** | 64GB+ | 16+ | 500GB+ | High-performance deployment |
+
+### **Base System Requirements**
+- **OS**: Linux, macOS, or Windows with WSL2
+- **Docker**: Auto-installed if missing during setup
+- **Network**: Internet connection for installation
+- **Ports**: 8080, 9001, 9020-9092 available
+
 
 ## 🛡️ Security Considerations
 
@@ -296,7 +335,8 @@ cd lakehouse-lab
 **Services will be available at:**
 - 🐳 **Portainer**: http://localhost:9060 (container management)
 - 📈 **Superset**: http://localhost:9030 (BI dashboards) 
-- 📓 **JupyterLab**: http://localhost:9040 (data science)
+- 📓 **JupyterLab**: http://localhost:9040 (single-user notebooks)
+- 👥 **JupyterHub**: http://localhost:9041 (multi-user notebooks)
 - 📋 **Airflow**: http://localhost:9020 (workflows)
 - ☁️ **MinIO**: http://localhost:9001 (file storage)
 - ⚡ **Spark**: http://localhost:8080 (processing)
@@ -308,6 +348,64 @@ cd lakehouse-lab
 2. 🚀 Start with Superset for instant analytics
 3. 📊 Upload your own data to MinIO
 4. 🔬 Create analysis notebooks in Jupyter
+
+## 👥 Multi-User Setup & Educational Institution Management
+
+### **Enabling Multi-User JupyterHub**
+
+**For educational environments, replace single-user Jupyter with multi-user JupyterHub:**
+
+```bash
+# Enable JupyterHub with Docker Compose overlay
+docker compose -f docker-compose.yml -f docker-compose.jupyterhub.yml up -d
+```
+
+**JupyterHub will be available at:** http://localhost:9041
+
+### **Student and Instructor Provisioning Across All Services**
+
+**Provision students and instructors across Superset, Airflow, MinIO, and JupyterHub with one command:**
+
+```bash
+# Provision a student with analyst role
+./scripts/provision-user.sh john.student john.student@university.edu SecurePass123 analyst
+
+# Provision an instructor/admin user
+./scripts/provision-user.sh prof.smith prof.smith@university.edu AdminPass456 admin
+
+# Provision a read-only user
+./scripts/provision-user.sh guest.user guest.user@university.edu ViewPass789 viewer
+```
+
+### **User Roles & Service Access**
+
+| Role | Superset | Airflow | MinIO | JupyterHub | Description |
+|------|----------|---------|-------|------------|-------------|
+| **admin** | Admin | Admin | consoleAdmin | sudo access | Instructor/administrator access |
+| **analyst** | Alpha | User | readwrite | standard user | Student access - create dashboards, run workflows |
+| **viewer** | Gamma | Viewer | readonly | standard user | Guest access - view dashboards, read-only data |
+
+### **JupyterHub Features**
+
+- **👥 Multi-user environment** with containerized isolation per user
+- **🔗 Spark integration** automatically configured for all users
+- **📁 Shared notebooks** (readonly templates + collaborative workspace)
+- **🔐 User management** with role-based access control
+- **📊 Resource management** with per-user CPU and memory limits
+- **🎓 Classroom collaboration** with shared data access across services
+
+### **Managing Users**
+
+```bash
+# View all provisioned users
+./scripts/provision-user.sh --list
+
+# Remove a user from all services
+./scripts/provision-user.sh --remove john.student
+
+# Update user role
+./scripts/provision-user.sh john.student john.student@university.edu NewPass123 admin --update
+```
 
 ## 🔄 Updating
 
@@ -358,3 +456,66 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 - Works on AWS, Azure, GCP, DigitalOcean
 - Use `--unattended` flag for automated deployments
 - Consider `--fat-server` for cloud instances with high specs
+
+## 💾 Post-Installation: Backup Setup
+
+After installation, set up automated backups to protect your valuable data and configurations:
+
+### **CRON-Based Backups (Recommended for most users)**
+```bash
+# Setup daily automated backups with email notifications
+./examples/cron-backup-setup.sh --email admin@university.edu --compress
+
+# Interactive setup wizard
+./examples/cron-backup-setup.sh
+
+# Custom schedule examples:
+./examples/cron-backup-setup.sh --schedule "0 3 * * 0" --compress  # Weekly Sunday 3 AM
+./examples/cron-backup-setup.sh --schedule "0 1 1 * *"             # Monthly 1st at 1 AM
+```
+
+### **Airflow-Integrated Backups (For workflow environments)**
+```bash
+# Copy the backup DAG template to your Airflow instance
+cp templates/airflow/dags/lakehouse_backup_dag.py lakehouse-data/airflow/dags/
+
+# Configure environment variables
+export BACKUP_NOTIFICATION_EMAIL="admin@university.edu"
+export LAKEHOUSE_BACKUP_PATH="/path/to/backups"
+
+# The DAG will appear in Airflow UI for scheduling and monitoring
+```
+
+### **Manual Backup Commands**
+```bash
+# Complete backup with compression and verification
+./scripts/backup-lakehouse.sh --compress --verify --retention-days 30
+
+# Backup specific services only
+./scripts/backup-lakehouse.sh --services postgres,minio,jupyter
+
+# Test backup without actually creating files
+./scripts/backup-lakehouse.sh --dry-run
+```
+
+### **Data Restoration**
+```bash
+# List available backups
+ls -la backups/
+
+# Complete system restore (with safety prompts)
+./scripts/restore-lakehouse.sh lakehouse-backup-20240304_143052
+
+# Restore specific service only
+./scripts/restore-lakehouse.sh lakehouse-backup-20240304_143052 --service postgres
+
+# Preview what would be restored
+./scripts/restore-lakehouse.sh lakehouse-backup-20240304_143052 --dry-run
+```
+
+**💡 Backup Best Practices:**
+- Set up automated backups immediately after installation
+- Test your restore process regularly
+- Store backups on a different disk/server for disaster recovery
+- Monitor backup logs and email notifications
+- Keep at least 30 days of backups for data recovery options

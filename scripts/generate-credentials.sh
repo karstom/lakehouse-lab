@@ -153,6 +153,9 @@ generate_all_credentials() {
     log_info "  MINIO_ROOT_PASSWORD length: ${#MINIO_ROOT_PASSWORD}"
     log_info "  AIRFLOW_SECRET_KEY length: ${#AIRFLOW_SECRET_KEY}"
     
+    # Generate HOST_IP for external access
+    HOST_IP=$(hostname -I | awk '{print $1}' 2>/dev/null || echo "localhost")
+    
     # Write to environment file
     cat > "$env_file" << EOF
 # Lakehouse Lab - Generated Credentials
@@ -238,6 +241,24 @@ JUPYTER_SPARK_EXECUTOR_CORES=2
 SPARK_HOME=/usr/local/spark
 PYTHONPATH=/usr/local/spark/python:/usr/local/spark/python/lib/py4j-0.10.9.7-src.zip
 
+# ===========================================
+# NEW SERVICES CONFIGURATION
+# ===========================================
+
+# Vizro Dashboard Framework
+VIZRO_MEMORY_LIMIT=2G
+VIZRO_MEMORY_RESERVATION=512M
+
+# LanceDB Vector Database
+LANCEDB_MEMORY_LIMIT=3G
+LANCEDB_MEMORY_RESERVATION=1G
+
+# ===========================================
+# NETWORK CONFIGURATION
+# ===========================================
+# Auto-detected host IP for external access
+HOST_IP=${HOST_IP}
+
 EOF
 
     log_success "Credentials generated and saved to: $env_file"
@@ -260,7 +281,9 @@ Generated: $(date)
 │   └── Login:   ${MINIO_ROOT_USER} / ${MINIO_ROOT_PASSWORD}
 ├── Spark UI:    http://localhost:8080
 ├── Portainer:   http://localhost:9060
-└── Homer:       http://localhost:9061
+├── Homepage:    http://localhost:9061
+├── Vizro:       http://localhost:9050
+└── LanceDB:     http://localhost:9080
 
 📋 QUICK ACCESS:
 - View all credentials: ./scripts/show-credentials.sh

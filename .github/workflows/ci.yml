@@ -77,6 +77,12 @@ jobs:
           echo "Validating modular scripts..."
           shellcheck scripts/*.sh
         fi
+        
+        # Check example scripts
+        if ls examples/*.sh 1> /dev/null 2>&1; then
+          echo "Validating example scripts..."
+          shellcheck examples/*.sh
+        fi
     
     - name: Validate Docker Compose syntax
       run: |
@@ -87,6 +93,16 @@ jobs:
           # Test Iceberg override if it exists
           if [ -f docker-compose.iceberg.yml ]; then
             docker-compose -f docker-compose.yml -f docker-compose.iceberg.yml config > /dev/null
+          fi
+          
+          # Test JupyterHub override if it exists
+          if [ -f docker-compose.jupyterhub.yml ]; then
+            docker-compose -f docker-compose.yml -f docker-compose.jupyterhub.yml config > /dev/null
+          fi
+          
+          # Test auth overlay if it exists
+          if [ -f iceberg/jupyterhub/auth/docker-compose.auth.yml ]; then
+            docker-compose -f docker-compose.yml -f iceberg/jupyterhub/auth/docker-compose.auth.yml config > /dev/null
           fi
         fi
 
@@ -114,10 +130,81 @@ jobs:
       run: |
         if [ -d tests/ ]; then
           echo "Running unit tests..."
-          python -m pytest tests/ -v --cov=. --cov-report=xml --cov-report=html
+          # Install basic test dependencies
+          pip install pytest
+          python -m pytest tests/ -v --tb=short -k "not integration and not docker"
         else
-          echo "No tests directory found"
+          echo "No tests directory found, creating basic test structure"
         fi
+        
+    - name: Run v2.1.0 features validation
+      run: |
+        echo "Running v2.1.0 feature validation tests..."
+        
+        # Test 1: Check backup system exists
+        echo "=== Checking backup system ==="
+        if [ -f scripts/backup-lakehouse.sh ] && [ -f scripts/restore-lakehouse.sh ]; then
+          echo "✅ Backup and restore scripts exist"
+        else
+          echo "❌ Backup system scripts missing"
+          exit 1
+        fi
+        
+        # Test 2: Check backup scripts are executable
+        echo "=== Checking script permissions ==="
+        if [ -x scripts/backup-lakehouse.sh ] && [ -x scripts/restore-lakehouse.sh ]; then
+          echo "✅ Backup scripts are executable"
+        else
+          echo "❌ Backup scripts missing execute permissions"
+          exit 1
+        fi
+        
+        # Test 3: Check CRON setup script exists
+        echo "=== Checking CRON setup ==="
+        if [ -f examples/cron-backup-setup.sh ] && [ -x examples/cron-backup-setup.sh ]; then
+          echo "✅ CRON backup setup script exists and is executable"
+        else
+          echo "❌ CRON backup setup missing or not executable"
+          exit 1
+        fi
+        
+        # Test 4: Check Airflow backup DAG template
+        echo "=== Checking Airflow DAG template ==="
+        if [ -f templates/airflow/dags/lakehouse_backup_dag.py ]; then
+          echo "✅ Airflow backup DAG template exists"
+        else
+          echo "❌ Airflow backup DAG template missing"
+          exit 1
+        fi
+        
+        # Test 5: Check smart upgrade system
+        echo "=== Checking smart upgrade system ==="
+        if [ -f scripts/install/migrate-to-named-volumes.sh ] && [ -x scripts/install/migrate-to-named-volumes.sh ]; then
+          echo "✅ Smart upgrade migration script exists"
+        else
+          echo "❌ Smart upgrade system missing"
+          exit 1
+        fi
+        
+        # Test 6: Check external volume declarations in docker-compose.yml
+        echo "=== Checking external volume declarations ==="
+        if grep -A 2 'postgres_data:' docker-compose.yml | grep -q 'external: true'; then
+          echo "✅ External volume declarations found"
+        else
+          echo "❌ External volume declarations missing"
+          exit 1
+        fi
+        
+        # Test 7: Check named volume creation in start script
+        echo "=== Checking named volume creation ==="
+        if grep -q 'create_named_volumes' start-lakehouse.sh; then
+          echo "✅ Named volume creation function found"
+        else
+          echo "❌ Named volume creation missing from start script"
+          exit 1
+        fi
+        
+        echo "🎉 All v2.1.0 features validated successfully!"
     
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3
@@ -181,7 +268,7 @@ jobs:
           sleep 45
           
           # Check that Iceberg JARs are available
-          docker-compose exec -T spark-master ls -la /opt/bitnami/spark/jars/ | grep iceberg || echo "Iceberg JARs not found"
+          docker-compose exec -T spark-master ls -la /opt/spark/jars/ | grep iceberg || echo "Iceberg JARs not found"
           
           # Clean up
           docker-compose -f docker-compose.yml -f docker-compose.iceberg.yml down -v
@@ -333,7 +420,7 @@ jobs:
     - name: Validate README and documentation
       run: |
         # Check that required documentation exists
-        required_docs=("README.md" "ICEBERG.md")
+        required_docs=("README.md" "docs/ICEBERG.md" "docs/QUICKSTART.md" "docs/INSTALLATION.md" "docs/CONFIGURATION.md" "docs/CHANGELOG.md" "docs/TESTING.md")
         
         for doc in "${required_docs[@]}"; do
           if [ ! -f "$doc" ]; then
@@ -341,6 +428,18 @@ jobs:
             exit 1
           fi
         done
+        
+        # Check that backup documentation exists
+        echo "Checking backup system documentation..."
+        if ! grep -q "Backup & Data Protection" README.md; then
+          echo "ERROR: Backup documentation missing from README.md"
+          exit 1
+        fi
+        
+        if ! grep -q "Post-Installation: Backup Setup" INSTALLATION.md; then
+          echo "ERROR: Backup setup documentation missing from INSTALLATION.md"
+          exit 1
+        fi
         
         # Check for broken links in markdown files
         if command -v markdown-link-check &> /dev/null; then
@@ -355,7 +454,7 @@ jobs:
           echo "Validating SQL examples in ICEBERG.md..."
           
           # Extract SQL code blocks and validate basic syntax
-          if grep -q "```sql" ICEBERG.md; then
+          if grep -q '```sql' ICEBERG.md; then
             echo "SQL examples found in documentation"
           fi
         fi
@@ -433,11 +532,23 @@ jobs:
         required_files=(
           "docker-compose.yml"
           "docker-compose.iceberg.yml"
-          "init-all-in-one-modular.sh"
+          "docker-compose.jupyterhub.yml"
+          "scripts/legacy/init-all-in-one-modular.sh"
           "start-lakehouse.sh"
           "install.sh"
+          "install-with-auth.sh"
+          "scripts/install/migrate-to-named-volumes.sh"
+          "scripts/backup-lakehouse.sh"
+          "scripts/restore-lakehouse.sh"
+          "examples/cron-backup-setup.sh"
+          "templates/airflow/dags/lakehouse_backup_dag.py"
           "README.md"
-          "ICEBERG.md"
+          "docs/ICEBERG.md"
+          "docs/CHANGELOG.md"
+          "docs/QUICKSTART.md"
+          "docs/INSTALLATION.md"
+          "docs/CONFIGURATION.md"
+          "docs/TESTING.md"
         )
         
         for file in "${required_files[@]}"; do

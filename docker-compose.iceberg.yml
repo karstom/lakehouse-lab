@@ -10,7 +10,7 @@ services:
   spark-master:
     environment:
       # Add Iceberg and S3A JARs to Spark classpath
-      - SPARK_CLASSPATH=/opt/bitnami/spark/jars/iceberg:/opt/bitnami/spark/jars/iceberg/*
+      - SPARK_CLASSPATH=/opt/spark/jars/iceberg:/opt/spark/jars/iceberg/*
       
       # S3/MinIO configuration for Iceberg (uses generated credentials)
       - SPARK_CONF_spark_hadoop_fs_s3a_endpoint=http://minio:9000
@@ -33,7 +33,7 @@ services:
       - SPARK_CONF_spark_sql_adaptive_coalescePartitions_enabled=true
     volumes:
       # Mount directory containing Iceberg JAR files
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/iceberg-jars:/opt/bitnami/spark/jars/iceberg:ro
+      - iceberg_jars:/opt/spark/jars/iceberg:ro
     depends_on:
       - minio
 
@@ -41,7 +41,7 @@ services:
   spark-worker:
     environment:
       # Add Iceberg and S3A JARs to Spark classpath
-      - SPARK_CLASSPATH=/opt/bitnami/spark/jars/iceberg:/opt/bitnami/spark/jars/iceberg/*
+      - SPARK_CLASSPATH=/opt/spark/jars/iceberg:/opt/spark/jars/iceberg/*
       
       # S3/MinIO configuration for Iceberg (uses generated credentials)
       - SPARK_CONF_spark_hadoop_fs_s3a_endpoint=http://minio:9000
@@ -64,7 +64,7 @@ services:
       - SPARK_CONF_spark_sql_adaptive_coalescePartitions_enabled=true
     volumes:
       # Mount directory containing Iceberg JAR files
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/iceberg-jars:/opt/bitnami/spark/jars/iceberg:ro
+      - iceberg_jars:/opt/spark/jars/iceberg:ro
     depends_on:
       - minio
       - spark-master
@@ -83,7 +83,7 @@ services:
       - JUPYTER_ICEBERG_ENABLED=true
     volumes:
       # Mount Iceberg JARs for Jupyter access
-      - ${LAKEHOUSE_ROOT:-./lakehouse-data}/iceberg-jars:/home/jovyan/work/iceberg-jars:ro
+      - iceberg_jars:/home/jovyan/work/iceberg-jars:ro
       # Mount custom Iceberg notebooks
       - ./iceberg-notebooks:/home/jovyan/work/iceberg-examples:ro
 
@@ -152,5 +152,9 @@ services:
 
 # Create iceberg-warehouse bucket in MinIO
 volumes:
-  iceberg-warehouse:
-    driver: local
+  iceberg_jars:
+    external: true
+    name: lakehouse-lab_iceberg_jars
+  iceberg_warehouse:
+    external: true
+    name: lakehouse-lab_iceberg_warehouse

@@ -122,7 +122,7 @@ def sample_compose_data() -> Dict[str, Any]:
                 }
             },
             'spark-master': {
-                'image': 'bitnami/spark:3.5.0',
+                'image': 'apache/spark:3.5.6',
                 'environment': {
                     'SPARK_MODE': 'master'
                 },
@@ -148,7 +148,7 @@ def sample_iceberg_override() -> Dict[str, Any]:
     return {
         'services': {
             'spark-master': {
-                'volumes': ['./iceberg-jars:/opt/bitnami/spark/jars/iceberg:ro'],
+                'volumes': ['./iceberg-jars:/opt/spark/jars/iceberg:ro'],
                 'environment': {
                     'SPARK_CONF_spark.sql.extensions': 'org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions',
                     'SPARK_CONF_spark.sql.catalog.iceberg': 'org.apache.iceberg.spark.SparkCatalog',

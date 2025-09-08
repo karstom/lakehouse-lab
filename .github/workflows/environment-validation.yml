@@ -8,11 +8,31 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate .env files
         run: |
-          # Check required variables exist
+          # Check required variables exist in default configs
           grep -q "LAKEHOUSE_ROOT" .env.default
           grep -q "POSTGRES_MEMORY_LIMIT" .env.default
           grep -q "SPARK_WORKER_MEMORY" .env.fat-server
           
-          # Check no secrets in env files
+          # Check no hardcoded secrets in env files
           ! grep -i "password.*=" .env.default
           ! grep -i "secret.*=" .env.default
+          
+          # Test credential generation
+          if [ -f scripts/generate-credentials.sh ]; then
+            echo "Testing credential generation..."
+            ./scripts/generate-credentials.sh
+            
+            # Check that .env was created with proper structure
+            [ -f .env ]
+            grep -q "POSTGRES_PASSWORD" .env
+            grep -q "MINIO_ROOT_PASSWORD" .env
+            
+            # Verify no default passwords were used
+            ! grep -q "password123" .env
+            ! grep -q "minio123" .env
+            ! grep -q "admin123" .env
+            
+            echo "✅ Credential generation working properly"
+          else
+            echo "⚠️ Credential generation script not found"
+          fi

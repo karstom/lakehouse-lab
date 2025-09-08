@@ -1,0 +1,51 @@
+# Lakehouse Lab MCP Server Configuration
+# Generated on: Sat Aug 23 04:37:21 PM EDT 2025
+
+mcp:
+  # Authentication
+  auth:
+    enabled: true
+    auth_service_url: ${AUTH_SERVICE_URL}
+    jwt_secret: ${JWT_SECRET}
+    
+  # Data source connections
+  data_sources:
+    postgres:
+      url: ${POSTGRES_URL}
+      pool_size: 10
+      
+    minio:
+      endpoint: ${MINIO_ENDPOINT}
+      access_key: ${MINIO_ACCESS_KEY}
+      secret_key: ${MINIO_SECRET_KEY}
+      
+    lancedb:
+      url: ${LANCEDB_URL}
+      
+    spark:
+      master_url: ${SPARK_MASTER_URL}
+
+  # Security settings
+  security:
+    rate_limiting:
+      enabled: ${RATE_LIMIT_ENABLED:-true}
+      requests_per_minute: 120
+      
+    query_limits:
+      max_query_size: ${MAX_QUERY_SIZE:-100MB}
+      max_execution_time: 300s
+      
+    audit:
+      enabled: true
+      log_queries: true
+      log_results: false  # Don't log data, just metadata
+
+# Tool configuration
+tools:
+  enabled:
+    - query_postgres
+    - search_vectors
+    - analyze_s3_data
+    - generate_insights
+    - create_pipeline
+    - optimize_query

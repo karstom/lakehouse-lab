@@ -1,0 +1,268 @@
+name: Storage Persistence Test
+
+on:
+  push:
+    branches: [ main, dev ]
+    paths:
+      - 'docker-compose*.yml'
+      - 'install.sh'
+      - 'install-with-auth.sh'
+      - 'start-lakehouse.sh'
+      - 'scripts/install/migrate-to-named-volumes.sh'
+      - 'scripts/backup-lakehouse.sh'
+      - 'scripts/restore-lakehouse.sh'
+  pull_request:
+    branches: [ main, dev ]
+    paths:
+      - 'docker-compose*.yml'
+      - 'install.sh'
+      - 'install-with-auth.sh'
+      - 'start-lakehouse.sh'
+      - 'scripts/install/migrate-to-named-volumes.sh'
+      - 'scripts/backup-lakehouse.sh'
+      - 'scripts/restore-lakehouse.sh'
+
+jobs:
+  storage-persistence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Environment
+      run: |
+        # Ensure Docker Compose is available
+        docker --version
+        docker compose version
+
+    - name: Generate Test Credentials
+      run: |
+        # Create minimal .env for testing
+        if [ -f scripts/generate-credentials.sh ]; then
+          ./scripts/generate-credentials.sh
+        else
+          cp .env.default .env
+        fi
+        
+        # Override with test-specific settings
+        echo "COMPOSE_PROJECT_NAME=lakehouse-lab" >> .env
+        echo "HOST_IP=localhost" >> .env
+
+    - name: Start Services - Initial Setup
+      run: |
+        echo "🚀 Starting services with named volumes..."
+        docker compose up -d postgres minio lakehouse-init
+        
+        # Wait for core services
+        sleep 30
+        
+        # Verify services are running
+        docker compose ps
+
+    - name: Write Test Data to MinIO
+      run: |
+        echo "📝 Writing test data to MinIO..."
+        
+        # Wait for MinIO to be fully ready
+        timeout 60 bash -c 'until curl -f http://localhost:9000/minio/health/live; do sleep 2; done'
+        
+        # Create test file
+        echo "test-data-$(date +%s)" > test-file.txt
+        
+        # Upload test file to MinIO using mc client
+        docker run --rm \
+          --network lakehouse-lab_lakehouse \
+          -v $(pwd)/test-file.txt:/tmp/test-file.txt \
+          minio/mc:latest \
+          bash -c "
+            mc alias set testminio http://minio:9000 \${MINIO_ROOT_USER:-admin} \${MINIO_ROOT_PASSWORD:-minio123} &&
+            mc cp /tmp/test-file.txt testminio/lakehouse/test-persistence.txt
+          " || echo "MinIO upload may have failed, continuing..."
+
+    - name: Write Test Data to PostgreSQL  
+      run: |
+        echo "🗄️ Writing test data to PostgreSQL..."
+        
+        # Wait for PostgreSQL to be ready
+        timeout 60 bash -c 'until docker exec lakehouse-lab-postgres-1 pg_isready -U postgres; do sleep 2; done'
+        
+        # Create test table and insert data
+        docker exec lakehouse-lab-postgres-1 psql -U postgres -d lakehouse -c "
+          CREATE TABLE IF NOT EXISTS persistence_test (
+            id SERIAL PRIMARY KEY,
+            test_data VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+          INSERT INTO persistence_test (test_data) VALUES ('storage-test-$(date +%s)');
+        " || echo "PostgreSQL insert may have failed, continuing..."
+
+    - name: Stop All Services (Simulating Restart)
+      run: |
+        echo "🛑 Stopping all services to test persistence..."
+        docker compose stop
+        
+        # Verify containers are stopped
+        docker compose ps
+
+    - name: Start Services Again (Test Volume Persistence)
+      run: |
+        echo "🔄 Restarting services to test data persistence..."
+        docker compose up -d postgres minio
+        
+        # Wait for services to restart
+        sleep 30
+        
+        # Verify services are running
+        docker compose ps
+
+    - name: Verify MinIO Data Persistence
+      run: |
+        echo "✅ Verifying MinIO data survived restart..."
+        
+        # Wait for MinIO to be ready after restart
+        timeout 60 bash -c 'until curl -f http://localhost:9000/minio/health/live; do sleep 2; done'
+        
+        # Try to download the test file
+        docker run --rm \
+          --network lakehouse-lab_lakehouse \
+          minio/mc:latest \
+          bash -c "
+            mc alias set testminio http://minio:9000 \${MINIO_ROOT_USER:-admin} \${MINIO_ROOT_PASSWORD:-minio123} &&
+            mc cat testminio/lakehouse/test-persistence.txt
+          " || {
+            echo "❌ CRITICAL: MinIO data was lost during restart!"
+            exit 1
+          }
+        
+        echo "✅ MinIO data persistence verified"
+
+    - name: Verify PostgreSQL Data Persistence  
+      run: |
+        echo "✅ Verifying PostgreSQL data survived restart..."
+        
+        # Wait for PostgreSQL to be ready after restart
+        timeout 60 bash -c 'until docker exec lakehouse-lab-postgres-1 pg_isready -U postgres; do sleep 2; done'
+        
+        # Query the test data
+        TEST_COUNT=$(docker exec lakehouse-lab-postgres-1 psql -U postgres -d lakehouse -t -c "SELECT COUNT(*) FROM persistence_test;" | xargs)
+        
+        if [ "$TEST_COUNT" -eq 0 ]; then
+          echo "❌ CRITICAL: PostgreSQL data was lost during restart!"
+          exit 1
+        fi
+        
+        echo "✅ PostgreSQL data persistence verified ($TEST_COUNT records found)"
+
+    - name: Test Docker Compose Down Volume Safety
+      run: |
+        echo "⚠️ Testing 'docker compose down' without -v flag (should preserve data)..."
+        
+        # Use 'docker compose down' (without -v) - this should NOT remove volumes
+        docker compose down
+        
+        # Verify volumes still exist
+        VOLUMES_COUNT=$(docker volume ls | grep lakehouse-lab | wc -l)
+        
+        if [ "$VOLUMES_COUNT" -eq 0 ]; then
+          echo "❌ CRITICAL: Named volumes were removed by 'docker compose down'!"
+          echo "This indicates a configuration error in volume definitions."
+          docker volume ls
+          exit 1
+        fi
+        
+        echo "✅ Named volumes survived 'docker compose down' ($VOLUMES_COUNT volumes preserved)"
+
+    - name: Test Volume Persistence After Down/Up Cycle
+      run: |
+        echo "🔄 Final test: Full down/up cycle with data verification..."
+        
+        # Start services again
+        docker compose up -d postgres minio
+        sleep 30
+        
+        # Verify data is still there after full down/up cycle
+        timeout 60 bash -c 'until docker exec lakehouse-lab-postgres-1 pg_isready -U postgres; do sleep 2; done'
+        
+        FINAL_COUNT=$(docker exec lakehouse-lab-postgres-1 psql -U postgres -d lakehouse -t -c "SELECT COUNT(*) FROM persistence_test;" | xargs)
+        
+        if [ "$FINAL_COUNT" -eq 0 ]; then
+          echo "❌ CRITICAL: Data lost during down/up cycle!"
+          exit 1
+        fi
+        
+        echo "✅ All data persisted through complete down/up cycle"
+
+    - name: Test Overlay Switching (Iceberg)
+      run: |
+        echo "🧊 Testing overlay switching doesn't cause data loss..."
+        
+        # Stop current services
+        docker compose down
+        
+        # Start with Iceberg overlay
+        docker compose -f docker-compose.yml -f docker-compose.iceberg.yml up -d postgres minio
+        sleep 15
+        
+        # Verify data is still there with overlay
+        timeout 60 bash -c 'until docker exec lakehouse-lab-postgres-1 pg_isready -U postgres; do sleep 2; done'
+        
+        OVERLAY_COUNT=$(docker exec lakehouse-lab-postgres-1 psql -U postgres -d lakehouse -t -c "SELECT COUNT(*) FROM persistence_test;" | xargs)
+        
+        if [ "$OVERLAY_COUNT" -eq 0 ]; then
+          echo "❌ CRITICAL: Data lost when switching to Iceberg overlay!"
+          exit 1
+        fi
+        
+        echo "✅ Data persisted through overlay switching ($OVERLAY_COUNT records)"
+
+    - name: Test Backup and Restore System
+      run: |
+        echo "💾 Testing backup and restore system..."
+        
+        # Stop services for clean backup test
+        docker compose down
+        
+        # Start services again
+        docker compose up -d postgres minio lakehouse-init
+        sleep 30
+        
+        # Test dry-run backup
+        if [ -f scripts/backup-lakehouse.sh ]; then
+          ./scripts/backup-lakehouse.sh --dry-run --services postgres,minio
+          echo "✅ Backup system dry-run successful"
+        else
+          echo "⚠️ Backup script not found, skipping backup test"
+        fi
+        
+        # Test backup script permissions
+        if [ -x scripts/backup-lakehouse.sh ]; then
+          echo "✅ Backup script has execute permissions"
+        else
+          echo "❌ Backup script missing execute permissions"
+          exit 1
+        fi
+
+    - name: Generate Storage Report
+      run: |
+        echo "📊 Storage Persistence Test Report"
+        echo "=================================="
+        echo "✅ All storage persistence tests passed!"
+        echo ""
+        echo "Verified:"
+        echo "  • MinIO named volume persistence"
+        echo "  • PostgreSQL named volume persistence" 
+        echo "  • Volume safety with 'docker compose down'"
+        echo "  • Data persistence through restart cycles"
+        echo "  • Data persistence through overlay switching"
+        echo ""
+        echo "Named volumes in use:"
+        docker volume ls | grep lakehouse-lab || echo "  No volumes found"
+
+    - name: Cleanup Test Environment
+      if: always()
+      run: |
+        echo "🧹 Cleaning up test environment..."
+        docker compose down -v --remove-orphans || true
+        docker system prune -f || true

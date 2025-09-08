@@ -2,7 +2,8 @@
 # ==============================================================================
 # init-dashboards.sh - Dashboard and BI Setup Module
 # ==============================================================================
-# Sets up Homer dashboard and Superset BI configuration
+# Sets up Homepage dashboard and Superset BI configuration
+# NOTE: This script is deprecated - modern installations use Homepage automatically
 
 set -e
 
@@ -226,7 +227,7 @@ show_dashboard_info() {
     echo "=================================="
     echo ""
     echo -e "${GREEN}Service Dashboards:${NC}"
-    echo "  🏠 Homer (Service Navigation): http://localhost:9061"
+    echo "  🏠 Homepage (Service Navigation): http://localhost:9061"
     echo "  📊 Superset (BI Analytics):    http://localhost:9030"
     echo "  🐳 Portainer (Containers):     http://localhost:9060"
     echo ""
@@ -247,7 +248,7 @@ check_dashboard_health() {
     echo ""
     
     services=(
-        "Homer:http://localhost:9061"
+        "Homepage:http://localhost:9061"
         "Superset:http://localhost:9030/health"
         "Portainer:http://localhost:9060"
         "Airflow:http://localhost:9020/health"
@@ -406,7 +407,7 @@ main() {
     echo "   • Dashboard utilities: $LAKEHOUSE_ROOT/dashboard_utils.sh"
     echo ""
     echo "🌐 Access URLs (when services are running):"
-    echo "   • Homer: http://localhost:9061"
+    echo "   • Homepage: http://localhost:9061"
     echo "   • Superset: http://localhost:9030 (admin/admin)"
     echo "   • Portainer: http://localhost:9060"
     echo ""

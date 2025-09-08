@@ -18,6 +18,23 @@ STARTUP_MODE="${1:-normal}"  # normal, debug, minimal
 MAX_RETRIES=2
 RETRY_COUNT=0
 
+# Logging functions
+log_info() {
+    echo -e "${BLUE}ℹ️  $1${NC}"
+}
+
+log_success() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
+
+log_warning() {
+    echo -e "${YELLOW}⚠️  $1${NC}"
+}
+
+log_error() {
+    echo -e "${RED}❌ $1${NC}"
+}
+
 # Function to detect host IP address (runs on HOST, not in container)
 detect_host_ip() {
     local detected_ip
@@ -95,10 +112,10 @@ else
     echo -e "${GREEN}   Using detected IP: $HOST_IP${NC}"
     echo -e "${BLUE}   Services will be accessible remotely at this IP${NC}"
     
-    # Check if Homer config needs updating (contains Docker IPs)
-    homer_config="${LAKEHOUSE_ROOT:-./lakehouse-data}/homer/assets/config.yml"
-    if [[ -f "$homer_config" ]] && grep -q "172\.[0-9]\+\.[0-9]\+\.[0-9]\+" "$homer_config" 2>/dev/null; then
-        echo -e "${YELLOW}   📋 Note: Homer dashboard will be updated with new IP addresses${NC}"
+    # Check if Homepage config needs updating (contains Docker IPs)
+    homepage_config="${LAKEHOUSE_ROOT:-./lakehouse-data}/homepage/config/services.yaml"
+    if [[ -f "$homepage_config" ]] && grep -q "172\.[0-9]\+\.[0-9]\+\.[0-9]\+" "$homepage_config" 2>/dev/null; then
+        echo -e "${YELLOW}   📋 Note: Homepage dashboard will be updated with new IP addresses${NC}"
     fi
 fi
 echo ""
@@ -142,6 +159,65 @@ ensure_curl() {
     fi
 }
 
+# Function to create required named volumes if they don't exist
+create_named_volumes() {
+    log_info "Ensuring required named volumes exist..."
+    
+    # Get the project name (directory name)
+    local project_name=$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]')
+    
+    # List of all required volumes for the lakehouse stack
+    local volumes=(
+        "postgres_data"
+        "minio_data" 
+        "lakehouse_shared"
+        "jupyter_notebooks"
+        "jupyter_config"
+        "airflow_dags"
+        "airflow_logs"
+        "airflow_plugins"
+        "spark_jobs"
+        "spark_logs"
+        "superset_data"
+        "homepage_config"
+        "homepage_images"
+        "vizro_data"
+        "lancedb_data"
+        "portainer_data"
+    )
+    
+    # Create volumes if they don't exist (silently ignore if they already exist)
+    for volume in "${volumes[@]}"; do
+        docker volume create "${project_name}_${volume}" >/dev/null 2>&1 || true
+        
+        # Fix ownership for Airflow volumes if they need special permissions
+        if [[ "$volume" == "airflow_"* ]]; then
+            # Use a temporary container to fix Airflow volume ownership
+            docker run --rm \
+                -v "${project_name}_${volume}:/mnt/volume" \
+                --user root \
+                alpine:latest \
+                sh -c "chown -R ${AIRFLOW_UID:-50000}:0 /mnt/volume && chmod -R 755 /mnt/volume" >/dev/null 2>&1 || true
+        fi
+    done
+    
+    # Create overlay-specific volumes if overlays are detected
+    if [[ "${ENABLE_ICEBERG_OVERRIDE:-}" == "true" ]] || [[ -f ".iceberg-enabled" ]]; then
+        docker volume create "${project_name}_iceberg_jars" >/dev/null 2>&1 || true
+        docker volume create "${project_name}_iceberg_warehouse" >/dev/null 2>&1 || true
+    fi
+    
+    if [[ -f "docker-compose.jupyterhub.yml" ]]; then
+        docker volume create "${project_name}_jupyterhub_users" >/dev/null 2>&1 || true
+        docker volume create "${project_name}_jupyterhub_shared" >/dev/null 2>&1 || true
+    fi
+    
+    if [[ -f "docker-compose.auth.yml" ]]; then
+        docker volume create "${project_name}_auth_data" >/dev/null 2>&1 || true
+        docker volume create "${project_name}_audit_logs" >/dev/null 2>&1 || true
+    fi
+}
+
 # Function to start services with dependency checking
 start_with_dependencies() {
     echo -e "${BLUE}🚀 Starting Lakehouse Lab ($STARTUP_MODE mode, attempt $((RETRY_COUNT + 1))/$((MAX_RETRIES + 1)))...${NC}"
@@ -152,80 +228,91 @@ start_with_dependencies() {
     # Ensure data directory exists
     mkdir -p "$LAKEHOUSE_ROOT"
     
+    # Ensure all required named volumes exist (for external volume declarations)
+    create_named_volumes
+    
     case "$STARTUP_MODE" in
         "minimal")
             echo -e "${YELLOW}📦 Starting minimal services (storage + basic query)...${NC}"
-            docker compose up -d postgres minio
+            docker compose up -d --remove-orphans postgres minio
             check_service_health "MinIO" "http://localhost:9000/minio/health/live"
             
             # Start lakehouse-init to set up buckets and sample data
             echo -e "${BLUE}🔧 Running initialization...${NC}"
             docker compose up lakehouse-init
             
-            # Start Homer for service links
-            docker compose up -d homer
+            # Start Homepage for service links
+            docker compose up -d --remove-orphans homepage
             ;;
             
         "debug")
             echo -e "${YELLOW}🔍 Starting in debug mode (services one by one)...${NC}"
             
             # Check if Iceberg support should be enabled
-            local compose_files="docker-compose.yml"
+            local compose_files="-f docker-compose.yml"
             if [[ "${ENABLE_ICEBERG_OVERRIDE:-}" == "true" ]] || [[ -f ".iceberg-enabled" ]]; then
                 echo -e "${BLUE}🧊 Iceberg support detected - using enhanced configuration...${NC}"
-                compose_files="docker-compose.yml -f docker-compose.iceberg.yml"
+                compose_files="-f docker-compose.yml -f docker-compose.iceberg.yml"
                 # Create marker file for future starts
                 touch .iceberg-enabled
             fi
             
             # Layer 1: Storage
             echo -e "${BLUE}Layer 1: Storage services${NC}"
-            docker compose -f $compose_files up -d postgres minio
+            docker compose $compose_files up -d --remove-orphans postgres minio
             check_service_health "MinIO" "http://localhost:9000/minio/health/live"
             
             # Layer 2: Processing
             echo -e "${BLUE}Layer 2: Compute engines${NC}"
-            docker compose -f $compose_files up -d spark-master spark-worker
+            docker compose $compose_files up -d --remove-orphans spark-master spark-worker
             check_service_health "Spark Master" "http://localhost:8080" 15
             
             # Layer 3: Initialization
             echo -e "${BLUE}Layer 3: Data initialization${NC}"
-            docker compose -f $compose_files up lakehouse-init
+            docker compose $compose_files up lakehouse-init
             
             # Layer 4: Applications
             echo -e "${BLUE}Layer 4: User applications${NC}"
-            docker compose -f $compose_files up -d jupyter airflow-init
+            docker compose $compose_files up -d --remove-orphans jupyter airflow-init
             sleep 30  # Give airflow-init time to complete
-            docker compose -f $compose_files up -d airflow-scheduler airflow-webserver
+            docker compose $compose_files up -d --remove-orphans airflow-scheduler airflow-webserver
             
             # Layer 5: BI and monitoring
             echo -e "${BLUE}Layer 5: BI and monitoring${NC}"
-            docker compose -f $compose_files up -d superset portainer
+            docker compose $compose_files up -d --remove-orphans superset portainer
             
             # Optional services
             echo -e "${BLUE}Layer 6: Optional services${NC}"
-            docker compose --profile optional up -d homer || echo -e "${YELLOW}⚠️  Homer is optional and may not start${NC}"
+            docker compose --profile optional up -d --remove-orphans homepage || echo -e "${YELLOW}⚠️  Homepage is optional and may not start${NC}"
             ;;
             
         "normal"|*)
             echo -e "${YELLOW}📦 Starting all services...${NC}"
             
+            # Check for service configuration override
+            local compose_files="-f docker-compose.yml"
+            if [[ -f "docker-compose.override.yml" ]]; then
+                log_info "Using service configuration override"
+                compose_files="-f docker-compose.yml -f docker-compose.override.yml"
+            fi
+            
             # Check if Iceberg support should be enabled
             if [[ "${ENABLE_ICEBERG_OVERRIDE:-}" == "true" ]] || [[ -f ".iceberg-enabled" ]]; then
                 echo -e "${BLUE}🧊 Iceberg support detected - using enhanced configuration...${NC}"
+                compose_files="$compose_files -f docker-compose.iceberg.yml"
                 # Try Iceberg startup first
-                if docker compose -f docker-compose.yml -f docker-compose.iceberg.yml up -d; then
+                if docker compose $compose_files up -d --remove-orphans; then
                     echo -e "${GREEN}✅ All services with Iceberg support started successfully${NC}"
                     # Create marker file for future starts
                     touch .iceberg-enabled
                 else
                     echo -e "${YELLOW}⚠️  Iceberg startup failed, falling back to standard configuration...${NC}"
-                    if docker compose up -d; then
+                    if docker compose -f docker-compose.yml up -d --remove-orphans; then
                         echo -e "${GREEN}✅ Standard services started successfully${NC}"
                     fi
                 fi
             # Try normal startup first
-            elif docker compose up -d; then
+            elif docker compose $compose_files up -d --remove-orphans; then
                 echo -e "${GREEN}✅ All services started successfully${NC}"
                 
                 # Check key services
@@ -268,9 +355,18 @@ start_with_dependencies() {
     echo -e "  📈 Superset BI:       ${GREEN}http://${HOST_IP}:9030${NC} (use ./scripts/show-credentials.sh for login)"
     echo -e "  📋 Airflow:           ${GREEN}http://${HOST_IP}:9020${NC} (use ./scripts/show-credentials.sh for login)"
     echo -e "  📓 JupyterLab:        ${GREEN}http://${HOST_IP}:9040${NC} (use ./scripts/show-credentials.sh for token)"
+    echo -e "  📊 Vizro Dashboards:  ${GREEN}http://${HOST_IP}:9050${NC}"
+    echo -e "  🤖 LanceDB API:       ${GREEN}http://${HOST_IP}:9080${NC} (docs: /docs)"
     echo -e "  ☁️  MinIO Console:     ${GREEN}http://${HOST_IP}:9001${NC} (use ./scripts/show-credentials.sh for login)"
     echo -e "  ⚡ Spark Master:      ${GREEN}http://${HOST_IP}:8080${NC}"
     echo -e "  🏠 Service Links:     ${GREEN}http://${HOST_IP}:9061${NC} (optional Homer)"
+    
+    # Show only enabled services if override exists
+    if [[ -f "docker-compose.override.yml" ]]; then
+        echo ""
+        echo -e "${BLUE}💡 Note: Some services may be disabled via configuration${NC}"
+        echo -e "    Use './scripts/configure-services.sh show' to see current settings"
+    fi
     
     # Show Iceberg status if enabled
     if [[ -f ".iceberg-enabled" ]] || [[ "${ENABLE_ICEBERG_OVERRIDE:-}" == "true" ]]; then

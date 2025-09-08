@@ -215,7 +215,7 @@ EOF
     # Create environment file for Iceberg
     cat > "$config_dir/iceberg.env" << 'EOF'
 # Environment variables for Iceberg integration
-SPARK_CLASSPATH=/opt/bitnami/spark/jars/iceberg-spark-runtime-3.5_2.12-1.4.3.jar
+SPARK_CLASSPATH=/opt/spark/jars/iceberg-spark-runtime-3.5_2.12-1.4.3.jar
 ICEBERG_ENABLED=true
 ICEBERG_VERSION=1.4.3
 EOF

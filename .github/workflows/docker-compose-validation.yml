@@ -6,7 +6,65 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate docker-compose.yml
+      - name: Generate test credentials
         run: |
+          # Create .env file for validation
+          if [ -f scripts/generate-credentials.sh ]; then
+            ./scripts/generate-credentials.sh
+          else
+            cp .env.default .env
+          fi
+          
+      - name: Validate main docker-compose.yml
+        run: |
+          echo "Validating main docker-compose.yml..."
           docker compose config --quiet
           docker compose config --services
+          
+          # Check that external volumes are properly declared
+          echo "Checking external volume declarations..."
+          if ! docker compose config | grep -A 2 "postgres_data:" | grep -q "external: true"; then
+            echo "❌ External volume declarations missing"
+            exit 1
+          fi
+          
+          echo "✅ Main compose file validated"
+          
+      - name: Validate JupyterHub overlay
+        run: |
+          if [ -f docker-compose.jupyterhub.yml ]; then
+            echo "Validating JupyterHub overlay..."
+            docker compose -f docker-compose.yml -f docker-compose.jupyterhub.yml config --quiet
+            echo "✅ JupyterHub overlay validated"
+          else
+            echo "⚠️ JupyterHub overlay not found"
+          fi
+          
+      - name: Validate Iceberg overlay
+        run: |
+          if [ -f docker-compose.iceberg.yml ]; then
+            echo "Validating Iceberg overlay..."
+            docker compose -f docker-compose.yml -f docker-compose.iceberg.yml config --quiet
+            echo "✅ Iceberg overlay validated"
+          else
+            echo "⚠️ Iceberg overlay not found"
+          fi
+          
+      - name: Validate auth overlays
+        run: |
+          if [ -d iceberg/jupyterhub/auth ]; then
+            echo "Validating auth overlays..."
+            
+            if [ -f iceberg/jupyterhub/auth/docker-compose.auth.yml ]; then
+              docker compose -f docker-compose.yml -f iceberg/jupyterhub/auth/docker-compose.auth.yml config --quiet
+              echo "✅ Auth overlay validated"
+            fi
+            
+            if [ -f iceberg/jupyterhub/auth/docker-compose.proxy.yml ]; then
+              docker compose -f docker-compose.yml -f iceberg/jupyterhub/auth/docker-compose.proxy.yml config --quiet
+              echo "✅ Proxy overlay validated"
+            fi
+            
+          else
+            echo "⚠️ Auth overlays not found"
+          fi

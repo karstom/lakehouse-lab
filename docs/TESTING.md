@@ -350,6 +350,50 @@ For questions or issues with the testing framework:
 3. Run tests with `--verbose` flag
 4. Open an issue in the repository
 
+## 💾 Backup System Testing
+
+### Testing Backup and Restore Functionality
+
+**Manual Testing:**
+```bash
+# Test backup creation
+./scripts/backup-lakehouse.sh --dry-run
+./scripts/backup-lakehouse.sh --compress --verify
+
+# Test specific service backup
+./scripts/backup-lakehouse.sh --services postgres --dry-run
+./scripts/backup-lakehouse.sh --services postgres,minio
+
+# Test restore functionality
+./scripts/restore-lakehouse.sh BACKUP_ID --dry-run
+./scripts/restore-lakehouse.sh BACKUP_ID --service postgres --dry-run
+
+# Test CRON setup
+./examples/cron-backup-setup.sh --dry-run
+```
+
+**Backup System Verification:**
+```bash
+# Verify backup script permissions
+ls -la scripts/backup-lakehouse.sh scripts/restore-lakehouse.sh
+
+# Test backup metadata generation
+./scripts/backup-lakehouse.sh --dry-run | grep -i metadata
+
+# Verify backup directory structure
+./scripts/backup-lakehouse.sh --output-dir /tmp/test-backup --dry-run
+
+# Test backup verification feature
+./scripts/backup-lakehouse.sh --verify --dry-run
+```
+
+**Integration Testing:**
+- Test backup creation with all services running
+- Verify restore preserves data integrity
+- Test CRON integration and scheduling
+- Validate Airflow DAG deployment and execution
+- Test backup retention policy enforcement
+
 ---
 
 **Note**: This testing framework is designed to be comprehensive yet maintainable. It should be updated as the project evolves to ensure continued regression prevention and code quality.

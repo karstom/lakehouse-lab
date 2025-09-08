@@ -1,0 +1,27 @@
+---
+# Homepage Widgets Configuration for Lakehouse Lab
+
+- search:
+    provider: "duckduckgo"
+    target: _blank
+
+- datetime:
+    text_size: xl
+    format:
+      dateStyle: long
+      timeStyle: medium
+      hour12: false
+
+- resources:
+    label: System Resources
+    cpu: true
+    memory: true
+    disk: /
+
+- unifi_console:
+    expanded: false
+    
+# Docker integration - shows container status
+- docker:
+    server: my-docker
+    container: lakehouse-lab-.*
