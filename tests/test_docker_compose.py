@@ -237,16 +237,16 @@ class TestDockerComposeConfigurations(unittest.TestCase):
                 self.assertIn(var, minio_env, f"MinIO should have {var} environment variable")
     
     def test_compose_validate_command(self):
-        """Test that compose files pass docker-compose validation"""
+        """Test that compose files pass docker compose validation"""
         for compose_file in self.compose_files:
             file_path = self.project_root / compose_file
             if not file_path.exists():
                 continue
             
-            # Test docker-compose config validation
+            # Test docker compose config validation
             try:
                 result = subprocess.run(
-                    ['docker-compose', '-f', str(file_path), 'config'],
+                    ['docker', 'compose', '-f', str(file_path), 'config'],
                     capture_output=True,
                     text=True,
                     cwd=self.project_root
@@ -256,7 +256,7 @@ class TestDockerComposeConfigurations(unittest.TestCase):
                     self.fail(f"Docker Compose validation failed for {compose_file}: {result.stderr}")
                     
             except FileNotFoundError:
-                self.skipTest("docker-compose command not available")
+                self.skipTest("docker compose command not available")
     
     def test_iceberg_jar_volume_mapping(self):
         """Test that Iceberg compose properly maps JAR volumes"""
@@ -318,7 +318,7 @@ class TestDockerComposeIntegration(unittest.TestCase):
         mock_run.return_value.stdout = "Services would start successfully"
         
         # This would test the actual compose up in a real scenario
-        result = subprocess.run(['docker-compose', 'up', '--dry-run'], 
+        result = subprocess.run(['docker', 'compose', 'up', '--dry-run'], 
                               capture_output=True, text=True)
         self.assertEqual(result.returncode, 0)
     
@@ -328,7 +328,7 @@ class TestDockerComposeIntegration(unittest.TestCase):
         mock_run.return_value.returncode = 0
         mock_run.return_value.stdout = "Services would stop successfully"
         
-        result = subprocess.run(['docker-compose', 'down'], 
+        result = subprocess.run(['docker', 'compose', 'down'], 
                               capture_output=True, text=True)
         self.assertEqual(result.returncode, 0)
     
@@ -343,7 +343,7 @@ class TestDockerComposeIntegration(unittest.TestCase):
         try:
             # Test that combined configuration is valid
             result = subprocess.run([
-                'docker-compose', 
+                'docker', 'compose', 
                 '-f', str(main_compose),
                 '-f', str(iceberg_compose),
                 'config'
@@ -380,7 +380,7 @@ class TestDockerComposeIntegration(unittest.TestCase):
                                       f"{service} should have Iceberg JAR volume when using override")
         
         except FileNotFoundError:
-            self.skipTest("docker-compose command not available")
+            self.skipTest("docker compose command not available")
 
 
 if __name__ == '__main__':

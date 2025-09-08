@@ -262,7 +262,7 @@ This DAG performs automated backups of the Lakehouse Lab stack components:
 - **Airflow**: DAGs, logs, and plugins  
 - **Spark**: Jobs and execution logs
 - **Superset**: Dashboards and configuration
-- **Other Services**: Homer, Vizro, LanceDB, etc.
+- **Other Services**: Vizro, LanceDB, etc.
 
 ## Configuration
 You can customize the backup behavior by modifying the variables at the top of this DAG:

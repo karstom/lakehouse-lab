@@ -108,7 +108,6 @@ Once startup completes, access these URLs:
 | **Apache Airflow** | http://localhost:9020 | Workflow Orchestration | 🔐 Generated |
 | **Vizro Dashboards** | http://localhost:9050 | Interactive Dashboards | 🔐 Generated |
 | **LanceDB API** | http://localhost:9080 | Vector Database | API Access |
-| **Homer Dashboard** | http://localhost:9061 | Service Links | N/A |
 
 
 ## 🔒 Getting Your Login Credentials

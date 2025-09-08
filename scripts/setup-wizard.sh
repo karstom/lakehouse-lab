@@ -215,21 +215,19 @@ show_installation_plan() {
             echo -e "   • JupyterLab (data science notebooks)"
             echo -e "   • Vizro (interactive dashboards)"
             echo -e "   • LanceDB (vector database)"
-            echo -e "   • Homer (service dashboard)"
             ;;
         "minimal")
             echo -e "${GREEN}✅ Optional Services (will be installed):${NC}"
             echo -e "   • JupyterLab (data science notebooks)"
             echo ""
             echo -e "${RED}❌ Services that will NOT be installed:${NC}"
-            echo -e "   • Apache Airflow, Superset, Vizro, LanceDB, Homer"
+            echo -e "   • Apache Airflow, Superset, Vizro, LanceDB"
             ;;
         "analytics")
             echo -e "${GREEN}✅ Optional Services (will be installed):${NC}"
             echo -e "   • JupyterLab (data science notebooks)"
             echo -e "   • Apache Superset (business intelligence)"
             echo -e "   • Vizro (interactive dashboards)"
-            echo -e "   • Homer (service dashboard)"
             echo ""
             echo -e "${RED}❌ Services that will NOT be installed:${NC}"
             echo -e "   • Apache Airflow, LanceDB"
@@ -239,7 +237,6 @@ show_installation_plan() {
             echo -e "   • JupyterLab (data science notebooks)"
             echo -e "   • Apache Airflow (workflow orchestration)"
             echo -e "   • LanceDB (vector database)"
-            echo -e "   • Homer (service dashboard)"
             echo ""
             echo -e "${RED}❌ Services that will NOT be installed:${NC}"
             echo -e "   • Apache Superset, Vizro"
@@ -252,7 +249,7 @@ show_installation_plan() {
         "full")
             echo -e "   • RAM: ~20GB"
             echo -e "   • Storage: ~5GB (initial)"
-            echo -e "   • Ports: 8080, 9001, 9020, 9030, 9040, 9050, 9060, 9061, 9080"
+            echo -e "   • Ports: 8080, 9001, 9020, 9030, 9040, 9050, 9060, 9080"
             ;;
         "minimal")
             echo -e "   • RAM: ~8GB" 
@@ -262,12 +259,12 @@ show_installation_plan() {
         "analytics")
             echo -e "   • RAM: ~14GB"
             echo -e "   • Storage: ~3GB (initial)"
-            echo -e "   • Ports: 8080, 9001, 9030, 9040, 9050, 9060, 9061"
+            echo -e "   • Ports: 8080, 9001, 9030, 9040, 9050, 9060"
             ;;
         "ml")
             echo -e "   • RAM: ~16GB"
             echo -e "   • Storage: ~4GB (initial)"
-            echo -e "   • Ports: 8080, 9001, 9020, 9040, 9060, 9061, 9080"
+            echo -e "   • Ports: 8080, 9001, 9020, 9040, 9060, 9080"
             ;;
     esac
     echo ""
@@ -323,7 +320,7 @@ show_post_install_info() {
     echo ""
     echo -e "${BLUE}📋 Next Steps:${NC}"
     echo -e "1. View service credentials: ${YELLOW}./scripts/show-credentials.sh${NC}"
-    echo -e "2. Access service dashboard: ${YELLOW}http://localhost:9061${NC} (Homer)"  
+    echo -e "2. Access Portainer UI: ${YELLOW}http://localhost:9060${NC} (container management)"  
     echo -e "3. Try the example notebooks in JupyterLab"
     echo -e "4. Explore the getting started guide: ${YELLOW}QUICKSTART.md${NC}"
     echo ""

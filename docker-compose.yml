@@ -153,14 +153,8 @@ services:
       MINIO_READY_INTERVAL: ${MINIO_READY_INTERVAL:-3}         # seconds between attempts
       BUCKET_CREATE_RETRIES: ${BUCKET_CREATE_RETRIES:-8}       # bucket creation retry attempts
       SKIP_MINIO_READY_CHECK: ${SKIP_MINIO_READY_CHECK:-false} # set to 'true' to skip readiness check
-      # Host IP for Homepage dashboard (detected from host system)  
+      # Host IP for external access
       HOST_IP: ${HOST_IP:-localhost}
-      # Homepage template variables
-      HOMEPAGE_VAR_TITLE: "Lakehouse Lab"
-      HOMEPAGE_VAR_SEARCH_PROVIDER: "duckduckgo"
-      HOMEPAGE_VAR_HEADER_STYLE: "clean"
-      HOMEPAGE_VAR_HIDEVERSION: "true"
-      HOMEPAGE_VAR_HOST_IP: ${HOST_IP:-localhost}
     volumes:
       - lakehouse_shared:/mnt/lakehouse
       - ./scripts/legacy/init-all-in-one-modular.sh:/host/init-all-in-one-modular.sh:ro

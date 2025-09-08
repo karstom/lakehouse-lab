@@ -240,7 +240,7 @@ class TestDockerComposeValidation:
         """Test that docker-compose.yml has valid syntax."""
         compose_file = project_root / "docker-compose.yml"
 
-        # Use docker-compose config to validate syntax
+        # Use docker compose config to validate syntax
         result = subprocess.run(
             ['docker', 'compose', '-f', str(compose_file), 'config'],
             capture_output=True,
@@ -248,7 +248,7 @@ class TestDockerComposeValidation:
             cwd=str(project_root)
         )
 
-        # If docker/docker-compose is not available, skip this test
+        # If docker compose is not available, skip this test
         if result.returncode == 127:  # Command not found
             pytest.skip("Docker Compose not available for testing")
 

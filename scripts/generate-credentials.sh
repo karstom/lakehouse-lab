@@ -281,7 +281,6 @@ Generated: $(date)
 │   └── Login:   ${MINIO_ROOT_USER} / ${MINIO_ROOT_PASSWORD}
 ├── Spark UI:    http://localhost:8080
 ├── Portainer:   http://localhost:9060
-├── Homepage:    http://localhost:9061
 ├── Vizro:       http://localhost:9050
 └── LanceDB:     http://localhost:9080
 

@@ -148,7 +148,7 @@ parse_args() {
 
 # Function to check Docker availability
 check_docker() {
-    if command -v docker &> /dev/null && command -v docker-compose &> /dev/null; then
+    if command -v docker &> /dev/null && docker compose version &> /dev/null; then
         if docker info &> /dev/null; then
             DOCKER_AVAILABLE=true
             print_success "Docker is available"
@@ -400,7 +400,7 @@ cleanup() {
     # Stop any running containers
     if [ "$DOCKER_AVAILABLE" = true ]; then
         cd "$PROJECT_ROOT" || exit 1
-        docker-compose down -v > /dev/null 2>&1 || true
+        docker compose down -v > /dev/null 2>&1 || true
     fi
     
     # Clean up virtual environment

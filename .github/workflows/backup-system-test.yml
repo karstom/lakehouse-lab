@@ -67,7 +67,7 @@ jobs:
         
         # Test dry-run mode
         ./scripts/backup-lakehouse.sh --dry-run --services postgres
-        ./scripts/backup-lakehouse.sh --dry-run --exclude-services homer,portainer
+        ./scripts/backup-lakehouse.sh --dry-run --exclude-services portainer
         ./scripts/backup-lakehouse.sh --dry-run --compress --verify
         
         echo "✅ Backup script options working"

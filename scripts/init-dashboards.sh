@@ -1,59 +1,15 @@
 #!/bin/bash
 # ==============================================================================
-# init-dashboards.sh - Dashboard and BI Setup Module
+# init-dashboards.sh - BI Dashboard Setup Module  
 # ==============================================================================
-# Sets up Homepage dashboard and Superset BI configuration
-# NOTE: This script is deprecated - modern installations use Homepage automatically
+# Sets up Superset BI configuration and dashboard integrations
+# NOTE: Dashboard UI functionality removed in v2.1.1 - focus on BI services
 
 set -e
 
 # Get script directory and source shared utilities
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 source "$SCRIPT_DIR/lib/init-core.sh"
-
-# ==============================================================================
-# HOMER DASHBOARD DEPLOYMENT
-# ==============================================================================
-
-deploy_homer_config() {
-    log_info "Deploying Homer dashboard configuration..."
-    
-    local template_dir="$(dirname "$SCRIPT_DIR")/templates/homer"
-    local target_dir="$LAKEHOUSE_ROOT/homer"
-    
-    # Ensure target directories exist
-    ensure_directory "$target_dir" "Homer directory"
-    ensure_directory "$target_dir/assets" "Homer assets directory"
-    
-    # Check if template file exists
-    local template_file="$template_dir/config.yml"
-    if [ ! -f "$template_file" ]; then
-        log_error "Homer template not found: $template_file"
-        return 1
-    fi
-    
-    # Copy configuration file
-    local target_file="$target_dir/assets/config.yml"
-    
-    if cp "$template_file" "$target_file"; then
-        log_success "Deployed Homer configuration: config.yml"
-        
-        # Set appropriate permissions
-        chmod 644 "$target_file"
-        
-        # Also copy to root homer directory for compatibility
-        if cp "$target_file" "$target_dir/config.yml"; then
-            log_success "Homer config copied to root location"
-        else
-            log_warning "Failed to copy Homer config to root location"
-        fi
-    else
-        log_error "Failed to copy Homer configuration"
-        return 1
-    fi
-    
-    log_success "Homer dashboard configuration deployed"
-}
 
 # ==============================================================================
 # SUPERSET DATABASE SETUP
@@ -181,19 +137,14 @@ setup_dashboard_config() {
     cat > "$LAKEHOUSE_ROOT/dashboard_config.json" << 'EOF'
 {
     "lakehouse_lab_dashboards": {
-        "version": "2.0",
-        "updated": "2024-01-01",
+        "version": "2.1.1",
+        "updated": "2025-09-08",
         "services": {
-            "homer": {
-                "url": "http://localhost:9061",
-                "config_path": "homer/assets/config.yml",
-                "description": "Service dashboard and navigation"
-            },
             "superset": {
                 "url": "http://localhost:9030", 
                 "config_path": "superset/setup_duckdb.py",
                 "description": "Business Intelligence and analytics dashboards",
-                "default_login": "admin/admin"
+                "credentials": "Use ./scripts/show-credentials.sh"
             }
         },
         "data_sources": {
@@ -223,12 +174,13 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 show_dashboard_info() {
-    echo -e "${BLUE}🏠 Lakehouse Lab Dashboard Information${NC}"
-    echo "=================================="
+    echo -e "${BLUE}📊 Lakehouse Lab Service Information${NC}"
+    echo "==================================="
     echo ""
-    echo -e "${GREEN}Service Dashboards:${NC}"
-    echo "  🏠 Homepage (Service Navigation): http://localhost:9061"
+    echo -e "${GREEN}Business Intelligence:${NC}"
     echo "  📊 Superset (BI Analytics):    http://localhost:9030"
+    echo ""
+    echo -e "${GREEN}Management Interfaces:${NC}"
     echo "  🐳 Portainer (Containers):     http://localhost:9060"
     echo ""
     echo -e "${GREEN}Application Interfaces:${NC}"  
@@ -243,12 +195,11 @@ show_dashboard_info() {
 }
 
 check_dashboard_health() {
-    echo -e "${BLUE}🔍 Checking Dashboard Health${NC}"
-    echo "=========================="
+    echo -e "${BLUE}🔍 Checking Service Health${NC}"
+    echo "========================="
     echo ""
     
     services=(
-        "Homepage:http://localhost:9061"
         "Superset:http://localhost:9030/health"
         "Portainer:http://localhost:9060"
         "Airflow:http://localhost:9020/health"
@@ -299,16 +250,7 @@ EOF
 # ==============================================================================
 
 verify_dashboards_setup() {
-    log_info "Verifying dashboards setup..."
-    
-    # Check Homer configuration
-    local homer_config="$LAKEHOUSE_ROOT/homer/assets/config.yml"
-    if [ -f "$homer_config" ] && [ -s "$homer_config" ]; then
-        log_success "Homer configuration file exists and is not empty"
-    else
-        log_error "Homer configuration file missing or empty"
-        return 1
-    fi
+    log_info "Verifying BI setup..."
     
     # Check Superset scripts
     local superset_setup="$LAKEHOUSE_ROOT/superset/setup_duckdb.py"
@@ -346,12 +288,6 @@ verify_dashboards_setup() {
         else
             log_info "Superset service is not running (this is normal if not started yet)"
         fi
-        
-        if docker compose ps | grep -q "homer.*Up"; then
-            log_success "Homer service is running"
-        else
-            log_info "Homer service is not running (this is normal if not started yet)"
-        fi
     fi
     
     return 0
@@ -368,12 +304,6 @@ main() {
     if ! check_already_initialized "analytics"; then
         log_error "Analytics must be initialized first"
         log_info "Run: ./scripts/init-analytics.sh"
-        exit 1
-    fi
-    
-    # Deploy Homer configuration
-    if ! deploy_homer_config; then
-        handle_error "Homer deployment failed" "Dashboards"
         exit 1
     fi
     
@@ -401,14 +331,12 @@ main() {
     print_separator "✅ DASHBOARDS SETUP COMPLETE"
     log_success "Dashboards setup completed successfully"
     
-    echo "📊 Dashboard Layer Ready:"
-    echo "   • Homer dashboard: $LAKEHOUSE_ROOT/homer/"
+    echo "📊 BI Services Ready:"
     echo "   • Superset BI config: $LAKEHOUSE_ROOT/superset/"
     echo "   • Dashboard utilities: $LAKEHOUSE_ROOT/dashboard_utils.sh"
     echo ""
     echo "🌐 Access URLs (when services are running):"
-    echo "   • Homepage: http://localhost:9061"
-    echo "   • Superset: http://localhost:9030 (admin/admin)"
+    echo "   • Superset: http://localhost:9030 (use ./scripts/show-credentials.sh)"
     echo "   • Portainer: http://localhost:9060"
     echo ""
 }

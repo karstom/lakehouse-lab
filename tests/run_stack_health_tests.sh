@@ -41,7 +41,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --help               Show this help message"
             echo ""
             echo "This script runs comprehensive tests on a functioning lakehouse stack."
-            echo "Make sure to start the stack first with: docker-compose up -d"
+            echo "Make sure to start the stack first with: docker compose up -d"
             exit 0
             ;;
         *)
@@ -93,7 +93,7 @@ check_stack_running() {
     
     if [ "$LAKEHOUSE_CONTAINERS" -lt 5 ]; then
         log_error "Lakehouse stack is not running or insufficient containers found"
-        log_error "Please start the stack first with: docker-compose up -d"
+        log_error "Please start the stack first with: docker compose up -d"
         exit 1
     fi
     
@@ -181,9 +181,9 @@ main() {
         log_error "Some tests failed. Please check the output above."
         echo ""
         echo "🔍 Troubleshooting tips:"
-        echo "  • Make sure all containers are running: docker-compose ps"
-        echo "  • Check container logs: docker-compose logs <service-name>"
-        echo "  • Restart the stack: docker-compose down && docker-compose up -d"
+        echo "  • Make sure all containers are running: docker compose ps"
+        echo "  • Check container logs: docker compose logs <service-name>"
+        echo "  • Restart the stack: docker compose down && docker compose up -d"
         echo ""
         exit 1
     fi

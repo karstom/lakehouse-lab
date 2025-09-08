@@ -153,11 +153,8 @@ echo -e "${GREEN}├── LanceDB Vector Database:${NC}"
 echo -e "│   ├── API:      ${BLUE}http://${HOST_IP}:9080${NC}"
 echo -e "│   └── API Docs: ${BLUE}http://${HOST_IP}:9080/docs${NC}"
 echo -e "│"
-echo -e "${GREEN}├── Portainer (Docker Management):${NC}"
-echo -e "│   └── URL:      ${BLUE}http://${HOST_IP}:9060${NC}"
-echo -e "│"
-echo -e "${GREEN}└── Homepage Dashboard:${NC}"
-echo -e "    └── URL:      ${BLUE}http://${HOST_IP}:9061${NC}"
+echo -e "${GREEN}└── Portainer (Docker Management):${NC}"
+echo -e "    └── URL:      ${BLUE}http://${HOST_IP}:9060${NC}"
 
 echo
 echo -e "${CYAN}💾 DATABASE ACCESS:${NC}"
