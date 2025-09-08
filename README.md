@@ -8,7 +8,7 @@
 > **Modern Data Engineering Platform in 15 Minutes**  
 > **One-Click Install • Vector Search • Interactive Dashboards**
 
-**Version 2.1.0** - A comprehensive lakehouse environment for learning, development, and experimentation with modern data engineering technologies. Features interactive dashboards, vector search, multi-user collaboration, and comprehensive tooling for data engineering workflows.
+**Version 2.1.1** - A comprehensive lakehouse environment for learning, development, and experimentation with modern data engineering technologies. Features interactive dashboards, vector search, multi-user collaboration, and comprehensive tooling for data engineering workflows.
 
 ## 🎯 Who It's For
 
