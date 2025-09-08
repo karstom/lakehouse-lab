@@ -516,13 +516,6 @@ services:
         reservations:
           memory: ${PORTAINER_MEMORY_RESERVATION:-128M}
 
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-        reservations:
-          memory: 128M
-
   # Vizro Dashboard Framework
   vizro:
     image: python:3.11-slim
