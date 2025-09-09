@@ -76,8 +76,6 @@ create_directories() {
     
     # Configuration directories
     ensure_directory "$LAKEHOUSE_ROOT/superset" "Superset directory"
-    ensure_directory "$LAKEHOUSE_ROOT/homer" "Homer directory"
-    ensure_directory "$LAKEHOUSE_ROOT/homer/assets" "Homer assets directory"
     
     # Iceberg directories (for future use)
     ensure_directory "$LAKEHOUSE_ROOT/iceberg-jars" "Iceberg JARs directory"
@@ -163,7 +161,6 @@ main() {
     echo "       ├── raw-data/ (Raw datasets)"
     echo "       ├── processed-data/ (Processed datasets)"
     echo "       ├── superset/ (BI configuration)"
-    echo "       └── homer/ (Dashboard configuration)"
     echo ""
 }
 

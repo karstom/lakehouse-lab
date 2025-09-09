@@ -186,8 +186,8 @@ class TestDocumentation(unittest.TestCase):
             with open(doc_path, 'r') as f:
                 content = f.read()
             
-            # Find Docker Compose commands
-            compose_commands = re.findall(r'docker-compose[^\n]*', content)
+            # Find Docker Compose commands (both old and new syntax)
+            compose_commands = re.findall(r'docker[- ]compose[^\n]*', content)
             
             for command in compose_commands:
                 # Check for common issues
@@ -374,7 +374,7 @@ class TestDocumentationCompletenessIntegration(unittest.TestCase):
         self.project_root = Path(__file__).parent.parent
     
     def test_all_services_documented(self):
-        """Test that all services in docker-compose are documented"""
+        """Test that all services in Docker Compose are documented"""
         compose_file = self.project_root / 'docker-compose.yml'
         readme_file = self.project_root / 'README.md'
         

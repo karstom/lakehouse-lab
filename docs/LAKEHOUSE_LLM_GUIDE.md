@@ -44,7 +44,6 @@ Superset        | 8088          | 9030          | superset              | /healt
 Vizro           | 8050          | 9050          | vizro                 | HTTP:8050
 LanceDB         | 8000          | 9080          | lancedb               | /health
 Portainer       | 9000          | 9060          | portainer             | HTTP:9060
-Homer           | 8080          | 9061          | homer                 | HTTP:8080
 
 # AI Services
 Vector Search   | 8000          | 9080          | lancedb               | /health

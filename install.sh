@@ -316,7 +316,7 @@ perform_upgrade() {
     # Download latest version
     download_lakehouse_lab
     
-    # Clean up orphaned containers from service changes (e.g., Homer -> Homepage)
+    # Clean up orphaned containers from service changes
     print_step "Cleaning up orphaned containers from previous versions..."
     cd "$INSTALL_DIR" 2>/dev/null || true
     docker compose down --remove-orphans >/dev/null 2>&1 || print_warning "Could not remove orphaned containers"

@@ -112,11 +112,6 @@ else
     echo -e "${GREEN}   Using detected IP: $HOST_IP${NC}"
     echo -e "${BLUE}   Services will be accessible remotely at this IP${NC}"
     
-    # Check if Homepage config needs updating (contains Docker IPs)
-    homepage_config="${LAKEHOUSE_ROOT:-./lakehouse-data}/homepage/config/services.yaml"
-    if [[ -f "$homepage_config" ]] && grep -q "172\.[0-9]\+\.[0-9]\+\.[0-9]\+" "$homepage_config" 2>/dev/null; then
-        echo -e "${YELLOW}   📋 Note: Homepage dashboard will be updated with new IP addresses${NC}"
-    fi
 fi
 echo ""
 
@@ -241,8 +236,6 @@ start_with_dependencies() {
             echo -e "${BLUE}🔧 Running initialization...${NC}"
             docker compose up lakehouse-init
             
-            # Start Homepage for service links
-            docker compose up -d --remove-orphans homepage
             ;;
             
         "debug")
@@ -283,7 +276,7 @@ start_with_dependencies() {
             
             # Optional services
             echo -e "${BLUE}Layer 6: Optional services${NC}"
-            docker compose --profile optional up -d --remove-orphans homepage || echo -e "${YELLOW}⚠️  Homepage is optional and may not start${NC}"
+            # Optional services started in core startup
             ;;
             
         "normal"|*)
@@ -359,7 +352,6 @@ start_with_dependencies() {
     echo -e "  🤖 LanceDB API:       ${GREEN}http://${HOST_IP}:9080${NC} (docs: /docs)"
     echo -e "  ☁️  MinIO Console:     ${GREEN}http://${HOST_IP}:9001${NC} (use ./scripts/show-credentials.sh for login)"
     echo -e "  ⚡ Spark Master:      ${GREEN}http://${HOST_IP}:8080${NC}"
-    echo -e "  🏠 Service Links:     ${GREEN}http://${HOST_IP}:9061${NC} (optional Homer)"
     
     # Show only enabled services if override exists
     if [[ -f "docker-compose.override.yml" ]]; then

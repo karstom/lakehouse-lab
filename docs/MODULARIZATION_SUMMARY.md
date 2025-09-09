@@ -26,7 +26,7 @@ scripts/
 ├── init-compute.sh           # Iceberg JARs (212 lines)
 ├── init-workflows.sh         # Airflow DAGs (206 lines)
 ├── init-analytics.sh         # Jupyter notebooks (267 lines)
-└── init-dashboards.sh        # Homer, Superset (276 lines)
+└── init-dashboards.sh        # Superset BI (276 lines)
 ```
 
 ### Template Files

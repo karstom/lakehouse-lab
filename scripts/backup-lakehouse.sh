@@ -417,12 +417,10 @@ backup_superset() {
     log_success "Superset backup completed"
 }
 
-# Backup other services (Homer, Vizro, LanceDB, etc.)
+# Backup other services (Vizro, LanceDB, etc.)
 backup_other_services() {
     log_info "🔧 Backing up other service data..."
     
-    # Homer dashboard configuration
-    backup_volume_data "homer_data" "homer"
     
     # Vizro dashboards
     backup_volume_data "vizro_data" "vizro"

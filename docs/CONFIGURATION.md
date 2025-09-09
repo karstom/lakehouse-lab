@@ -68,7 +68,6 @@ These services cannot be disabled as they form the foundation of the lakehouse:
 | **Vizro** | Low-code dashboard framework | 9050 | 2GB | Interactive visualizations |
 | **LanceDB** | High-performance vector database | 9080 | 3GB | AI/ML, semantic search |
 | **Portainer** | Docker container management | 9060 | 0.5GB | System monitoring |
-| **Homer** | Service dashboard with links | 9061 | 0.1GB | Easy service access |
 
 ## Preset Configurations
 
@@ -92,7 +91,6 @@ These services cannot be disabled as they form the foundation of the lakehouse:
 ✅ Apache Superset: BI dashboards
 ✅ Vizro: Interactive dashboards
 ✅ Portainer: Container management
-✅ Homer: Service links
 ❌ Airflow, LanceDB disabled
 
 📊 Resources: ~14GB RAM, 8 CPU cores recommended
@@ -107,7 +105,6 @@ These services cannot be disabled as they form the foundation of the lakehouse:
 ✅ Apache Airflow: ML pipeline orchestration
 ✅ LanceDB: Vector database for AI
 ✅ Portainer: Container management
-✅ Homer: Service links
 ❌ Superset, Vizro disabled
 
 📊 Resources: ~16GB RAM, 8+ CPU cores recommended  
@@ -317,7 +314,7 @@ docker compose down
 # Configure for data engineering team
 ./scripts/configure-services.sh interactive
 # Enable: Jupyter, Airflow, Portainer
-# Disable: Superset, Vizro, LanceDB, Homer
+# Disable: Superset, Vizro, LanceDB
 
 # Save and start
 ./start-lakehouse.sh
