@@ -36,6 +36,26 @@ declare -A SERVICE_PORTS
 declare -A SERVICE_RESOURCES
 declare -A SERVICE_CONFIG  # Store service configuration state
 
+# --- Dynamic Overlay Detection ---
+OVERLAY_DIRS=("services" ".")
+OVERLAY_PATTERN="docker-compose.*.yml"
+declare -A DYNAMIC_OVERLAYS
+
+detect_dynamic_overlays() {
+    for dir in "${OVERLAY_DIRS[@]}"; do
+        if [[ -d "$dir" ]]; then
+            for overlay in "$dir"/$OVERLAY_PATTERN; do
+                [[ -f "$overlay" ]] || continue
+                # Exclude main and override files
+                [[ "$overlay" =~ docker-compose\.(override|newservice)\.yml ]] && continue
+                # Use filename (without path) as key
+                overlay_key=$(basename "$overlay")
+                DYNAMIC_OVERLAYS["$overlay_key"]="$overlay"
+            done
+        fi
+    done
+}
+
 # Core services (cannot be disabled)
 CORE_SERVICES=("postgres" "minio" "spark-master" "spark-worker" "lakehouse-init")
 
@@ -98,6 +118,11 @@ load_config() {
     for service in "${!SERVICES[@]}"; do
         SERVICE_CONFIG["$service"]="true"
     done
+    # Initialize dynamic overlays to false by default
+    detect_dynamic_overlays
+    for overlay in "${!DYNAMIC_OVERLAYS[@]}"; do
+        SERVICE_CONFIG["$overlay"]="false"
+    done
     
     if [[ -f "$CONFIG_FILE" ]]; then
         log_info "Loading existing configuration from $CONFIG_FILE"
@@ -127,6 +152,11 @@ EOF
     for service in "${!SERVICES[@]}"; do
         local value="${SERVICE_CONFIG[$service]:-true}"
         echo "${service}=${value}" >> "$CONFIG_FILE"
+    done
+    # Save dynamic overlays
+    for overlay in "${!DYNAMIC_OVERLAYS[@]}"; do
+        local value="${SERVICE_CONFIG[$overlay]:-false}"
+        echo "${overlay}=${value}" >> "$CONFIG_FILE"
     done
     
     log_success "Configuration saved to $CONFIG_FILE"
@@ -159,6 +189,23 @@ show_config() {
         printf "             %s\n" "${SERVICE_DESCRIPTIONS[$service]}"
         echo ""
     done
+
+    # Show dynamic overlays
+    if (( ${#DYNAMIC_OVERLAYS[@]} > 0 )); then
+        echo -e "${BLUE}🔌 Detected Service Overlays:${NC}"
+        for overlay in "${!DYNAMIC_OVERLAYS[@]}"; do
+            local enabled="${SERVICE_CONFIG[$overlay]:-false}"
+            local status_icon="❌"
+            local status_text="DISABLED"
+            if [[ "$enabled" == "true" ]]; then
+                status_icon="✅"
+                status_text="ENABLED"
+            fi
+            printf "%-24s %s %-8s (File: %s)\n" \
+                "$overlay:" "$status_icon" "$status_text" "${DYNAMIC_OVERLAYS[$overlay]}"
+        done
+        echo ""
+    fi
     
     echo -e "${YELLOW}📊 Summary:${NC}"
     echo -e "  Enabled services: $enabled_count/${#SERVICES[@]}"
@@ -213,6 +260,43 @@ configure_interactive() {
         done
         echo ""
     done
+
+    # Interactive toggling for dynamic overlays
+    if (( ${#DYNAMIC_OVERLAYS[@]} > 0 )); then
+        echo -e "${BLUE}🔌 Detected Service Overlays:${NC}"
+        for overlay in "${!DYNAMIC_OVERLAYS[@]}"; do
+            local var_name="$overlay"
+            local current_value="${SERVICE_CONFIG[$overlay]:-false}"
+            local default_text="y/N"
+            if [[ "$current_value" == "true" ]]; then
+                default_text="Y/n"
+            fi
+            echo -e "${GREEN}${overlay}${NC}"
+            echo -e "  File: ${DYNAMIC_OVERLAYS[$overlay]}"
+            while true; do
+                echo -n "  Enable this overlay? [$default_text]: "
+                read -r response
+                case "$response" in
+                    [Yy]*)
+                        SERVICE_CONFIG["$overlay"]="true"
+                        break
+                        ;;
+                    [Nn]*)
+                        SERVICE_CONFIG["$overlay"]="false"
+                        break
+                        ;;
+                    "")
+                        # Use current/default value
+                        break
+                        ;;
+                    *)
+                        echo -e "  ${RED}Please answer y or n${NC}"
+                        ;;
+                esac
+            done
+            echo ""
+        done
+    fi
     
     # Show final configuration
     echo -e "${BLUE}📋 Final Configuration:${NC}"

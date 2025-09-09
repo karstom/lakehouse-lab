@@ -1,0 +1,54 @@
+# Example Docker Compose Overlay for a New Service
+#
+# Copy this file to create a new service overlay, e.g.:
+#   cp docker-compose.newservice.yml.example docker-compose.myservice.yml
+#
+# Edit the service definition below, following the instructions in comments.
+# This overlay can be used with:
+#   docker compose -f docker-compose.yml -f docker-compose.myservice.yml up -d
+
+version: "3.8"
+
+services:
+  myservice:
+    # Replace 'myservice' with your service name
+    image: myorg/myservice:latest  # Replace with the correct image
+    container_name: lakehouse-lab-myservice
+    environment:
+      # Add environment variables here
+      - EXAMPLE_ENV_VAR=value
+      # - ANOTHER_VAR=...
+    ports:
+      # Map ports as needed: "host:container"
+      - "9050:9050"
+    volumes:
+      # Mount volumes if needed
+      - ./data/myservice:/data
+    depends_on:
+      # List dependencies on other services
+      - postgres
+      - minio
+    networks:
+      - lakehouse
+    restart: unless-stopped
+    # Add healthcheck if applicable
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9050/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+# Add any additional services or configuration as needed
+
+networks:
+  lakehouse:
+    external: true
+    # If the 'lakehouse' network does not exist, create it with:
+    #   docker network create lakehouse
+
+# Instructions:
+# 1. Copy this file and rename for your service.
+# 2. Edit the 'myservice' section with your service's details.
+# 3. Add any required environment variables, volumes, and dependencies.
+# 4. Use 'docker compose -f docker-compose.yml -f docker-compose.myservice.yml up -d' to start with the overlay.
+# 5. Document your overlay in the project README or integration guide.

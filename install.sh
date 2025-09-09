@@ -630,6 +630,7 @@ check_system_resources() {
         TOTAL_MEM=$(free -g | awk '/^Mem:/{print $2}')
         if [[ $TOTAL_MEM -lt 8 ]]; then
             print_warning "Only ${TOTAL_MEM}GB RAM detected. 16GB+ recommended for best performance."
+            echo -e "${YELLOW}Tip:${NC} Use the minimal configuration or add more RAM for better results."
         elif [[ $TOTAL_MEM -ge 64 && $PROFILE == "standard" ]]; then
             print_warning "64GB+ RAM detected. Consider using --fat-server for optimal performance."
         fi
@@ -640,6 +641,7 @@ check_system_resources() {
         AVAILABLE_SPACE=$(df -BG . | awk 'NR==2 {print $4}' | sed 's/G//')
         if [[ $AVAILABLE_SPACE -lt 20 ]]; then
             print_warning "Only ${AVAILABLE_SPACE}GB disk space available. 50GB+ recommended."
+            echo -e "${YELLOW}Tip:${NC} Free up disk space or use a larger disk for production workloads."
         fi
     fi
     
@@ -648,6 +650,7 @@ check_system_resources() {
         CPU_CORES=$(nproc)
         if [[ $CPU_CORES -lt 4 ]]; then
             print_warning "Only ${CPU_CORES} CPU cores detected. 4+ cores recommended."
+            echo -e "${YELLOW}Tip:${NC} Performance may be limited on low-core systems."
         elif [[ $CPU_CORES -ge 16 && $PROFILE == "standard" ]]; then
             print_warning "16+ CPU cores detected. Consider using --fat-server for optimal performance."
         fi
@@ -957,12 +960,28 @@ main() {
     
     # Confirm installation (only if not already chosen via upgrade options)
     if [[ -t 0 && $UNATTENDED != "true" ]] && [[ $UPGRADE_MODE != "true" ]] && [[ $UPGRADE_MODE != "smart-upgrade" ]] && [[ $UPGRADE_MODE != "legacy-upgrade" ]] && [[ $REPLACE_MODE != "true" ]]; then
-        read -p "Continue with installation? [Y/n]: " -n 1 -r </dev/tty
-        echo
-        if [[ $REPLY =~ ^[Nn]$ ]]; then
-            echo "Installation cancelled."
-            exit 0
-        fi
+        while true; do
+            read -p "Continue with installation? [Y/n/?]: " -n 1 -r </dev/tty
+            echo
+            case "$REPLY" in
+                [Yy]|"")
+                    break
+                    ;;
+                [Nn])
+                    echo "Installation cancelled."
+                    exit 0
+                    ;;
+                "?")
+                    echo -e "${YELLOW}Help:${NC} This will install or upgrade Lakehouse Lab in the current directory."
+                    echo -e "  - All services and dependencies will be set up."
+                    echo -e "  - Data will be preserved unless you choose 'replace'."
+                    echo -e "  - For more details, see the documentation or run with --help."
+                    ;;
+                *)
+                    echo -e "${RED}Please answer y, n, or ? for help.${NC}"
+                    ;;
+            esac
+        done
     elif [[ $UNATTENDED == "true" ]]; then
         echo -e "${GREEN}Running in unattended mode - proceeding automatically${NC}"
     fi

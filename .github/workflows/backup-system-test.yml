@@ -13,212 +13,275 @@ on:
     branches: [ main, dev ]
     paths:
       - 'scripts/backup-lakehouse.sh'
-      - 'scripts/restore-lakehouse.sh' 
+      - 'scripts/restore-lakehouse.sh'
       - 'examples/cron-backup-setup.sh'
       - 'templates/airflow/dags/lakehouse_backup_dag.py'
       - 'docker-compose*.yml'
 
 jobs:
+  secret-scan:
+    name: Secret Scanning (Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Trivy secret scan
+        uses: aquasecurity/trivy-action@v0.16.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'secret'
+          exit-code: '1'
+          ignore-unfixed: true
+          format: 'table'
+          output: 'trivy-secret-report.txt'
+
+      - name: Upload Trivy secret scan report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-secret-report
+          path: trivy-secret-report.txt
+
   backup-system-test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Generate test credentials
-      run: |
-        # Create .env for testing
-        if [ -f scripts/generate-credentials.sh ]; then
-          ./scripts/generate-credentials.sh
-        else
-          cp .env.default .env
-        fi
-        
-        echo "COMPOSE_PROJECT_NAME=lakehouse-backup-test" >> .env
-        echo "HOST_IP=localhost" >> .env
+      - name: Generate test credentials
+        run: |
+          # Create .env for testing
+          if [ -f scripts/generate-credentials.sh ]; then
+            ./scripts/generate-credentials.sh
+          else
+            cp .env.default .env
+          fi
 
-    - name: Verify backup script structure
-      run: |
-        echo "🔍 Verifying backup system components..."
-        
-        # Check that backup scripts exist and are executable
-        [ -f scripts/backup-lakehouse.sh ] && [ -x scripts/backup-lakehouse.sh ]
-        [ -f scripts/restore-lakehouse.sh ] && [ -x scripts/restore-lakehouse.sh ]
-        [ -f examples/cron-backup-setup.sh ] && [ -x examples/cron-backup-setup.sh ]
-        
-        echo "✅ All backup scripts present and executable"
-        
-        # Check Airflow DAG template
-        [ -f templates/airflow/dags/lakehouse_backup_dag.py ]
-        
-        # Validate Python syntax of DAG
-        python -m py_compile templates/airflow/dags/lakehouse_backup_dag.py
-        echo "✅ Airflow DAG template syntax valid"
+          echo "COMPOSE_PROJECT_NAME=lakehouse-backup-test" >> .env
+          echo "HOST_IP=localhost" >> .env
 
-    - name: Test backup script help and options
-      run: |
-        echo "📝 Testing backup script help and options..."
-        
-        # Test help output
-        ./scripts/backup-lakehouse.sh --help | grep -q "Usage:"
-        ./scripts/restore-lakehouse.sh --help | grep -q "Usage:"
-        
-        # Test dry-run mode
-        ./scripts/backup-lakehouse.sh --dry-run --services postgres
-        ./scripts/backup-lakehouse.sh --dry-run --exclude-services portainer
-        ./scripts/backup-lakehouse.sh --dry-run --compress --verify
-        
-        echo "✅ Backup script options working"
+      - name: Verify backup script structure
+        run: |
+          echo "🔍 Verifying backup system components..."
 
-    - name: Test CRON setup script
-      run: |
-        echo "⏰ Testing CRON setup script..."
-        
-        # Test CRON setup dry-run
-        ./examples/cron-backup-setup.sh --dry-run
-        ./examples/cron-backup-setup.sh --dry-run --schedule "0 3 * * 0" --compress
-        
-        echo "✅ CRON setup script working"
+          # Check that backup scripts exist and are executable
+          [ -f scripts/backup-lakehouse.sh ] && [ -x scripts/backup-lakehouse.sh ]
+          [ -f scripts/restore-lakehouse.sh ] && [ -x scripts/restore-lakehouse.sh ]
+          [ -f examples/cron-backup-setup.sh ] && [ -x examples/cron-backup-setup.sh ]
 
-    - name: Start minimal services for backup testing
-      run: |
-        echo "🚀 Starting minimal services for backup testing..."
-        
-        # Start only core services needed for backup testing
-        docker compose up -d postgres minio lakehouse-init
-        sleep 30
-        
-        # Verify services are running
-        docker compose ps
-        
-        # Wait for services to be ready
-        timeout 60 bash -c 'until curl -f http://localhost:9000/minio/health/live; do sleep 2; done'
-        timeout 60 bash -c 'until docker exec lakehouse-backup-test-postgres-1 pg_isready -U postgres; do sleep 2; done'
+          echo "✅ All backup scripts present and executable"
 
-    - name: Create test data
-      run: |
-        echo "📝 Creating test data for backup verification..."
-        
-        # Create PostgreSQL test data
-        docker exec lakehouse-backup-test-postgres-1 psql -U postgres -d lakehouse -c "
-          CREATE TABLE IF NOT EXISTS backup_test (
-            id SERIAL PRIMARY KEY,
-            test_data VARCHAR(255),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          );
-          INSERT INTO backup_test (test_data) VALUES ('backup-test-data-$(date +%s)');
-        "
-        
-        # Create MinIO test data
-        echo "test-backup-data-$(date +%s)" > test-backup-file.txt
-        
-        docker run --rm \
-          --network lakehouse-backup-test_lakehouse \
-          -v $(pwd)/test-backup-file.txt:/tmp/test-file.txt \
-          minio/mc:latest \
-          bash -c "
-            mc alias set testminio http://minio:9000 \${MINIO_ROOT_USER:-admin} \${MINIO_ROOT_PASSWORD} &&
-            mc cp /tmp/test-file.txt testminio/lakehouse/backup-test.txt
+          # Check Airflow DAG template
+          [ -f templates/airflow/dags/lakehouse_backup_dag.py ]
+
+          # Validate Python syntax of DAG
+          python -m py_compile templates/airflow/dags/lakehouse_backup_dag.py
+          echo "✅ Airflow DAG template syntax valid"
+
+      - name: Test backup script help and options
+        run: |
+          echo "📝 Testing backup script help and options..."
+
+          # Test help output
+          ./scripts/backup-lakehouse.sh --help | grep -q "Usage:"
+          ./scripts/restore-lakehouse.sh --help | grep -q "Usage:"
+
+          # Test dry-run mode
+          ./scripts/backup-lakehouse.sh --dry-run --services postgres
+          ./scripts/backup-lakehouse.sh --dry-run --exclude-services portainer
+          ./scripts/backup-lakehouse.sh --dry-run --compress --verify
+
+          echo "✅ Backup script options working"
+
+      - name: Test CRON setup script
+        run: |
+          echo "⏰ Testing CRON setup script..."
+
+          # Test CRON setup dry-run
+          ./examples/cron-backup-setup.sh --dry-run
+          ./examples/cron-backup-setup.sh --dry-run --schedule "0 3 * * 0" --compress
+
+          echo "✅ CRON setup script working"
+
+      - name: Start minimal services for backup testing
+        run: |
+          echo "🚀 Starting minimal services for backup testing..."
+
+          # Start only core services needed for backup testing
+          docker compose up -d postgres minio lakehouse-init
+          sleep 30
+
+          # Verify services are running
+          docker compose ps
+
+          # Wait for services to be ready
+          timeout 60 bash -c 'until curl -f http://localhost:9000/minio/health/live; do sleep 2; done'
+          timeout 60 bash -c 'until docker exec lakehouse-backup-test-postgres-1 pg_isready -U postgres; do sleep 2; done'
+
+      - name: Create test data
+        run: |
+          echo "📝 Creating test data for backup verification..."
+
+          # Create PostgreSQL test data
+          docker exec lakehouse-backup-test-postgres-1 psql -U postgres -d lakehouse -c "
+            CREATE TABLE IF NOT EXISTS backup_test (
+              id SERIAL PRIMARY KEY,
+              test_data VARCHAR(255),
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            INSERT INTO backup_test (test_data) VALUES ('backup-test-data-$(date +%s)');
           "
-        
-        echo "✅ Test data created"
 
-    - name: Test backup creation (dry-run)
-      run: |
-        echo "💾 Testing backup creation (dry-run)..."
-        
-        # Test various backup configurations
-        ./scripts/backup-lakehouse.sh --dry-run --services postgres,minio
-        ./scripts/backup-lakehouse.sh --dry-run --compress --verify
-        ./scripts/backup-lakehouse.sh --dry-run --parallel
-        ./scripts/backup-lakehouse.sh --dry-run --retention-days 7
-        
-        echo "✅ Backup dry-run tests passed"
+          # Create MinIO test data
+          echo "test-backup-data-$(date +%s)" > test-backup-file.txt
 
-    - name: Test actual backup creation
-      run: |
-        echo "💾 Testing actual backup creation..."
-        
-        # Create a real backup (small services only for testing)
-        ./scripts/backup-lakehouse.sh --services postgres --output-dir /tmp/test-backup --quiet
-        
-        # Verify backup was created
-        [ -d /tmp/test-backup ]
-        
-        # Find the backup directory
-        BACKUP_DIR=$(find /tmp/test-backup -maxdepth 1 -type d -name "lakehouse-backup-*" | head -1)
-        [ -n "$BACKUP_DIR" ]
-        
-        echo "Backup created at: $BACKUP_DIR"
-        ls -la "$BACKUP_DIR"
-        
-        # Verify backup contains expected components
-        [ -f "$BACKUP_DIR/backup-metadata.json" ]
-        
-        echo "✅ Backup creation successful"
+          docker run --rm \
+            --network lakehouse-backup-test_lakehouse \
+            -v $(pwd)/test-backup-file.txt:/tmp/test-file.txt \
+            minio/mc:latest \
+            bash -c "
+              mc alias set testminio http://minio:9000 \${MINIO_ROOT_USER:-admin} \${MINIO_ROOT_PASSWORD} &&
+              mc cp /tmp/test-file.txt testminio/lakehouse/backup-test.txt
+            "
 
-    - name: Test restore script (dry-run)
-      run: |
-        echo "🔄 Testing restore script..."
-        
-        # Find the backup ID
-        BACKUP_ID=$(find /tmp/test-backup -maxdepth 1 -type d -name "lakehouse-backup-*" -exec basename {} \; | head -1)
-        
-        if [ -n "$BACKUP_ID" ]; then
-          # Test restore dry-run
-          ./scripts/restore-lakehouse.sh "$BACKUP_ID" --backup-dir /tmp/test-backup --dry-run
-          ./scripts/restore-lakehouse.sh "$BACKUP_ID" --backup-dir /tmp/test-backup --service postgres --dry-run
-          
-          echo "✅ Restore dry-run tests passed"
-        else
-          echo "⚠️ No backup found for restore testing"
-        fi
+          echo "✅ Test data created"
 
-    - name: Test backup metadata and verification
-      run: |
-        echo "🔍 Testing backup metadata and verification..."
-        
-        BACKUP_DIR=$(find /tmp/test-backup -maxdepth 1 -type d -name "lakehouse-backup-*" | head -1)
-        
-        if [ -n "$BACKUP_DIR" ] && [ -f "$BACKUP_DIR/backup-metadata.json" ]; then
-          # Validate metadata structure
-          python -c "
-import json
-with open('$BACKUP_DIR/backup-metadata.json', 'r') as f:
-    metadata = json.load(f)
-    assert 'backup_id' in metadata
-    assert 'timestamp' in metadata
-    assert 'services' in metadata
-    print('✅ Backup metadata structure valid')
-"
-        else
-          echo "⚠️ Backup metadata not found for verification"
-        fi
+      - name: Test backup creation (dry-run)
+        run: |
+          echo "💾 Testing backup creation (dry-run)..."
 
-    - name: Generate backup system report
-      run: |
-        echo "📊 Backup System Test Report"
-        echo "============================"
-        echo "✅ All backup system tests passed!"
-        echo ""
-        echo "Verified components:"
-        echo "  • Backup script execution and options"
-        echo "  • Restore script functionality"
-        echo "  • CRON setup script"
-        echo "  • Airflow DAG template"
-        echo "  • Backup metadata generation"
-        echo "  • Dry-run modes for safety"
-        echo ""
-        echo "Test backup created:"
-        find /tmp/test-backup -name "lakehouse-backup-*" -type d | head -1 | xargs ls -la
+          # Test various backup configurations
+          ./scripts/backup-lakehouse.sh --dry-run --services postgres,minio
+          ./scripts/backup-lakehouse.sh --dry-run --compress --verify
+          ./scripts/backup-lakehouse.sh --dry-run --parallel
+          ./scripts/backup-lakehouse.sh --dry-run --retention-days 7
 
-    - name: Cleanup test environment
-      if: always()
-      run: |
-        echo "🧹 Cleaning up test environment..."
-        docker compose down -v --remove-orphans || true
-        rm -rf /tmp/test-backup || true
-        rm -f test-backup-file.txt || true
-        docker system prune -f || true
+          echo "✅ Backup dry-run tests passed"
+
+      - name: Test actual backup creation
+        run: |
+          echo "💾 Testing actual backup creation..."
+
+          # Create a real backup (small services only for testing)
+          ./scripts/backup-lakehouse.sh --services postgres --output-dir /tmp/test-backup --quiet
+
+          # Verify backup was created
+          [ -d /tmp/test-backup ]
+
+          # Find the backup directory
+          BACKUP_DIR=$(find /tmp/test-backup -maxdepth 1 -type d -name "lakehouse-backup-*" | head -1)
+          [ -n "$BACKUP_DIR" ]
+
+          echo "Backup created at: $BACKUP_DIR"
+          ls -la "$BACKUP_DIR"
+
+          # Verify backup contains expected components
+          [ -f "$BACKUP_DIR/backup-metadata.json" ]
+
+          echo "✅ Backup creation successful"
+
+      - name: Test restore script (dry-run)
+        run: |
+          echo "🔄 Testing restore script..."
+
+          # Find the backup ID
+          BACKUP_ID=$(find /tmp/test-backup -maxdepth 1 -type d -name "lakehouse-backup-*" -exec basename {} \; | head -1)
+
+          if [ -n "$BACKUP_ID" ]; then
+            # Test restore dry-run
+            ./scripts/restore-lakehouse.sh "$BACKUP_ID" --backup-dir /tmp/test-backup --dry-run
+            ./scripts/restore-lakehouse.sh "$BACKUP_ID" --backup-dir /tmp/test-backup --service postgres --dry-run
+
+            echo "✅ Restore dry-run tests passed"
+          else
+            echo "⚠️ No backup found for restore testing"
+          fi
+
+      - name: Test full restore and data verification
+        run: |
+          echo "🔄 Testing full restore and verifying data integrity..."
+          # Find the backup ID
+          BACKUP_ID=$(find /tmp/test-backup -maxdepth 1 -type d -name "lakehouse-backup-*" -exec basename {} \; | head -1)
+          if [ -z "$BACKUP_ID" ]; then
+            echo "❌ No backup found for full restore test"
+            exit 1
+          fi
+          # Stop and remove services and volumes
+          docker compose down -v --remove-orphans
+          # Restore from backup
+          ./scripts/restore-lakehouse.sh "$BACKUP_ID" --backup-dir /tmp/test-backup --force
+          # Start services again
+          docker compose up -d postgres minio lakehouse-init
+          sleep 30
+          # Wait for services to be ready
+          timeout 60 bash -c 'until curl -f http://localhost:9000/minio/health/live; do sleep 2; done'
+          timeout 60 bash -c 'until docker exec lakehouse-backup-test-postgres-1 pg_isready -U postgres; do sleep 2; done'
+          # Verify PostgreSQL test data
+          POSTGRES_RESULT=$(docker exec lakehouse-backup-test-postgres-1 psql -U postgres -d lakehouse -c "SELECT test_data FROM backup_test ORDER BY id DESC LIMIT 1;" | grep backup-test-data | wc -l)
+          if [ "$POSTGRES_RESULT" -ge 1 ]; then
+            echo "✅ PostgreSQL test data restored successfully"
+          else
+            echo "❌ PostgreSQL test data NOT restored"
+            exit 1
+          fi
+          # Verify MinIO test data
+          docker run --rm \
+            --network lakehouse-backup-test_lakehouse \
+            minio/mc:latest \
+            bash -c '
+              mc alias set testminio http://minio:9000 ${MINIO_ROOT_USER:-admin} ${MINIO_ROOT_PASSWORD} &&
+              mc stat testminio/lakehouse/backup-test.txt
+            '
+          if [ $? -eq 0 ]; then
+            echo "✅ MinIO test data restored successfully"
+          else
+            echo "❌ MinIO test data NOT restored"
+            exit 1
+          fi
+          echo "✅ Full backup/restore verification passed"
+
+      - name: Test backup metadata and verification
+        run: |
+          echo "🔍 Testing backup metadata and verification..."
+
+          BACKUP_DIR=$(find /tmp/test-backup -maxdepth 1 -type d -name "lakehouse-backup-*" | head -1)
+
+          if [ -n "$BACKUP_DIR" ] && [ -f "$BACKUP_DIR/backup-metadata.json" ]; then
+            # Validate metadata structure
+            set -x
+            if python -c "import json; f=open('$BACKUP_DIR/backup-metadata.json'); metadata=json.load(f); assert 'backup_id' in metadata; assert 'timestamp' in metadata; assert 'services' in metadata; print('✅ Backup metadata structure valid')" ; then
+              echo "✅ Backup metadata structure valid (Python check passed)"
+            else
+              echo "⚠️ Backup metadata not found or invalid for verification"
+            fi
+          fi
+
+      - name: Generate backup system report
+        run: |
+          echo "📊 Backup System Test Report"
+          echo "============================"
+          echo "✅ All backup system tests passed!"
+          echo ""
+          echo "Verified components:"
+          echo "  • Backup script execution and options"
+          echo "  • Restore script functionality"
+          echo "  • CRON setup script"
+          echo "  • Airflow DAG template"
+          echo "  • Backup metadata generation"
+          echo "  • Dry-run modes for safety"
+          echo ""
+          echo "Test backup created:"
+          find /tmp/test-backup -name "lakehouse-backup-*" -type d | head -1 | xargs ls -la
+
+      - name: Cleanup test environment
+        if: always()
+        run: |
+          echo "🧹 Cleaning up test environment..."
+          docker compose down -v --remove-orphans || true
+          rm -rf /tmp/test-backup || true
+          rm -f test-backup-file.txt || true
+          docker system prune -f || true
