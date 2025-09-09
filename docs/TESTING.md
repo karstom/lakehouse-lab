@@ -17,13 +17,19 @@ The testing framework includes:
 
 ```
 tests/
-├── conftest.py                    # Test configuration and fixtures
-├── requirements.txt               # Test dependencies
-├── test_init_scripts.py          # Unit tests for initialization scripts
-├── test_docker_compose.py        # Integration tests for Docker Compose
-├── test_iceberg_integration.py   # Iceberg functionality tests
-├── test_documentation.py         # Documentation validation tests
-└── results/                      # Test results and reports
+├── conftest.py                        # Test configuration and fixtures
+├── requirements.txt                   # Test dependencies
+├── run_tests.sh                       # Main test runner script
+├── run_stack_health_tests.sh          # Stack health testing
+├── test_init_scripts.py               # Unit tests for initialization scripts
+├── test_docker_compose.py             # Integration tests for Docker Compose
+├── test_iceberg_integration.py        # Iceberg functionality tests
+├── test_documentation.py              # Documentation validation tests
+├── test_v2_fixes.py                   # Version 2.x specific tests
+├── test_service_health.py             # Service health monitoring tests
+├── test_cross_service_integration.py  # Cross-service integration tests
+├── test_data_pipeline.py              # Data pipeline functionality tests
+└── unit/                              # Additional unit test modules
 ```
 
 ## 🚀 Running Tests
@@ -32,6 +38,7 @@ tests/
 
 ```bash
 # Run all tests
+cd tests
 ./run_tests.sh
 
 # Run only unit tests
@@ -276,7 +283,7 @@ TEST_CONFIG = {
    ```bash
    # Check Docker status
    docker --version
-   docker-compose --version
+   docker compose version
    docker info
    ```
 
@@ -396,4 +403,4 @@ ls -la scripts/backup-lakehouse.sh scripts/restore-lakehouse.sh
 
 ---
 
-**Note**: This testing framework is designed to be comprehensive yet maintainable. It should be updated as the project evolves to ensure continued regression prevention and code quality.
+**Note**: This testing framework is designed to be comprehensive yet maintainable. It has been updated for Lakehouse Lab v2.1.1 to reflect the dashboard-free architecture and modern Docker Compose syntax. The framework should continue to be updated as the project evolves to ensure continued regression prevention and code quality.
