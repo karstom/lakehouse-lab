@@ -1,6 +1,6 @@
 # 🚀 Lakehouse Lab Installation Guide
 
-**Version 2.1.0** - Complete installation options for all platforms and use cases, from individual learning to educational institutions with multi-user JupyterHub environments.
+**Version 2.1.1** - Complete installation options for all platforms and use cases, from individual learning to educational institutions with multi-user JupyterHub environments.
 
 > ⚠️ **Critical for New Users**: You **MUST** use `./install.sh` for first-time installation. Running `docker compose up -d` directly will fail because it requires secure credentials and proper initialization that only the installer provides.
 
@@ -28,18 +28,26 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
 ```
 
-### 🎯 **Interactive Setup Wizard (Recommended)**
+### 🎯 **Interactive Setup Wizard (After Installation)**
 
-**Configure Services and Choose Deployment:**
+**Configure Services After Installation:**
 ```bash
-# Interactive installation with service selection
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --wizard
+# Standard installation first
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
 
-# Or use presets
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --preset minimal
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --preset analytics
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --preset ml
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash -s -- --preset full
+# Then run the setup wizard to configure services
+cd lakehouse-lab
+./scripts/setup-wizard.sh
+```
+
+**Or use preset configurations:**
+```bash
+# After installation, configure with presets
+cd lakehouse-lab
+./scripts/setup-wizard.sh --minimal    # 8GB RAM
+./scripts/setup-wizard.sh --analytics  # 14GB RAM  
+./scripts/setup-wizard.sh --ml         # 16GB RAM
+./scripts/setup-wizard.sh --full       # 20GB RAM
 ```
 
 **Windows WSL or macOS users** (if piping fails):
@@ -148,9 +156,8 @@ curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.s
 
 | Option | Description | Example |
 |--------|-------------|---------|
-| `--fat-server` | High-performance config (32+ cores, 64GB+ RAM) | `--fat-server` |
-| `--wizard` | Interactive service selection wizard | `--wizard` |
-| `--preset NAME` | Use configuration preset (minimal/analytics/ml/full) | `--preset full` |
+| `--fat-server` | Use high-performance configuration (64GB+ RAM) | `--fat-server` |
+| `--iceberg` | Enable Apache Iceberg table format support | `--iceberg` |
 | `--no-start` | Download only, don't start services | `--no-start` |
 | `--unattended` | No prompts, assume yes to all | `--unattended` |
 | `--skip-deps` | Skip dependency installation | `--skip-deps` |
