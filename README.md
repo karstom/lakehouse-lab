@@ -1,58 +1,130 @@
 # Lakehouse Lab
 
+[![CI Status](https://github.com/karstom/lakehouse-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/karstom/lakehouse-lab/actions)
+[![Coverage Status](https://codecov.io/gh/karstom/lakehouse-lab/branch/main/graph/badge.svg)](https://codecov.io/gh/karstom/lakehouse-lab)
 [![GitHub release](https://img.shields.io/github/release/karstom/lakehouse-lab.svg)](https://github.com/karstom/lakehouse-lab/releases)
 [![Docker Compose](https://img.shields.io/badge/docker--compose-ready-blue)](https://docs.docker.com/compose/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](docs/CONTRIBUTING.md)
+[![Last Commit](https://img.shields.io/github/last-commit/karstom/lakehouse-lab)](https://github.com/karstom/lakehouse-lab/commits/main)
+
+> _Note: Update the badge URLs above to match your actual CI and coverage providers if different._
+
+---
+
+## Table of Contents
+- [Quick Start](#quick-start)
+- [Feature Table](#feature-table)
+- [User Provisioning & Roles](#user-provisioning--roles)
+- [Documentation](#documentation)
+- [Troubleshooting & FAQ](#troubleshooting--faq)
+- [Credential Management & Security](#credential-management--security)
+- [How to Contribute](#how-to-contribute)
+- [Support & Community](#support--community)
+
+---
+
+## Quick Start
+
+**One-Command Install (Recommended):**
+```bash
+curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
+```
+- For advanced options, see [Installation Guide](docs/INSTALLATION.md).
+
+---
+
+## Feature Table
+
+| Feature         | Included | Docs Link                |
+|-----------------|:--------:|--------------------------|
+| PostgreSQL      |   ✅     | [Configuration](docs/CONFIGURATION.md) |
+| MinIO (S3)      |   ✅     | [Configuration](docs/CONFIGURATION.md) |
+| Spark           |   ✅     | [Configuration](docs/CONFIGURATION.md) |
+| JupyterLab      |   ✅     | [Notebooks](docs/NOTEBOOK_PACKAGE_MANAGER.md) |
+| Superset        |   ✅     | [Superset](docs/SUPERSET_DATABASE_SETUP.md) |
+| Airflow         |   ✅     | [Workflows](docs/INSTALLATION.md) |
+| LanceDB         |   ✅     | [Vector Search](docs/LAKEHOUSE_LLM_GUIDE.md) |
+| Vizro           |   ✅     | [Dashboards](docs/SERVICE_INTEGRATION_GUIDE.md) |
+| Portainer       |   ✅     | [Management](docs/INSTALLATION.md) |
+
+---
 
 > **Modern Data Engineering Platform in 15 Minutes**  
 > **One-Click Install • Vector Search • Interactive Dashboards**
 
 **Version 2.1.1** - A comprehensive lakehouse environment for learning, development, and experimentation with modern data engineering technologies. Features interactive dashboards, vector search, multi-user collaboration, and comprehensive tooling for data engineering workflows.
 
-## 🎯 Who It's For
+## User Provisioning & Roles
 
-**Perfect for diverse users and use cases:**
-- **Individual developers** learning data engineering
-- **Students** in computer science and data programs  
-- **Hobbyists** exploring modern data stack
-- **Educational institutions** (universities, bootcamps)
-- **Corporate training** environments
-- **Research projects** requiring data infrastructure
-- **Anyone** wanting to experiment with lakehouse architecture
+See [User Provisioning Examples](docs/USER_PROVISIONING_EXAMPLES.md) for how to add users with different roles.
 
-Designed primarily for learning and development environments. While not specifically optimized for production workloads, you're welcome to experiment and adapt it for your specific needs.
-
-## Quick Start
-
-### One-Command Installation
-
+**Example:**
 ```bash
-# Complete lakehouse installation
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
+./scripts/provision-user.sh alice alice@company.com StrongAdminPass123 admin
+./scripts/provision-user.sh bob bob@company.com AnalystPass456 analyst
+./scripts/provision-user.sh carol carol@company.com ViewerPass789 viewer
 ```
+- Roles: `admin`, `analyst`, `viewer`
+- Sample `.env` entries for each role are provided in the linked doc.
 
-### Configuration Options
+---
 
-```bash
-# Minimal setup (8GB RAM)
-./scripts/setup-wizard.sh --minimal
+## Documentation
 
-# Analytics focus (14GB RAM) 
-./scripts/setup-wizard.sh --analytics
+- [Quick Start](docs/QUICKSTART.md) — 15-minute setup guide
+- [Installation Guide](docs/INSTALLATION.md) — Complete install & troubleshooting
+- [Configuration Guide](docs/CONFIGURATION.md) — Service configuration & presets
+- [Service Integration Guide](docs/SERVICE_INTEGRATION_GUIDE.md) — Add new services
+- [User Provisioning Examples](docs/USER_PROVISIONING_EXAMPLES.md) — Roles & scripts
+- [Testing Guide](docs/TESTING.md) — Test framework & procedures
+- [Changelog](docs/CHANGELOG.md) — Version history
+- [Contributing](docs/CONTRIBUTING.md) — How to contribute
 
-# ML/AI focus (16GB RAM)
-./scripts/setup-wizard.sh --ml
+---
 
-# Full installation (20GB RAM)
-./scripts/setup-wizard.sh --full
-```
+## Troubleshooting & FAQ
 
-Wait 3-5 minutes for initialization, then run `./scripts/show-credentials.sh` to access all services.
+- See the [Troubleshooting Matrix](docs/INSTALLATION.md#-troubleshooting) for common errors, symptoms, and solutions.
+- **FAQ:**
+  - **How do I reset everything?**
+    Run: `./start-lakehouse.sh reset`
+  - **How do I add a new service?**
+    See: [Service Integration Guide](docs/SERVICE_INTEGRATION_GUIDE.md)
+  - **How do I rotate credentials?**
+    See: [Credential Management & Security](#credential-management--security)
 
-> **Note**: Always use the installer for first-time setup. After installation, use `docker compose up -d` for daily service management.
+---
 
-For detailed installation options, upgrading, and troubleshooting, see the [Installation Guide](docs/INSTALLATION.md).
+## Credential Management & Security
+
+- **Credential Rotation:**
+  Automated reminders are sent monthly via GitHub Actions. See `.github/credential-rotation-reminder.yml`.
+- **Secret Scanning:**
+  All code is scanned for secrets in CI using Trivy.
+- **Best Practices:**
+  - Never commit `.env` or secrets to version control.
+  - Use `./scripts/rotate-credentials.sh` to rotate credentials.
+  - Store credentials securely and update them regularly.
+
+---
+
+## How to Contribute
+
+We welcome contributions!
+- See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
+- Open issues or pull requests for bugs, features, or documentation.
+- All code is tested and scanned for security in CI.
+
+---
+
+## Support & Community
+
+- [GitHub Issues](https://github.com/karstom/lakehouse-lab/issues) — Report bugs or request features
+- [Discussions](https://github.com/karstom/lakehouse-lab/discussions) — Ask questions, share ideas
+- For urgent help, mention `@karstom` in your issue.
+
+---
 
 ## What You Get
 

@@ -260,6 +260,28 @@ bash install.sh  # Run after review
 
 ## 🚨 Troubleshooting
 
+### **Common Errors, Symptoms, and Solutions Matrix**
+
+| Error/Symptom | Likely Cause | Solution/Workaround | Affected Service/Component |
+|---------------|-------------|---------------------|---------------------------|
+| `lakehouse-init` service fails with exit 2 | Corrupted or partial installation | Run installer with `--replace` to force clean install | lakehouse-init, install.sh |
+| Airflow database not initialized (services keep restarting) | Airflow DB tables missing | Manually initialize Airflow DB, then restart services | Airflow, Postgres |
+| Previous failed installation blocks new install | Residual files or containers | Use `--replace` or manually clean up with `docker compose down -v` and remove directories | All services |
+| Docker permission errors after installation | User not in `docker` group | Run `sudo usermod -aG docker $USER` and re-login | Docker, all services |
+| WSL/macOS "Failure writing output" or silent failure | Piping issues in shell | Use download-then-execute method for install.sh | Installer, WSL/macOS |
+| Port already in use | Port conflict with another process | Edit `docker-compose.yml` to change port mappings | Any service (see port list) |
+| Low memory warning or OOM errors | Insufficient system resources | Use minimal config, reduce memory limits in `.env` | All services |
+| Installation fails with generic error | Incomplete cleanup or dependency issue | Remove all files, clone fresh, use debug startup | All services |
+| Superset package install permission error | Docker user permissions | Use updated installer, ensure correct user/group | Superset |
+| MinIO access/credential issues | Missing or outdated `.env` | Regenerate credentials, restart MinIO | MinIO |
+| JupyterHub not available | Overlay not enabled or port conflict | Enable overlay, check port 9041, restart | JupyterHub |
+| Backup/restore fails | Incorrect backup path or permissions | Verify backup path, permissions, and logs | Backup/restore scripts |
+| Credential not accepted | Outdated or rotated credentials | Run `./scripts/show-credentials.sh` to get current | Any service |
+| "unbound variable" or shell errors | Shell compatibility or missing env var | Use updated scripts, check `.env` completeness | Shell scripts, install |
+| Airflow/Superset/MinIO user provisioning fails | Incorrect script usage or missing role | Use correct script syntax, check user roles | Provisioning scripts |
+
+> For detailed steps and more troubleshooting, see the sections below.
+
 ### **Recent Installation Issues (Fixed in v1.1.0)**
 
 **Problem: "lakehouse-init" service fails with exit 2**
