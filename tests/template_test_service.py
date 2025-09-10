@@ -10,14 +10,14 @@ import unittest
 import requests
 import socket
 import time
-import os
+
 
 class TestServiceTemplate(unittest.TestCase):
     """Template test suite for a new or optional service"""
 
     SERVICE_NAME = "SERVICE_NAME"  # e.g., "vizro", "lancedb"
-    SERVICE_PORT = 9999            # Replace with actual port
-    HEALTH_PATH = "/health"        # Replace with actual health endpoint
+    SERVICE_PORT = 9999  # Replace with actual port
+    HEALTH_PATH = "/health"  # Replace with actual health endpoint
 
     def wait_for_service(self, host, port, timeout=30):
         """Wait for a service to be available"""
@@ -30,7 +30,7 @@ class TestServiceTemplate(unittest.TestCase):
                 sock.close()
                 if result == 0:
                     return True
-            except:
+            except Exception:
                 pass
             time.sleep(1)
         return False
@@ -39,13 +39,17 @@ class TestServiceTemplate(unittest.TestCase):
         """Test that the service is running and healthy"""
         print(f"🔍 Testing {self.SERVICE_NAME} health...")
         self.assertTrue(
-            self.wait_for_service('localhost', self.SERVICE_PORT, 30),
-            f"{self.SERVICE_NAME} service not available"
+            self.wait_for_service("localhost", self.SERVICE_PORT, 30),
+            f"{self.SERVICE_NAME} service not available",
         )
         try:
             url = f"http://localhost:{self.SERVICE_PORT}{self.HEALTH_PATH}"
             response = requests.get(url, timeout=10)
-            self.assertEqual(response.status_code, 200, f"{self.SERVICE_NAME} health endpoint should be accessible")
+            self.assertEqual(
+                response.status_code,
+                200,
+                f"{self.SERVICE_NAME} health endpoint should be accessible",
+            )
             print(f"✅ {self.SERVICE_NAME} health check passed")
         except Exception as e:
             self.fail(f"{self.SERVICE_NAME} health check failed: {e}")
@@ -55,7 +59,11 @@ class TestServiceTemplate(unittest.TestCase):
         print(f"🔍 Testing {self.SERVICE_NAME} cross-service integration...")
         # Example: Check if service can access MinIO, Postgres, etc.
         # Implement actual integration logic here
-        self.skipTest("Cross-service integration test not implemented. Customize this method.")
+        self.skipTest(
+            "Cross-service integration test not implemented. Customize this method."
+        )
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()
+
