@@ -120,8 +120,7 @@ We welcome contributions!
 
 ## Support & Community
 
-- [GitHub Issues](https://github.com/karstom/lakehouse-lab/issues) — Report bugs or request features
-- [Discussions](https://github.com/karstom/lakehouse-lab/discussions) — Ask questions, share ideas
+- [GitHub Issues](https://github.com/karstom/lakehouse-lab/issues) — Report bugs, ask questions, request features
 - For urgent help, mention `@karstom` in your issue.
 
 ---

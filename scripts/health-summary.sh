@@ -23,7 +23,7 @@ SERVICES=(
   "Postgres:docker"
 )
 
-printf "\n${YELLOW}Lakehouse Lab Service Health Summary${NC}\n"
+printf "\n%sLakehouse Lab Service Health Summary%s\n" "${YELLOW}" "${NC}"
 printf "%-12s | %-8s | %-30s\n" "Service" "Status" "Details"
 printf "%s\n" "---------------------------------------------------------------"
 
@@ -48,7 +48,7 @@ for entry in "${SERVICES[@]}"; do
       details="$url"
     else
       # Try just the base URL (for non-/health endpoints)
-      baseurl=$(echo "$url" | sed 's|/health.*||')
+      baseurl=${url%/health*}
       if curl -sf --max-time 3 "$baseurl" >/dev/null 2>&1; then
         status="${YELLOW}UP${NC}"
         details="No /health, but port open"

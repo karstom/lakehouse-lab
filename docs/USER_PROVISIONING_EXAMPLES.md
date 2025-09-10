@@ -85,4 +85,4 @@ JUPYTER_TOKEN=ViewerPass789
 
 ---
 
-For more details, see the main [README.md](../README.md:1) and [docs/INSTALLATION.md](INSTALLATION.md:1).
+For more details, see the main [README.md](../README.md) and [INSTALLATION.md](INSTALLATION.md).

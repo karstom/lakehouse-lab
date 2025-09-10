@@ -64,8 +64,8 @@ VIZRO_SECRET=changeme
 
 ## 4. Health & Integration Tests
 
-- Copy and adapt [`tests/template_test_service.py`](../tests/template_test_service.py:1) for basic health/integration checks
-- For regression testing, use [`tests/template_snapshot_test_service.py`](../tests/template_snapshot_test_service.py:1) and `snapshottest`
+- Copy and adapt `tests/template_test_service.py` for basic health/integration checks
+- For regression testing, use `tests/template_snapshot_test_service.py` and `snapshottest`
 - Place new test files in `tests/` and update service/endpoint details
 
 ---
@@ -99,4 +99,4 @@ VIZRO_SECRET=changeme
 
 ---
 
-For questions or to contribute improvements, see the main [`README.md`](../README.md:1) or open an issue.
+For questions or to contribute improvements, see the main [README.md](../README.md) or open an issue.

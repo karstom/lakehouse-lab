@@ -106,6 +106,7 @@ echo -e "${BLUE}📍 Using environment file: ${YELLOW}$ENV_FILE${NC}"
 
 # Source environment variables
 set -a  # Mark variables for export
+# shellcheck source=/dev/null
 source "$ENV_FILE"
 set +a  # Stop marking variables for export
 
