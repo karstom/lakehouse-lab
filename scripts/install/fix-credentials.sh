@@ -41,7 +41,7 @@ if [[ ! -f "docker-compose.yml" ]] || [[ ! -f ".env" ]]; then
 fi
 
 log_info "Backing up current .env file..."
-cp .env .env.backup.$(date +%Y%m%d_%H%M%S)
+cp .env .env.backup."$(date +%Y%m%d_%H%M%S)"
 log_success "Backup created"
 
 log_info "Checking and fixing missing credentials..."

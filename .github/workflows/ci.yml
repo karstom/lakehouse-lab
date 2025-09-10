@@ -395,7 +395,7 @@ jobs:
         output: 'trivy-results.sarif'
     
     - name: Upload Trivy scan results
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
         sarif_file: 'trivy-results.sarif'
@@ -449,8 +449,8 @@ jobs:
           exit 1
         fi
         
-        if ! grep -q "Post-Installation: Backup Setup" INSTALLATION.md; then
-          echo "ERROR: Backup setup documentation missing from INSTALLATION.md"
+        if ! grep -q "Post-Installation: Backup Setup" docs/INSTALLATION.md; then
+          echo "ERROR: Backup setup documentation missing from docs/INSTALLATION.md"
           exit 1
         fi
         
@@ -463,11 +463,11 @@ jobs:
     - name: Validate code examples in documentation
       run: |
         # Check that code examples in documentation are valid
-        if [ -f ICEBERG.md ]; then
-          echo "Validating SQL examples in ICEBERG.md..."
+        if [ -f docs/ICEBERG.md ]; then
+          echo "Validating SQL examples in docs/ICEBERG.md..."
           
           # Extract SQL code blocks and validate basic syntax
-          if grep -q '```sql' ICEBERG.md; then
+          if grep -q '```sql' docs/ICEBERG.md; then
             echo "SQL examples found in documentation"
           fi
         fi
@@ -582,7 +582,7 @@ jobs:
         echo "All required files present"
         
         # Check version consistency
-        if [ -f ICEBERG.md ]; then
+        if [ -f docs/ICEBERG.md ]; then
           echo "Checking version consistency..."
           # This could be enhanced to check version consistency across files
         fi
