@@ -17,15 +17,15 @@ References:
 import requests
 import socket
 import time
-import os
 from snapshottest import TestCase
+
 
 class TestServiceSnapshotTemplate(TestCase):
     """Snapshot-based regression test suite for a new or optional service"""
 
     SERVICE_NAME = "SERVICE_NAME"  # e.g., "vizro", "lancedb"
-    SERVICE_PORT = 9999            # Replace with actual port
-    HEALTH_PATH = "/health"        # Replace with actual health endpoint
+    SERVICE_PORT = 9999  # Replace with actual port
+    HEALTH_PATH = "/health"  # Replace with actual health endpoint
     SAMPLE_API_PATH = "/api/sample"  # Replace with a real API endpoint
 
     def wait_for_service(self, host, port, timeout=30):
@@ -39,7 +39,7 @@ class TestServiceSnapshotTemplate(TestCase):
                 sock.close()
                 if result == 0:
                     return True
-            except:
+            except Exception:
                 pass
             time.sleep(1)
         return False
@@ -47,24 +47,32 @@ class TestServiceSnapshotTemplate(TestCase):
     def test_service_api_snapshot(self):
         """Test that the service API response matches the stored snapshot"""
         self.assertTrue(
-            self.wait_for_service('localhost', self.SERVICE_PORT, 30),
-            f"{self.SERVICE_NAME} service not available"
+            self.wait_for_service("localhost", self.SERVICE_PORT, 30),
+            f"{self.SERVICE_NAME} service not available",
         )
         url = f"http://localhost:{self.SERVICE_PORT}{self.SAMPLE_API_PATH}"
         response = requests.get(url, timeout=10)
-        self.assertEqual(response.status_code, 200, f"{self.SERVICE_NAME} API endpoint should be accessible")
+        self.assertEqual(
+            response.status_code,
+            200,
+            f"{self.SERVICE_NAME} API endpoint should be accessible",
+        )
         # Use snapshot to detect regressions in the API response
         self.assertMatchSnapshot(response.json(), name="sample_api_response")
 
     def test_service_health_snapshot(self):
         """Test that the health endpoint response matches the stored snapshot"""
         self.assertTrue(
-            self.wait_for_service('localhost', self.SERVICE_PORT, 30),
-            f"{self.SERVICE_NAME} service not available"
+            self.wait_for_service("localhost", self.SERVICE_PORT, 30),
+            f"{self.SERVICE_NAME} service not available",
         )
         url = f"http://localhost:{self.SERVICE_PORT}{self.HEALTH_PATH}"
         response = requests.get(url, timeout=10)
-        self.assertEqual(response.status_code, 200, f"{self.SERVICE_NAME} health endpoint should be accessible")
+        self.assertEqual(
+            response.status_code,
+            200,
+            f"{self.SERVICE_NAME} health endpoint should be accessible",
+        )
         # Use snapshot to detect regressions in the health response
         self.assertMatchSnapshot(response.json(), name="health_response")
 
@@ -72,8 +80,13 @@ class TestServiceSnapshotTemplate(TestCase):
         """Test integration with other Lakehouse services and snapshot the result (customize as needed)"""
         # Example: Check if service can access MinIO, Postgres, etc., and snapshot the result
         # Implement actual integration logic here
-        self.skipTest("Cross-service integration snapshot test not implemented. Customize this method.")
+        self.skipTest(
+            "Cross-service integration snapshot test not implemented. Customize this method."
+        )
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     import unittest
+
     unittest.main()
+
