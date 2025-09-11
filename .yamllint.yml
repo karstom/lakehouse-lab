@@ -1,0 +1,7 @@
+extends: default
+rules:
+  line-length:
+    max: 120  # More reasonable for Docker Compose files
+  comments:
+    min-spaces-from-content: 1  # Allow single space before comments
+  comments-indentation: disable  # Disable comment indentation rules for flexibility
