@@ -6,18 +6,13 @@ Tests complete data workflows from ingestion to visualization
 
 import unittest
 import requests
-import psycopg2
 import boto3
 import duckdb
 import pandas as pd
-import json
 import time
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
-import subprocess
-import io
 
 
 class TestDataPipelineEndToEnd(unittest.TestCase):
@@ -116,7 +111,7 @@ class TestDataPipelineEndToEnd(unittest.TestCase):
                 sock.close()
                 if result == 0:
                     return True
-            except:
+            except Exception:
                 pass
             time.sleep(1)
         return False
@@ -319,32 +314,12 @@ class TestDataPipelineEndToEnd(unittest.TestCase):
             )
 
             # Create a simple Spark job script
-            spark_script = """
-import os
-import sys
-from pyspark.sql import SparkSession
-
-# Create Spark session
-spark = SparkSession.builder \\
-    .appName("LakehouseTest") \\
-    .config("spark.master", "spark://spark-master:7077") \\
-    .getOrCreate()
-
-# Test basic Spark functionality
-data = [("John", 25), ("Jane", 30), ("Bob", 35)]
-columns = ["Name", "Age"]
-df = spark.createDataFrame(data, columns)
-
-# Simple aggregation
-result = df.groupBy().avg("Age").collect()
-print(f"Average age: {result[0][0]}")
-
-# Write result to verify Spark is working
-df.write.mode("overwrite").csv("file:///tmp/spark_test_output")
-
-spark.stop()
-print("Spark job completed successfully!")
-"""
+            # Example Spark job:
+            # from pyspark.sql import SparkSession
+            # spark = SparkSession.builder.appName("LakehouseTest").getOrCreate()
+            # df = spark.createDataFrame([("John", 25), ("Jane", 30)], ["Name", "Age"])
+            # result = df.groupBy().avg("Age").collect()
+            # spark.stop()
 
             # For now, just test that Spark services are running
             # In a real scenario, we would execute the script through Jupyter API

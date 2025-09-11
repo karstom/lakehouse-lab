@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Unit tests for lakehouse initialization scripts
-Tests the core functionality of init-all-in-one-modular.sh and start-lakehouse.sh
+Tests the core functionality of init-all-in-one-modular.sh and
+start-lakehouse.sh
 """
 
 import unittest
@@ -10,8 +11,7 @@ import os
 import tempfile
 import shutil
 from pathlib import Path
-from unittest.mock import patch, MagicMock, call
-import sys
+from unittest.mock import patch
 
 
 class TestInitScripts(unittest.TestCase):
@@ -47,14 +47,16 @@ class TestInitScripts(unittest.TestCase):
     def test_init_script_exists(self):
         """Test that init script exists and is executable"""
         self.assertTrue(
-            self.init_script.exists(), "init-all-in-one-modular.sh should exist"
+            self.init_script.exists(),
+            "init-all-in-one-modular.sh should exist",
         )
 
         # Make script executable if it exists
         if self.init_script.exists():
             os.chmod(self.init_script, 0o755)
             self.assertTrue(
-                os.access(self.init_script, os.X_OK), "Script should be executable"
+                os.access(self.init_script, os.X_OK),
+                "Script should be executable",
             )
 
     def test_start_script_exists(self):
@@ -65,7 +67,8 @@ class TestInitScripts(unittest.TestCase):
         if self.start_script.exists():
             os.chmod(self.start_script, 0o755)
             self.assertTrue(
-                os.access(self.start_script, os.X_OK), "Script should be executable"
+                os.access(self.start_script, os.X_OK),
+                "Script should be executable",
             )
 
     def test_init_script_syntax(self):
@@ -74,7 +77,9 @@ class TestInitScripts(unittest.TestCase):
             self.skipTest("init-all-in-one-modular.sh not found")
 
         result = subprocess.run(
-            ["bash", "-n", str(self.init_script)], capture_output=True, text=True
+            ["bash", "-n", str(self.init_script)],
+            capture_output=True,
+            text=True,
         )
         self.assertEqual(result.returncode, 0, f"Script syntax error: {result.stderr}")
 
@@ -84,7 +89,9 @@ class TestInitScripts(unittest.TestCase):
             self.skipTest("start-lakehouse.sh not found")
 
         result = subprocess.run(
-            ["bash", "-n", str(self.start_script)], capture_output=True, text=True
+            ["bash", "-n", str(self.start_script)],
+            capture_output=True,
+            text=True,
         )
         self.assertEqual(result.returncode, 0, f"Script syntax error: {result.stderr}")
 
@@ -151,10 +158,14 @@ class TestInitScripts(unittest.TestCase):
 
         # Check for LAKEHOUSE_ROOT variable handling
         self.assertIn(
-            "LAKEHOUSE_ROOT", content, "Script should handle LAKEHOUSE_ROOT variable"
+            "LAKEHOUSE_ROOT",
+            content,
+            "Script should handle LAKEHOUSE_ROOT variable",
         )
         self.assertIn(
-            "${LAKEHOUSE_ROOT", content, "Script should use proper variable expansion"
+            "${LAKEHOUSE_ROOT",
+            content,
+            "Script should use proper variable expansion",
         )
 
     def test_start_script_modes(self):
@@ -193,7 +204,9 @@ class TestInitScripts(unittest.TestCase):
 
         # Check for health check functionality
         self.assertIn(
-            "check_service_health", content, "Script should have health check function"
+            "check_service_health",
+            content,
+            "Script should have health check function",
         )
         self.assertIn("curl", content, "Script should use curl for health checks")
 
@@ -207,10 +220,14 @@ class TestInitScripts(unittest.TestCase):
 
         # Check for MinIO client installation
         self.assertIn(
-            "install_minio_client", content, "Script should install MinIO client"
+            "install_minio_client",
+            content,
+            "Script should install MinIO client",
         )
         self.assertIn(
-            "dl.min.io", content, "Script should download from official MinIO site"
+            "dl.min.io",
+            content,
+            "Script should download from official MinIO site",
         )
 
     def test_init_script_iceberg_support(self):

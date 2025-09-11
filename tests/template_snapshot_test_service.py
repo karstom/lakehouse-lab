@@ -2,13 +2,15 @@
 """
 Template Snapshot-Based Regression Test for New/Optional Lakehouse Services
 
-Copy this file and adapt for any new service (e.g., Vizro, LanceDB, Homer, Grafana, etc.).
-This template demonstrates how to use snapshot testing to detect regressions in service APIs or data flows.
+Copy this file and adapt for any new service (e.g., Vizro, LanceDB,
+Homer, Grafana, etc.). This template demonstrates how to use snapshot
+testing to detect regressions in service APIs or data flows.
 
 Requirements:
 - Install snapshottest: pip install snapshottest
 - Run tests with: python -m unittest discover tests/
-- On first run, verify the snapshot is correct, then commit the generated snapshots.
+- On first run, verify the snapshot is correct, then commit the
+  generated snapshots.
 
 References:
 - https://github.com/syrusakbary/snapshottest
@@ -21,7 +23,7 @@ from snapshottest import TestCase
 
 
 class TestServiceSnapshotTemplate(TestCase):
-    """Snapshot-based regression test suite for a new or optional service"""
+    """Snapshot-based regression test suite for new/optional service"""
 
     SERVICE_NAME = "SERVICE_NAME"  # e.g., "vizro", "lancedb"
     SERVICE_PORT = 9999  # Replace with actual port
@@ -77,11 +79,14 @@ class TestServiceSnapshotTemplate(TestCase):
         self.assertMatchSnapshot(response.json(), name="health_response")
 
     def test_cross_service_integration_snapshot(self):
-        """Test integration with other Lakehouse services and snapshot the result (customize as needed)"""
-        # Example: Check if service can access MinIO, Postgres, etc., and snapshot the result
-        # Implement actual integration logic here
+        """Test integration with other Lakehouse services and snapshot
+        the result (customize as needed)
+        """
+        # Example: Check if service can access MinIO, Postgres, etc.,
+        # and snapshot the result. Implement actual integration logic here
         self.skipTest(
-            "Cross-service integration snapshot test not implemented. Customize this method."
+            "Cross-service integration snapshot test not implemented. "
+            "Customize this method."
         )
 
 
@@ -89,4 +94,3 @@ if __name__ == "__main__":
     import unittest
 
     unittest.main()
-

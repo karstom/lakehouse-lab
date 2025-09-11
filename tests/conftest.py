@@ -17,13 +17,14 @@ from typing import Dict, List, Any, Generator, Optional
 
 # Test configuration
 TEST_CONFIG = {
-    'timeout': 300,  # 5 minutes
-    'service_wait_time': 30,  # 30 seconds
-    'docker_compose_file': 'docker-compose.yml',
-    'iceberg_compose_file': 'docker-compose.iceberg.yml',
-    'test_data_dir': 'test_data',
-    'temp_dir_prefix': 'lakehouse_test_'
+    "timeout": 300,  # 5 minutes
+    "service_wait_time": 30,  # 30 seconds
+    "docker_compose_file": "docker-compose.yml",
+    "iceberg_compose_file": "docker-compose.iceberg.yml",
+    "test_data_dir": "test_data",
+    "temp_dir_prefix": "lakehouse_test_",
 }
+
 
 @pytest.fixture(scope="session")
 def project_root() -> Path:
@@ -40,7 +41,7 @@ def test_config() -> Dict[str, Any]:
 @pytest.fixture
 def temp_dir() -> Generator[Path, None, None]:
     """Create and cleanup temporary directory for tests."""
-    temp_dir = Path(tempfile.mkdtemp(prefix=TEST_CONFIG['temp_dir_prefix']))
+    temp_dir = Path(tempfile.mkdtemp(prefix=TEST_CONFIG["temp_dir_prefix"]))
     try:
         yield temp_dir
     finally:
@@ -50,7 +51,7 @@ def temp_dir() -> Generator[Path, None, None]:
 @pytest.fixture
 def mock_docker_client():
     """Mock Docker client for testing."""
-    with patch('docker.from_env') as mock_docker:
+    with patch("docker.from_env") as mock_docker:
         mock_client = Mock()
         mock_docker.return_value = mock_client
         yield mock_client
@@ -59,7 +60,7 @@ def mock_docker_client():
 @pytest.fixture
 def mock_subprocess():
     """Mock subprocess for testing shell commands."""
-    with patch('subprocess.run') as mock_run:
+    with patch("subprocess.run") as mock_run:
         mock_run.return_value.returncode = 0
         mock_run.return_value.stdout = "Success"
         mock_run.return_value.stderr = ""
@@ -81,8 +82,8 @@ def docker_available() -> bool:
 def compose_files(project_root: Path) -> Dict[str, Path]:
     """Get paths to Docker Compose files."""
     return {
-        'main': project_root / TEST_CONFIG['docker_compose_file'],
-        'iceberg': project_root / TEST_CONFIG['iceberg_compose_file']
+        "main": project_root / TEST_CONFIG["docker_compose_file"],
+        "iceberg": project_root / TEST_CONFIG["iceberg_compose_file"],
     }
 
 
@@ -90,9 +91,9 @@ def compose_files(project_root: Path) -> Dict[str, Path]:
 def script_files(project_root: Path) -> Dict[str, Path]:
     """Get paths to script files."""
     return {
-        'init': project_root / 'init-all-in-one-modular.sh',
-        'start': project_root / 'start-lakehouse.sh',
-        'install': project_root / 'install.sh'
+        "init": project_root / "init-all-in-one-modular.sh",
+        "start": project_root / "start-lakehouse.sh",
+        "install": project_root / "install.sh",
     }
 
 
@@ -100,80 +101,88 @@ def script_files(project_root: Path) -> Dict[str, Path]:
 def sample_compose_data() -> Dict[str, Any]:
     """Sample Docker Compose data for testing."""
     return {
-        'version': '3.8',
-        'services': {
-            'postgres': {
-                'image': 'postgres:13',
-                'environment': {
-                    'POSTGRES_DB': 'test_db',
-                    'POSTGRES_USER': 'test_user',
-                    'POSTGRES_PASSWORD': 'test_pass'
+        "version": "3.8",
+        "services": {
+            "postgres": {
+                "image": "postgres:13",
+                "environment": {
+                    "POSTGRES_DB": "test_db",
+                    "POSTGRES_USER": "test_user",
+                    "POSTGRES_PASSWORD": "test_pass",
                 },
-                'ports': ['5432:5432'],
-                'volumes': ['postgres-data:/var/lib/postgresql/data'],
-                'networks': ['lakehouse-network']
+                "ports": ["5432:5432"],
+                "volumes": ["postgres-data:/var/lib/postgresql/data"],
+                "networks": ["lakehouse-network"],
             },
-            'minio': {
-                'image': 'minio/minio:latest',
-                'environment': {
-                    'MINIO_ROOT_USER': 'minio',
-                    'MINIO_ROOT_PASSWORD': 'minio123'
+            "minio": {
+                "image": "minio/minio:latest",
+                "environment": {
+                    "MINIO_ROOT_USER": "minio",
+                    "MINIO_ROOT_PASSWORD": "minio123",
                 },
-                'ports': ['9000:9000', '9001:9001'],
-                'volumes': ['minio-data:/data'],
-                'networks': ['lakehouse-network'],
-                'healthcheck': {
-                    'test': ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live'],
-                    'interval': '30s',
-                    'timeout': '10s',
-                    'retries': 3
-                }
+                "ports": ["9000:9000", "9001:9001"],
+                "volumes": ["minio-data:/data"],
+                "networks": ["lakehouse-network"],
+                "healthcheck": {
+                    "test": [
+                        "CMD",
+                        "curl",
+                        "-f",
+                        "http://localhost:9000/minio/health/live",
+                    ],
+                    "interval": "30s",
+                    "timeout": "10s",
+                    "retries": 3,
+                },
             },
-            'spark-master': {
-                'image': 'apache/spark:3.5.6',
-                'environment': {
-                    'SPARK_MODE': 'master'
-                },
-                'ports': ['8080:8080'],
-                'depends_on': ['postgres', 'minio'],
-                'networks': ['lakehouse-network']
-            }
+            "spark-master": {
+                "image": "apache/spark:3.5.6",
+                "environment": {"SPARK_MODE": "master"},
+                "ports": ["8080:8080"],
+                "depends_on": ["postgres", "minio"],
+                "networks": ["lakehouse-network"],
+            },
         },
-        'volumes': {
-            'postgres-data': {},
-            'minio-data': {}
-        },
-        'networks': {
-            'lakehouse-network': {
-                'driver': 'bridge'
-            }
-        }
+        "volumes": {"postgres-data": {}, "minio-data": {}},
+        "networks": {"lakehouse-network": {"driver": "bridge"}},
     }
+
 
 @pytest.fixture
 def sample_iceberg_override() -> Dict[str, Any]:
     """Sample Iceberg override data for testing."""
     return {
-        'services': {
-            'spark-master': {
-                'volumes': ['./iceberg-jars:/opt/spark/jars/iceberg:ro'],
-                'environment': {
-                    'SPARK_CONF_spark.sql.extensions':
-                        'org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions',
-                    'SPARK_CONF_spark.sql.catalog.iceberg':
-                        'org.apache.iceberg.spark.SparkCatalog',
-                    'SPARK_CONF_spark.sql.catalog.iceberg.type': 'hadoop',
-                    'SPARK_CONF_spark.sql.catalog.iceberg.warehouse':
-                        's3a://lakehouse/iceberg-warehouse/',
-                    'SPARK_CONF_spark.hadoop.fs.s3a.endpoint': 'http://minio:9000',
-                    'SPARK_CONF_spark.hadoop.fs.s3a.access.key': 'minio',
-                    'SPARK_CONF_spark.hadoop.fs.s3a.secret.key': 'minio123',
-                    'SPARK_CONF_spark.hadoop.fs.s3a.path.style.access': 'true',
-                    'SPARK_CONF_spark.hadoop.fs.s3a.connection.ssl.enabled': 'false'
-                }
+        "services": {
+            "spark-master": {
+                "volumes": ["./iceberg-jars:/opt/spark/jars/iceberg:ro"],
+                "environment": {
+                    "SPARK_CONF_spark.sql.extensions": (
+                        "org.apache.iceberg.spark.extensions."
+                        "IcebergSparkSessionExtensions"
+                    ),
+                    "SPARK_CONF_spark.sql.catalog.iceberg": (
+                        "org.apache.iceberg.spark.SparkCatalog"
+                    ),
+                    "SPARK_CONF_spark.sql.catalog.iceberg.type": "hadoop",
+                    "SPARK_CONF_spark.sql.catalog.iceberg.warehouse": (
+                        "s3a://lakehouse/iceberg-warehouse/"
+                    ),
+                    "SPARK_CONF_spark.hadoop.fs.s3a.endpoint": (
+                        "http://minio:9000"
+                    ),
+                    "SPARK_CONF_spark.hadoop.fs.s3a.access.key": "minio",
+                    "SPARK_CONF_spark.hadoop.fs.s3a.secret.key": "minio123",
+                    "SPARK_CONF_spark.hadoop.fs.s3a.path.style.access": (
+                        "true"
+                    ),
+                    "SPARK_CONF_spark.hadoop.fs.s3a.connection.ssl.enabled": (
+                        "false"
+                    ),
+                },
             }
         }
     }
+
 
 class TestContainerManager:
     """Utility class for managing test containers."""
@@ -182,16 +191,17 @@ class TestContainerManager:
         self.compose_files = compose_files
         self.running_containers: List[str] = []
 
-    def start_services(self, services: Optional[List[str]] = None,
-                      use_iceberg: bool = False) -> bool:
+    def start_services(
+        self, services: Optional[List[str]] = None, use_iceberg: bool = False
+    ) -> bool:
         """Start Docker Compose services."""
         try:
-            cmd = ['docker-compose', '-f', str(self.compose_files['main'])]
+            cmd = ["docker-compose", "-f", str(self.compose_files["main"])]
 
-            if use_iceberg and self.compose_files['iceberg'].exists():
-                cmd.extend(['-f', str(self.compose_files['iceberg'])])
+            if use_iceberg and self.compose_files["iceberg"].exists():
+                cmd.extend(["-f", str(self.compose_files["iceberg"])])
 
-            cmd.extend(['up', '-d'])
+            cmd.extend(["up", "-d"])
 
             if services:
                 cmd.extend(services)
@@ -206,12 +216,12 @@ class TestContainerManager:
     def stop_services(self) -> bool:
         """Stop Docker Compose services."""
         try:
-            cmd = ['docker-compose', '-f', str(self.compose_files['main'])]
+            cmd = ["docker-compose", "-f", str(self.compose_files["main"])]
 
-            if self.compose_files['iceberg'].exists():
-                cmd.extend(['-f', str(self.compose_files['iceberg'])])
+            if self.compose_files["iceberg"].exists():
+                cmd.extend(["-f", str(self.compose_files["iceberg"])])
 
-            cmd.extend(['down', '-v'])
+            cmd.extend(["down", "-v"])
 
             result = subprocess.run(cmd, capture_output=True, text=True)
             return result.returncode == 0
@@ -220,8 +230,9 @@ class TestContainerManager:
             print(f"Error stopping services: {e}")
             return False
 
-    def wait_for_service(self, service_name: str, port: int,
-                        timeout: int = TEST_CONFIG['timeout']) -> bool:
+    def wait_for_service(
+        self, service_name: str, port: int, timeout: int = TEST_CONFIG["timeout"]
+    ) -> bool:
         """Wait for a service to be ready."""
         import requests
 
@@ -240,14 +251,21 @@ class TestContainerManager:
     def get_service_logs(self, service_name: str) -> str:
         """Get logs for a specific service."""
         try:
-            cmd = ['docker-compose', '-f', str(self.compose_files['main']),
-                   'logs', '--tail=50', service_name]
+            cmd = [
+                "docker-compose",
+                "-f",
+                str(self.compose_files["main"]),
+                "logs",
+                "--tail=50",
+                service_name,
+            ]
 
             result = subprocess.run(cmd, capture_output=True, text=True)
             return result.stdout
 
         except Exception as e:
             return f"Error getting logs: {e}"
+
 
 @pytest.fixture
 def container_manager(compose_files: Dict[str, Path]) -> TestContainerManager:
@@ -258,9 +276,10 @@ def container_manager(compose_files: Dict[str, Path]) -> TestContainerManager:
 @pytest.fixture
 def mock_yaml_file(temp_dir: Path):
     """Create a mock YAML file for testing."""
+
     def _create_yaml_file(filename: str, data: Dict[str, Any]) -> Path:
         file_path = temp_dir / filename
-        with open(file_path, 'w') as f:
+        with open(file_path, "w") as f:
             yaml.dump(data, f)
         return file_path
 
@@ -270,9 +289,12 @@ def mock_yaml_file(temp_dir: Path):
 @pytest.fixture
 def mock_script_file(temp_dir: Path):
     """Create a mock shell script for testing."""
-    def _create_script_file(filename: str, content: str, executable: bool = True) -> Path:
+
+    def _create_script_file(
+        filename: str, content: str, executable: bool = True
+    ) -> Path:
         file_path = temp_dir / filename
-        with open(file_path, 'w') as f:
+        with open(file_path, "w") as f:
             f.write(content)
 
         if executable:
@@ -282,17 +304,18 @@ def mock_script_file(temp_dir: Path):
 
     return _create_script_file
 
+
 class ServiceHealthChecker:
     """Utility class for checking service health."""
 
     HEALTH_ENDPOINTS = {
-        'minio': 'http://localhost:9000/minio/health/live',
-        'spark-master': 'http://localhost:8080',
-        'postgres': 'localhost:5432',  # Special case for TCP check
-        'superset': 'http://localhost:9030/health',
-        'airflow': 'http://localhost:9020/health',
-        'jupyter': 'http://localhost:9040',
-        'portainer': 'http://localhost:9060'
+        "minio": "http://localhost:9000/minio/health/live",
+        "spark-master": "http://localhost:8080",
+        "postgres": "localhost:5432",  # Special case for TCP check
+        "superset": "http://localhost:9030/health",
+        "airflow": "http://localhost:9020/health",
+        "jupyter": "http://localhost:9040",
+        "portainer": "http://localhost:9060",
     }
 
     @staticmethod
@@ -300,6 +323,7 @@ class ServiceHealthChecker:
         """Check if an HTTP endpoint is responding."""
         try:
             import requests
+
             response = requests.get(url, timeout=timeout)
             return response.status_code == 200
         except Exception:
@@ -309,6 +333,7 @@ class ServiceHealthChecker:
     def check_tcp_port(host: str, port: int, timeout: int = 10) -> bool:
         """Check if a TCP port is open."""
         import socket
+
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(timeout)
@@ -326,11 +351,11 @@ class ServiceHealthChecker:
 
         endpoint = cls.HEALTH_ENDPOINTS[service_name]
 
-        if endpoint.startswith('http'):
+        if endpoint.startswith("http"):
             return cls.check_http_endpoint(endpoint, timeout)
         else:
             # TCP check
-            host, port = endpoint.split(':')
+            host, port = endpoint.split(":")
             return cls.check_tcp_port(host, int(port), timeout)
 
 
@@ -339,21 +364,15 @@ def health_checker() -> ServiceHealthChecker:
     """Get service health checker instance."""
     return ServiceHealthChecker()
 
+
 def pytest_configure(config):
     """Configure pytest with custom markers."""
-    config.addinivalue_line(
-        "markers", "integration: marks tests as integration tests"
-    )
-    config.addinivalue_line(
-        "markers", "slow: marks tests as slow running"
-    )
-    config.addinivalue_line(
-        "markers", "docker: marks tests that require Docker"
-    )
+    config.addinivalue_line("markers", "integration: marks tests as integration tests")
+    config.addinivalue_line("markers", "slow: marks tests as slow running")
+    config.addinivalue_line("markers", "docker: marks tests that require Docker")
     config.addinivalue_line(
         "markers", "iceberg: marks tests specific to Iceberg functionality"
     )
-
 
 
 def pytest_runtest_setup(item):
@@ -372,28 +391,26 @@ def pytest_runtest_setup(item):
             pytest.skip("Skipping integration tests in unit-only mode")
 
 
-
 def pytest_addoption(parser):
     """Add custom command line options."""
     parser.addoption(
         "--unit-only",
         action="store_true",
         default=False,
-        help="Run only unit tests, skip integration tests"
+        help="Run only unit tests, skip integration tests",
     )
     parser.addoption(
         "--integration-only",
         action="store_true",
         default=False,
-        help="Run only integration tests, skip unit tests"
+        help="Run only integration tests, skip unit tests",
     )
     parser.addoption(
         "--docker-available",
         action="store_true",
         default=False,
-        help="Run tests that require Docker"
+        help="Run tests that require Docker",
     )
-
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -403,13 +420,13 @@ def cleanup_test_environment():
 
     # Clean up any leftover containers
     try:
-        subprocess.run(['docker-compose', 'down', '-v'],
-                      capture_output=True, text=True)
+        subprocess.run(["docker-compose", "down", "-v"], capture_output=True, text=True)
     except Exception:
         pass
 
     # Clean up temporary files
     import glob
+
     temp_files = glob.glob(f"/tmp/{TEST_CONFIG['temp_dir_prefix']}*")
     for temp_file in temp_files:
         try:

@@ -248,7 +248,7 @@ class TestDocumentation(unittest.TestCase):
                 if port in expected_ports:
                     # Check context around the port
                     port_context = self._get_port_context(content, port)
-                    service_name = expected_ports[port]
+                    # service_name = expected_ports[port]
 
                     # This is a basic check - could be enhanced
                     self.assertIsNotNone(

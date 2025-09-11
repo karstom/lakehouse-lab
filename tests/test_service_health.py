@@ -10,11 +10,8 @@ import psycopg2
 import boto3
 import socket
 import time
-import json
 from pathlib import Path
-from unittest.mock import patch
 import subprocess
-import os
 
 
 class TestServiceHealth(unittest.TestCase):
@@ -65,7 +62,7 @@ class TestServiceHealth(unittest.TestCase):
                 sock.close()
                 if result == 0:
                     return True
-            except:
+            except Exception:
                 pass
             time.sleep(1)
         return False

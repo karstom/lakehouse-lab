@@ -286,21 +286,12 @@ class TestCrossServiceIntegration(unittest.TestCase):
                 )
 
             # Create a test that simulates Spark session creation
-            spark_session_test = """
-# This is what would run in Jupyter to test Spark connectivity
-import os
-import sys
-
-# Test environment variables
-spark_master = os.getenv('SPARK_MASTER', 'spark://spark-master:7077')
-print(f"Spark Master URL: {spark_master}")
-
-# In a real test, we would create a Spark session:
-# from pyspark.sql import SparkSession
-# spark = SparkSession.builder.appName("JupyterTest").master(spark_master).getOrCreate()
-# print("Spark session created successfully!")
-# spark.stop()
-"""
+            # This is what would run in Jupyter to test Spark connectivity
+            # import os, sys
+            # spark_master = os.getenv('SPARK_MASTER', 'spark://spark-master:7077')
+            # from pyspark.sql import SparkSession
+            # spark = SparkSession.builder.appName("JupyterTest").master(spark_master).getOrCreate()
+            # spark.stop()
 
             # For now, just verify the services are running
             print("✅ Services are accessible for Jupyter-Spark integration")
