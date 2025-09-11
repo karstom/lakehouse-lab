@@ -19,21 +19,21 @@ jobs:
   lint-and-validate:
     runs-on: ubuntu-latest
     name: Lint and Validate Code
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-    
+
     - name: Install linting dependencies
       run: |
         python -m pip install --upgrade pip
         pip install flake8 black isort yamllint
-    
+
     - name: Lint Python code
       run: |
         # Check if there are any Python files to lint
@@ -45,7 +45,7 @@ jobs:
         else
           echo "No Python files found to lint"
         fi
-    
+
     - name: Validate YAML files
       run: |
         # Lint Docker Compose files
@@ -53,48 +53,48 @@ jobs:
           echo "Validating Docker Compose files..."
           yamllint docker-compose*.yml
         fi
-        
+
         # Lint GitHub Actions workflow files
         if ls .github/workflows/*.yml 1> /dev/null 2>&1; then
           echo "Validating GitHub Actions workflows..."
           yamllint .github/workflows/*.yml
         fi
-    
+
     - name: Validate shell scripts
       run: |
         # Install shellcheck
         sudo apt-get update
         sudo apt-get install -y shellcheck
-        
+
         # Check shell scripts
         if ls *.sh 1> /dev/null 2>&1; then
           echo "Validating shell scripts..."
           shellcheck *.sh
         fi
-        
+
         # Check modular scripts
         if ls scripts/*.sh 1> /dev/null 2>&1; then
           echo "Validating modular scripts..."
           shellcheck scripts/*.sh
         fi
-        
+
         # Check example scripts
         if ls examples/*.sh 1> /dev/null 2>&1; then
           echo "Validating example scripts..."
           shellcheck examples/*.sh
         fi
-    
+
     - name: Validate Docker Compose syntax
       run: |
         if ls docker-compose*.yml 1> /dev/null 2>&1; then
           echo "Validating Docker Compose syntax..."
           docker compose -f docker-compose.yml config > /dev/null
-          
+
           # Test Iceberg override if it exists
           if [ -f docker-compose.iceberg.yml ]; then
             docker compose -f docker-compose.yml -f docker-compose.iceberg.yml config > /dev/null
           fi
-          
+
           # Test JupyterHub override if it exists
           if [ -f docker-compose.jupyterhub.yml ]; then
             docker compose -f docker-compose.yml -f docker-compose.jupyterhub.yml config > /dev/null
@@ -106,21 +106,21 @@ jobs:
     runs-on: ubuntu-latest
     name: Unit Tests
     needs: lint-and-validate
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-    
+
     - name: Install test dependencies
       run: |
         python -m pip install --upgrade pip
         pip install pytest pytest-cov pytest-mock pyyaml
-    
+
     - name: Run unit tests
       run: |
         if [ -d tests/ ]; then
@@ -131,11 +131,11 @@ jobs:
         else
           echo "No tests directory found, creating basic test structure"
         fi
-        
+
     - name: Run v2.1.0 features validation
       run: |
         echo "Running v2.1.0 feature validation tests..."
-        
+
         # Test 1: Check backup system exists
         echo "=== Checking backup system ==="
         if [ -f scripts/backup-lakehouse.sh ] && [ -f scripts/restore-lakehouse.sh ]; then
@@ -144,7 +144,7 @@ jobs:
           echo "❌ Backup system scripts missing"
           exit 1
         fi
-        
+
         # Test 2: Check backup scripts are executable
         echo "=== Checking script permissions ==="
         if [ -x scripts/backup-lakehouse.sh ] && [ -x scripts/restore-lakehouse.sh ]; then
@@ -153,7 +153,7 @@ jobs:
           echo "❌ Backup scripts missing execute permissions"
           exit 1
         fi
-        
+
         # Test 3: Check CRON setup script exists
         echo "=== Checking CRON setup ==="
         if [ -f examples/cron-backup-setup.sh ] && [ -x examples/cron-backup-setup.sh ]; then
@@ -162,7 +162,7 @@ jobs:
           echo "❌ CRON backup setup missing or not executable"
           exit 1
         fi
-        
+
         # Test 4: Check Airflow backup DAG template
         echo "=== Checking Airflow DAG template ==="
         if [ -f templates/airflow/dags/lakehouse_backup_dag.py ]; then
@@ -171,7 +171,7 @@ jobs:
           echo "❌ Airflow backup DAG template missing"
           exit 1
         fi
-        
+
         # Test 5: Check smart upgrade system
         echo "=== Checking smart upgrade system ==="
         if [ -f scripts/install/migrate-to-named-volumes.sh ] && [ -x scripts/install/migrate-to-named-volumes.sh ]; then
@@ -180,7 +180,7 @@ jobs:
           echo "❌ Smart upgrade system missing"
           exit 1
         fi
-        
+
         # Test 6: Check external volume declarations in docker-compose.yml
         echo "=== Checking external volume declarations ==="
         if grep -A 2 'postgres_data:' docker-compose.yml | grep -q 'external: true'; then
@@ -189,7 +189,7 @@ jobs:
           echo "❌ External volume declarations missing"
           exit 1
         fi
-        
+
         # Test 7: Check that lakehouse-init service exists
         echo "=== Checking lakehouse initialization ==="
         if grep -q 'lakehouse-init:' docker-compose.yml; then
@@ -198,9 +198,9 @@ jobs:
           echo "❌ Lakehouse initialization service missing"
           exit 1
         fi
-        
+
         echo "🎉 All v2.1.1 features validated successfully!"
-    
+
     - name: Upload coverage reports
       uses: codecov/codecov-action@v3
       if: always()
@@ -215,14 +215,14 @@ jobs:
     runs-on: ubuntu-latest
     name: Docker Build and Test
     needs: lint-and-validate
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
-    
+
     - name: Generate test credentials
       run: |
         # Generate credentials for Docker tests
@@ -231,7 +231,7 @@ jobs:
         else
           cp .env.default .env
         fi
-    
+
     - name: Test Docker Compose build
       run: |
         # Test that all services can be built
@@ -239,45 +239,45 @@ jobs:
           echo "Testing Docker Compose build..."
           docker compose build --parallel
         fi
-    
+
     - name: Test Docker Compose up (dry run)
       run: |
         if [ -f docker-compose.yml ]; then
           echo "Testing Docker Compose up..."
           # Start core services in background
           docker compose up -d postgres minio lakehouse-init
-          
+
           # Wait for services to be ready
           sleep 30
-          
+
           # Check service status
           docker compose ps
-          
+
           # Test basic connectivity
           timeout 60 bash -c 'until curl -f http://localhost:9000/minio/health/live; do sleep 5; done' || echo "MinIO health check failed"
-          
+
           # Stop services
           docker compose down -v
         fi
-    
+
     - name: Test Iceberg integration
       run: |
         if [ -f docker-compose.iceberg.yml ]; then
           echo "Testing Iceberg integration..."
-          
+
           # Start with Iceberg support
           docker compose -f docker-compose.yml -f docker-compose.iceberg.yml up -d postgres minio lakehouse-init spark-master
-          
+
           # Wait for services
           sleep 45
-          
+
           # Check that Iceberg JARs are available
           docker compose exec -T spark-master ls -la /opt/spark/jars/ | grep iceberg || echo "Iceberg JARs not found"
-          
+
           # Clean up
           docker compose -f docker-compose.yml -f docker-compose.iceberg.yml down -v
         fi
-    
+
     - name: Clean up Docker resources
       if: always()
       run: |
@@ -289,21 +289,21 @@ jobs:
     runs-on: ubuntu-latest
     name: Integration Tests
     needs: [unit-tests, docker-build-test]
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-    
+
     - name: Install test dependencies
       run: |
         python -m pip install --upgrade pip
         pip install pytest pytest-mock pyyaml requests
-    
+
     - name: Generate test credentials
       run: |
         # Generate credentials for integration tests
@@ -312,64 +312,64 @@ jobs:
         else
           cp .env.default .env
         fi
-    
+
     - name: Start services for integration tests
       run: |
         if [ -f docker-compose.yml ]; then
           echo "Starting core services for integration tests..."
           docker compose up -d postgres minio lakehouse-init
-          
+
           # Wait for services to be ready
           sleep 60
-          
+
           # Check that key services are running
           docker compose ps
         fi
-    
+
     - name: Run integration tests
       run: |
         if [ -f tests/test_docker_compose.py ]; then
           echo "Running integration tests..."
           python -m pytest tests/test_docker_compose.py -v
         fi
-        
+
         if [ -f tests/test_iceberg_integration.py ]; then
           echo "Running Iceberg integration tests..."
           python -m pytest tests/test_iceberg_integration.py -v
         fi
-    
+
     - name: Test service endpoints
       run: |
         echo "Testing service endpoints..."
-        
+
         # Test MinIO
         curl -f http://localhost:9000/minio/health/live || echo "MinIO health check failed"
-        
+
         # Test Spark Master
         curl -f http://localhost:8080 || echo "Spark Master web UI not accessible"
-        
+
         # Test other services (with timeout)
         timeout 10 curl -f http://localhost:9030 || echo "Superset not accessible"
         timeout 10 curl -f http://localhost:9040 || echo "Jupyter not accessible"
         timeout 10 curl -f http://localhost:9020 || echo "Airflow not accessible"
         timeout 10 curl -f http://localhost:9060 || echo "Portainer not accessible"
-    
+
     - name: Collect logs on failure
       if: failure()
       run: |
         echo "Collecting logs for debugging..."
         docker compose logs --tail=50 > docker-compose-logs.txt
-        
+
         # Upload logs as artifact
         echo "Logs saved to docker-compose-logs.txt"
-    
+
     - name: Upload logs artifact
       if: failure()
       uses: actions/upload-artifact@v3
       with:
         name: docker-compose-logs
         path: docker-compose-logs.txt
-    
+
     - name: Clean up integration test environment
       if: always()
       run: |
@@ -381,11 +381,11 @@ jobs:
     runs-on: ubuntu-latest
     name: Security Scan
     needs: lint-and-validate
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
@@ -393,19 +393,19 @@ jobs:
         scan-ref: '.'
         format: 'sarif'
         output: 'trivy-results.sarif'
-    
+
     - name: Upload Trivy scan results
       uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
         sarif_file: 'trivy-results.sarif'
-    
+
     - name: Scan Docker Compose files for security issues
       run: |
         # Install docker-bench-security if available
         if command -v docker &> /dev/null; then
           echo "Scanning Docker configurations..."
-          
+
           # Check for common security issues in compose files
           if [ -f docker-compose.yml ]; then
             echo "Checking for privileged containers..."
@@ -413,7 +413,7 @@ jobs:
               echo "WARNING: Privileged containers detected"
               exit 1
             fi
-            
+
             echo "Checking for exposed sensitive ports..."
             if grep -q ":22\|:3306\|:5432" docker-compose.yml; then
               echo "WARNING: Sensitive ports may be exposed"
@@ -425,47 +425,47 @@ jobs:
   docs-validation:
     runs-on: ubuntu-latest
     name: Documentation Validation
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Validate README and documentation
       run: |
         # Check that required documentation exists
         required_docs=("README.md" "docs/ICEBERG.md" "docs/QUICKSTART.md" "docs/INSTALLATION.md" "docs/CONFIGURATION.md" "docs/CHANGELOG.md" "docs/TESTING.md")
-        
+
         for doc in "${required_docs[@]}"; do
           if [ ! -f "$doc" ]; then
             echo "ERROR: Required documentation $doc is missing"
             exit 1
           fi
         done
-        
+
         # Check that backup documentation exists
         echo "Checking backup system documentation..."
         if ! grep -q "Backup & Data Protection" README.md; then
           echo "ERROR: Backup documentation missing from README.md"
           exit 1
         fi
-        
+
         if ! grep -q "Post-Installation: Backup Setup" docs/INSTALLATION.md; then
           echo "ERROR: Backup setup documentation missing from docs/INSTALLATION.md"
           exit 1
         fi
-        
+
         # Check for broken links in markdown files
         if command -v markdown-link-check &> /dev/null; then
           echo "Checking for broken links..."
           find . -name "*.md" -exec markdown-link-check {} \;
         fi
-    
+
     - name: Validate code examples in documentation
       run: |
         # Check that code examples in documentation are valid
         if [ -f docs/ICEBERG.md ]; then
           echo "Validating SQL examples in docs/ICEBERG.md..."
-          
+
           # Extract SQL code blocks and validate basic syntax
           if grep -q '```sql' docs/ICEBERG.md; then
             echo "SQL examples found in documentation"
@@ -478,11 +478,11 @@ jobs:
     name: Performance Benchmarks
     if: github.event_name == 'schedule' || contains(github.event.head_commit.message, '[benchmark]')
     needs: integration-tests
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Generate test credentials
       run: |
         # Generate credentials for benchmark tests
@@ -491,44 +491,44 @@ jobs:
         else
           cp .env.default .env
         fi
-    
+
     - name: Run performance benchmarks
       run: |
         echo "Running performance benchmarks..."
-        
+
         # Start core services for benchmarks
         docker compose up -d postgres minio lakehouse-init spark-master
         sleep 60
-        
+
         # Run basic performance tests
         echo "Testing startup time..."
         start_time=$(date +%s)
-        
+
         # Wait for all services to be healthy
         timeout 300 bash -c '
           while ! curl -f http://localhost:9000/minio/health/live; do
             echo "Waiting for MinIO..."
             sleep 5
           done
-          
+
           while ! curl -f http://localhost:8080; do
             echo "Waiting for Spark..."
             sleep 5
           done
         '
-        
+
         end_time=$(date +%s)
         startup_time=$((end_time - start_time))
-        
+
         echo "Startup time: ${startup_time} seconds"
-        
+
         # Test resource usage
         echo "Checking resource usage..."
         docker stats --no-stream
-        
+
         # Clean up
         docker compose down -v
-    
+
     - name: Upload benchmark results
       if: always()
       run: |
@@ -541,15 +541,15 @@ jobs:
     name: Deployment Readiness
     needs: [integration-tests, security-scan, docs-validation]
     if: github.ref == 'refs/heads/main'
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-    
+
     - name: Verify deployment readiness
       run: |
         echo "Checking deployment readiness..."
-        
+
         # Check that all required files exist
         required_files=(
           "docker-compose.yml"
@@ -571,28 +571,28 @@ jobs:
           "docs/CONFIGURATION.md"
           "docs/TESTING.md"
         )
-        
+
         for file in "${required_files[@]}"; do
           if [ ! -f "$file" ]; then
             echo "ERROR: Required file $file is missing"
             exit 1
           fi
         done
-        
+
         echo "All required files present"
-        
+
         # Check version consistency
         if [ -f docs/ICEBERG.md ]; then
           echo "Checking version consistency..."
           # This could be enhanced to check version consistency across files
         fi
-        
+
         echo "Deployment readiness check passed"
-    
+
     - name: Create deployment summary
       run: |
         echo "Creating deployment summary..."
-        
+
         echo "# Deployment Summary" > deployment-summary.md
         echo "- Date: $(date)" >> deployment-summary.md
         echo "- Branch: ${{ github.ref_name }}" >> deployment-summary.md
@@ -600,9 +600,9 @@ jobs:
         echo "- All tests passed: ✅" >> deployment-summary.md
         echo "- Security scan passed: ✅" >> deployment-summary.md
         echo "- Documentation validated: ✅" >> deployment-summary.md
-        
+
         cat deployment-summary.md
-    
+
     - name: Upload deployment summary
       uses: actions/upload-artifact@v3
       with:

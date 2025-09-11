@@ -10,29 +10,29 @@ jobs:
         run: |
           # Create minimal .env file with secure credentials
           ./scripts/generate-credentials.sh
-          
+
           # Override with test-specific settings
           echo "COMPOSE_PROJECT_NAME=lakehouse-test" >> .env
           echo "HOST_IP=localhost" >> .env
-          
+
       - name: Create named volumes for test
         run: |
           # Create required named volumes for testing
           docker volume create lakehouse-test_postgres_data
           docker volume create lakehouse-test_minio_data
-          
+
       - name: Test basic service startup
         run: |
           # Start core services only
           docker compose up -d postgres minio lakehouse-init
           sleep 30
-          
+
           # Check health endpoints
           curl -f http://localhost:9000/minio/health/live
-          
+
           # Check PostgreSQL is accessible
           docker compose exec -T postgres pg_isready -U postgres
-          
+
           # Cleanup
           docker compose down -v
           docker volume rm lakehouse-test_postgres_data lakehouse-test_minio_data || true

@@ -221,7 +221,10 @@ jobs:
           timeout 60 bash -c 'until curl -f http://localhost:9000/minio/health/live; do sleep 2; done'
           timeout 60 bash -c 'until docker exec lakehouse-backup-test-postgres-1 pg_isready -U postgres; do sleep 2; done'
           # Verify PostgreSQL test data
-          POSTGRES_RESULT=$(docker exec lakehouse-backup-test-postgres-1 psql -U postgres -d lakehouse -c "SELECT test_data FROM backup_test ORDER BY id DESC LIMIT 1;" | grep backup-test-data | wc -l)
+          POSTGRES_RESULT=$(docker exec lakehouse-backup-test-postgres-1 \
+            psql -U postgres -d lakehouse \
+            -c "SELECT test_data FROM backup_test ORDER BY id DESC LIMIT 1;" | \
+            grep backup-test-data | wc -l)
           if [ "$POSTGRES_RESULT" -ge 1 ]; then
             echo "✅ PostgreSQL test data restored successfully"
           else
@@ -253,7 +256,14 @@ jobs:
           if [ -n "$BACKUP_DIR" ] && [ -f "$BACKUP_DIR/backup-metadata.json" ]; then
             # Validate metadata structure
             set -x
-            if python -c "import json; f=open('$BACKUP_DIR/backup-metadata.json'); metadata=json.load(f); assert 'backup_id' in metadata; assert 'timestamp' in metadata; assert 'services' in metadata; print('✅ Backup metadata structure valid')" ; then
+            if python -c "
+              import json;
+              f=open('$BACKUP_DIR/backup-metadata.json');
+              metadata=json.load(f);
+              assert 'backup_id' in metadata;
+              assert 'timestamp' in metadata;
+              assert 'services' in metadata;
+              print('✅ Backup metadata structure valid')" ; then
               echo "✅ Backup metadata structure valid (Python check passed)"
             else
               echo "⚠️ Backup metadata not found or invalid for verification"

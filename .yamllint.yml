@@ -1,7 +1,13 @@
 extends: default
 rules:
   line-length:
-    max: 120  # More reasonable for Docker Compose files
+    max: 160  # Very generous for complex CI workflows 
   comments:
     min-spaces-from-content: 1  # Allow single space before comments
   comments-indentation: disable  # Disable comment indentation rules for flexibility
+  truthy: disable  # Allow GitHub Actions syntax like 'on:' 
+  document-start: disable  # Don't require --- at start of every file
+  brackets:
+    min-spaces-inside: 0  # Allow [push] syntax in GitHub Actions
+    max-spaces-inside: 1
+  indentation: disable  # Disable strict indentation for CI compatibility

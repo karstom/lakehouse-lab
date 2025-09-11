@@ -17,23 +17,23 @@ jobs:
         uses: trufflesecurity/trufflehog@v3.88.1
         with:
           path: ./
-          
+
       - name: Validate secure credential handling
         run: |
           echo "Checking for secure credential handling..."
-          
+
           # Check that default .env files don't contain actual passwords
           if grep -q "password123\|admin123\|secret123" .env.default .env.fat-server 2>/dev/null; then
             echo "❌ Default passwords found in config files"
             exit 1
           fi
-          
+
           # Check that backup scripts don't expose credentials
           if grep -i "password.*echo\|password.*printf" scripts/backup-lakehouse.sh scripts/restore-lakehouse.sh 2>/dev/null; then
             echo "❌ Backup scripts may expose credentials in output"
             exit 1
           fi
-          
+
           # Check that credential generation creates secure passwords
           if [ -f scripts/generate-credentials.sh ]; then
             # Test credential generation (without executing potentially harmful commands)
@@ -44,13 +44,13 @@ jobs:
               exit 1
             fi
           fi
-          
+
           echo "✅ Secure credential handling validated"
-          
+
       - name: Check backup security
         run: |
           echo "Checking backup system security..."
-          
+
           # Check that backup scripts have proper permissions
           if [ -f scripts/backup-lakehouse.sh ]; then
             if [ "$(stat -c '%a' scripts/backup-lakehouse.sh)" != "755" ]; then
@@ -58,7 +58,7 @@ jobs:
               exit 1
             fi
           fi
-          
+
           # Check that restore script has confirmation prompts
           if [ -f scripts/restore-lakehouse.sh ]; then
             if ! grep -q "confirm_restore\|RESTORE" scripts/restore-lakehouse.sh; then
@@ -66,5 +66,5 @@ jobs:
               exit 1
             fi
           fi
-          
+
           echo "✅ Backup security validated"
