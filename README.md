@@ -193,7 +193,7 @@ Credentials are stored in the `.env` file - back it up securely and never commit
 - [Changelog](docs/CHANGELOG.md) - Version history
 - [MCP Integration](docs/MCP.md) - Model Context Protocol servers
 
-## Backup & Data Management
+## Backup & Data Protection
 
 Basic backup and restore functionality:
 
