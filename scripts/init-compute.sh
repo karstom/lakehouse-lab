@@ -76,7 +76,7 @@ download_iceberg_jars() {
         local download_success=false
         
         while [ $retry -le $max_retries ] && [ "$download_success" = false ]; do
-            if curl -fsSL "$jar_url" -o "$jar_path"; then
+            if curl -fsSL --connect-timeout 10 --max-time 30 "$jar_url" -o "$jar_path"; then
                 # Verify download
                 if [ -f "$jar_path" ] && [ -s "$jar_path" ]; then
                     local file_size=$(stat -c%s "$jar_path" 2>/dev/null || wc -c < "$jar_path")
@@ -115,9 +115,13 @@ download_iceberg_jars() {
         log_success "Iceberg JAR download completed"
     else
         log_warning "No Iceberg JARs were downloaded successfully"
-        log_info "Iceberg functionality will not be available"
-        return 1
+        log_warning "This is likely due to network restrictions"
+        log_info "Iceberg functionality will not be available but compute module will continue"
+        log_info "JARs can be downloaded manually later if network access becomes available"
     fi
+    
+    # Always return success - JAR downloads are optional in restricted environments
+    return 0
 }
 
 # ==============================================================================
