@@ -237,12 +237,12 @@ backup_postgresql() {
     fi
     
     # Get database credentials from environment
-    local postgres_password=""
+    local postgres_auth=""
     if [[ -f ".env" ]]; then
-        postgres_password=$(grep "^POSTGRES_PASSWORD=" .env | cut -d'=' -f2- | tr -d '"'"'" || echo "")
+        postgres_auth=$(grep "^POSTGRES_PASSWORD=" .env | cut -d'=' -f2- | tr -d '"' || echo "")
     fi
     
-    if [[ -z "$postgres_password" ]]; then
+    if [[ -z "$postgres_auth" ]]; then
         log_error "Could not find POSTGRES_PASSWORD in .env file"
         return 1
     fi
@@ -293,13 +293,13 @@ backup_minio() {
     
     # Get MinIO credentials
     local minio_user=""
-    local minio_password=""
+    local minio_auth=""
     if [[ -f ".env" ]]; then
         minio_user=$(grep "^MINIO_ROOT_USER=" .env | cut -d'=' -f2- | tr -d '"'"'" || echo "admin")
-        minio_password=$(grep "^MINIO_ROOT_PASSWORD=" .env | cut -d'=' -f2- | tr -d '"'"'" || echo "")
+        minio_auth=$(grep "^MINIO_ROOT_PASSWORD=" .env | cut -d'=' -f2- | tr -d '"' || echo "")
     fi
     
-    if [[ -z "$minio_password" ]]; then
+    if [[ -z "$minio_auth" ]]; then
         log_error "Could not find MINIO_ROOT_PASSWORD in .env file"
         return 1
     fi
@@ -311,7 +311,7 @@ backup_minio() {
         minio/mc:latest \
         bash -c "
             # Configure mc client
-            mc alias set lakehouse http://minio:9000 '$minio_user' '$minio_password' || exit 1
+            mc alias set lakehouse http://minio:9000 '$minio_user' '$minio_auth' || exit 1
             
             # List and backup all buckets
             buckets=\$(mc ls lakehouse | awk '{print \$5}' | grep -v '^$' || true)

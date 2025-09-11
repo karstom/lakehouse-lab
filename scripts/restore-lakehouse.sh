@@ -268,10 +268,10 @@ restore_minio() {
     
     # Get MinIO credentials
     local minio_user=""
-    local minio_password=""
+    local minio_auth=""
     if [[ -f ".env" ]]; then
         minio_user=$(grep "^MINIO_ROOT_USER=" .env | cut -d'=' -f2- | tr -d '"'"'" || echo "admin")
-        minio_password=$(grep "^MINIO_ROOT_PASSWORD=" .env | cut -d'=' -f2- | tr -d '"'"'" || echo "")
+        minio_auth=$(grep "^MINIO_ROOT_PASSWORD=" .env | cut -d'=' -f2- | tr -d '"' || echo "")
     fi
     
     # Restore MinIO data
@@ -281,7 +281,7 @@ restore_minio() {
         minio/mc:latest \
         bash -c "
             # Configure mc client
-            mc alias set lakehouse http://minio:9000 '$minio_user' '$minio_password' || exit 1
+            mc alias set lakehouse http://minio:9000 '$minio_user' '$minio_auth' || exit 1
             
             # Restore buckets
             for bucket_dir in /restore/*/; do
