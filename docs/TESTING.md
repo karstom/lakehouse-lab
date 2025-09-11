@@ -174,7 +174,7 @@ The GitHub Actions workflow (`.github/workflows/ci.yml`) provides:
 
 2. **Unit Tests**
    - Run unit tests with coverage
-   - Upload coverage reports to Codecov
+   - Run comprehensive test suite
 
 3. **Docker Build and Test**
    - Build Docker services

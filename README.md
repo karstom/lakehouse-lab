@@ -1,7 +1,6 @@
 # Lakehouse Lab
 
 [![CI Status](https://github.com/karstom/lakehouse-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/karstom/lakehouse-lab/actions)
-[![Coverage Status](https://codecov.io/gh/karstom/lakehouse-lab/branch/main/graph/badge.svg)](https://codecov.io/gh/karstom/lakehouse-lab)
 [![GitHub release](https://img.shields.io/github/release/karstom/lakehouse-lab.svg)](https://github.com/karstom/lakehouse-lab/releases)
 [![Docker Compose](https://img.shields.io/badge/docker--compose-ready-blue)](https://docs.docker.com/compose/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
