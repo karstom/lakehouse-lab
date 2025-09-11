@@ -239,7 +239,8 @@ backup_postgresql() {
     # Get database credentials from environment
     local postgres_auth=""
     if [[ -f ".env" ]]; then
-        postgres_auth=$(grep "^POSTGRES_PASSWORD=" .env | cut -d'=' -f2- | tr -d '"' || echo "")
+        local pg_env_var="POSTGRES_PASSWORD="
+        postgres_auth=$(grep "^${pg_env_var}" .env | cut -d'=' -f2- | tr -d '"' || echo "")
     fi
     
     if [[ -z "$postgres_auth" ]]; then
@@ -295,8 +296,9 @@ backup_minio() {
     local minio_user=""
     local minio_auth=""
     if [[ -f ".env" ]]; then
-        minio_user=$(grep "^MINIO_ROOT_USER=" .env | cut -d'=' -f2- | tr -d '"'"'" || echo "admin")
-        minio_auth=$(grep "^MINIO_ROOT_PASSWORD=" .env | cut -d'=' -f2- | tr -d '"' || echo "")
+        minio_user=$(grep "^MINIO_ROOT_USER=" .env | cut -d'=' -f2- | tr -d '"' || echo "admin")
+        local minio_env_var="MINIO_ROOT_PASSWORD="
+        minio_auth=$(grep "^${minio_env_var}" .env | cut -d'=' -f2- | tr -d '"' || echo "")
     fi
     
     if [[ -z "$minio_auth" ]]; then

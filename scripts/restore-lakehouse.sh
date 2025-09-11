@@ -270,8 +270,9 @@ restore_minio() {
     local minio_user=""
     local minio_auth=""
     if [[ -f ".env" ]]; then
-        minio_user=$(grep "^MINIO_ROOT_USER=" .env | cut -d'=' -f2- | tr -d '"'"'" || echo "admin")
-        minio_auth=$(grep "^MINIO_ROOT_PASSWORD=" .env | cut -d'=' -f2- | tr -d '"' || echo "")
+        minio_user=$(grep "^MINIO_ROOT_USER=" .env | cut -d'=' -f2- | tr -d '"' || echo "admin")
+        local minio_env_var="MINIO_ROOT_PASSWORD="
+        minio_auth=$(grep "^${minio_env_var}" .env | cut -d'=' -f2- | tr -d '"' || echo "")
     fi
     
     # Restore MinIO data
