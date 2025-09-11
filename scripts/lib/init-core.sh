@@ -111,13 +111,13 @@ wait_for_minio_api() {
     log_info "Waiting for MinIO API to be ready..."
     
     while [ $attempt -le $max_attempts ]; do
-        if curl -sf "http://minio:9000/minio/health/live" >/dev/null 2>&1; then
+        if curl -sf --connect-timeout 5 --max-time 10 "http://minio:9000/minio/health/live" >/dev/null 2>&1; then
             log_success "MinIO API is ready (attempt $attempt/$max_attempts)"
             return 0
         fi
         
         # Try alternative health check
-        if curl -sf "http://minio:9000/minio/health/ready" >/dev/null 2>&1; then
+        if curl -sf --connect-timeout 5 --max-time 10 "http://minio:9000/minio/health/ready" >/dev/null 2>&1; then
             log_success "MinIO API is ready via /ready endpoint (attempt $attempt/$max_attempts)"
             return 0
         fi

@@ -29,7 +29,7 @@ install_minio_client() {
     
     log_info "Downloading MinIO client from $mc_url"
     
-    if curl -fsSL "$mc_url" -o /tmp/mc; then
+    if curl -fsSL --connect-timeout 30 --max-time 60 "$mc_url" -o /tmp/mc; then
         if mv /tmp/mc "$mc_path" && chmod +x "$mc_path"; then
             log_success "MinIO client installed successfully to $mc_path"
             
@@ -41,12 +41,17 @@ install_minio_client() {
             fi
         else
             log_error "Failed to install MinIO client to $mc_path"
-            return 1
+            log_warning "Continuing without MinIO client - some features may be limited"
         fi
     else
-        log_error "Failed to download MinIO client"
-        return 1
+        log_warning "Failed to download MinIO client (network issue)"
+        log_warning "Continuing without MinIO client - some features may be limited"
+        log_info "MinIO client can be installed manually if needed:"
+        log_info "  curl -fsSL $mc_url -o /usr/local/bin/mc && chmod +x /usr/local/bin/mc"
     fi
+    
+    # Always return success - MinIO client is optional
+    return 0
 }
 
 # ==============================================================================
@@ -141,10 +146,9 @@ main() {
         exit 1
     fi
     
-    # Install MinIO client
+    # Install MinIO client (optional - continues even if download fails)
     if ! install_minio_client; then
-        handle_error "MinIO client installation failed" "Infrastructure"
-        exit 1
+        log_warning "MinIO client installation completed with warnings"
     fi
     
     # Mark infrastructure as initialized
