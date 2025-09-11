@@ -167,17 +167,11 @@ def sample_iceberg_override() -> Dict[str, Any]:
                     "SPARK_CONF_spark.sql.catalog.iceberg.warehouse": (
                         "s3a://lakehouse/iceberg-warehouse/"
                     ),
-                    "SPARK_CONF_spark.hadoop.fs.s3a.endpoint": (
-                        "http://minio:9000"
-                    ),
+                    "SPARK_CONF_spark.hadoop.fs.s3a.endpoint": ("http://minio:9000"),
                     "SPARK_CONF_spark.hadoop.fs.s3a.access.key": "minio",
                     "SPARK_CONF_spark.hadoop.fs.s3a.secret.key": "minio123",
-                    "SPARK_CONF_spark.hadoop.fs.s3a.path.style.access": (
-                        "true"
-                    ),
-                    "SPARK_CONF_spark.hadoop.fs.s3a.connection.ssl.enabled": (
-                        "false"
-                    ),
+                    "SPARK_CONF_spark.hadoop.fs.s3a.path.style.access": ("true"),
+                    "SPARK_CONF_spark.hadoop.fs.s3a.connection.ssl.enabled": ("false"),
                 },
             }
         }
