@@ -139,17 +139,16 @@ services:
 
   # Initialization Service
   lakehouse-init:
-    image: alpine:3.18
+    image: bash:5
     depends_on:
       minio:
         condition: service_healthy
       postgres:
         condition: service_healthy
     entrypoint:
-      - /bin/sh
+      - /bin/bash
       - -c
       - |
-        apk add --no-cache bash
         echo "🚀 Running Lakehouse Lab initialization..."
         /bin/bash /host/init-all-in-one-modular.sh
     environment:
