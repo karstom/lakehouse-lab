@@ -8,11 +8,8 @@ import unittest
 import subprocess
 import os
 import yaml
-import tempfile
-import shutil
 from pathlib import Path
-from unittest.mock import patch, MagicMock, mock_open
-import json
+from unittest.mock import patch, mock_open
 
 
 class TestIcebergIntegration(unittest.TestCase):
@@ -371,13 +368,18 @@ class TestIcebergFunctionality(unittest.TestCase):
         mock_run.return_value.stdout = "Downloaded successfully"
 
         # Simulate curl command for JAR download
+        iceberg_jar_url = (
+            "https://repo1.maven.org/maven2/org/apache/iceberg/"
+            "iceberg-spark-runtime-3.5_2.12/1.4.3/"
+            "iceberg-spark-runtime-3.5_2.12-1.4.3.jar"
+        )
         result = subprocess.run(
             [
                 "curl",
                 "-L",
                 "-o",
                 "/tmp/iceberg-spark-runtime.jar",
-                "https://repo1.maven.org/maven2/org/apache/iceberg/iceberg-spark-runtime-3.5_2.12/1.4.3/iceberg-spark-runtime-3.5_2.12-1.4.3.jar",
+                iceberg_jar_url,
             ],
             capture_output=True,
             text=True,
@@ -444,7 +446,10 @@ class TestIcebergFunctionality(unittest.TestCase):
                 "spark-master": {
                     "volumes": ["./iceberg-jars:/opt/spark/jars/iceberg:ro"],
                     "environment": {
-                        "SPARK_CONF_spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions"
+                        "SPARK_CONF_spark.sql.extensions": (
+                            "org.apache.iceberg.spark.extensions."
+                            "IcebergSparkSessionExtensions"
+                        )
                     },
                 }
             }

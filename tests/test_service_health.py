@@ -90,7 +90,7 @@ class TestServiceHealth(unittest.TestCase):
             # Test Airflow tables exist
             cursor.execute(
                 """
-                SELECT COUNT(*) FROM information_schema.tables 
+                SELECT COUNT(*) FROM information_schema.tables
                 WHERE table_schema = 'public' AND table_name LIKE 'dag%'
             """
             )

@@ -196,13 +196,13 @@ class TestDataPipelineEndToEnd(unittest.TestCase):
 
             # Test analytical query
             analytical_query = """
-            SELECT 
+            SELECT
                 c.name,
                 c.city,
                 COUNT(o.order_id) as order_count,
                 SUM(o.amount) as total_amount
             FROM read_csv_auto('s3://lakehouse/data/customers.csv') c
-            LEFT JOIN read_csv_auto('s3://lakehouse/data/orders.csv') o 
+            LEFT JOIN read_csv_auto('s3://lakehouse/data/orders.csv') o
                 ON c.id = o.customer_id
             GROUP BY c.name, c.city
             ORDER BY total_amount DESC
@@ -352,12 +352,18 @@ class TestDataPipelineEndToEnd(unittest.TestCase):
             quality_checks = [
                 {
                     "name": "Customer ID Uniqueness",
-                    "query": "SELECT COUNT(*) - COUNT(DISTINCT id) as duplicates FROM read_csv_auto('s3://lakehouse/data/customers.csv')",
+                    "query": (
+                        "SELECT COUNT(*) - COUNT(DISTINCT id) as duplicates "
+                        "FROM read_csv_auto('s3://lakehouse/data/customers.csv')"
+                    ),
                     "expected": 0,
                 },
                 {
                     "name": "Email Format Validation",
-                    "query": "SELECT COUNT(*) FROM read_csv_auto('s3://lakehouse/data/customers.csv') WHERE email NOT LIKE '%@%'",
+                    "query": (
+                        "SELECT COUNT(*) FROM read_csv_auto('"
+                        "s3://lakehouse/data/customers.csv') WHERE email NOT LIKE '%@%'"
+                    ),
                     "expected": 0,
                 },
                 {
@@ -438,14 +444,14 @@ class TestDataPipelineEndToEnd(unittest.TestCase):
 
             # Create customer summary
             summary_query = """
-            SELECT 
+            SELECT
                 c.city,
                 COUNT(c.id) as customer_count,
                 COUNT(o.order_id) as total_orders,
                 COALESCE(SUM(o.amount), 0) as total_revenue,
                 COALESCE(AVG(o.amount), 0) as avg_order_value
             FROM read_csv_auto('s3://lakehouse/data/customers.csv') c
-            LEFT JOIN read_csv_auto('s3://lakehouse/data/orders.csv') o 
+            LEFT JOIN read_csv_auto('s3://lakehouse/data/orders.csv') o
                 ON c.id = o.customer_id
             GROUP BY c.city
             ORDER BY total_revenue DESC
@@ -533,13 +539,13 @@ class TestDataPipelineEndToEnd(unittest.TestCase):
 
             result = conn.execute(
                 """
-            SELECT 
+            SELECT
                 c.name,
                 c.city,
                 COUNT(o.order_id) as order_count,
                 SUM(o.amount) as total_amount
             FROM read_csv_auto('s3://lakehouse/data/customers.csv') c
-            LEFT JOIN read_csv_auto('s3://lakehouse/data/orders.csv') o 
+            LEFT JOIN read_csv_auto('s3://lakehouse/data/orders.csv') o
                 ON c.id = o.customer_id
             GROUP BY c.name, c.city
             ORDER BY total_amount DESC

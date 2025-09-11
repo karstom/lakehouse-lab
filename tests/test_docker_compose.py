@@ -6,13 +6,9 @@ Tests that all compose files are valid and services are properly defined
 
 import unittest
 import subprocess
-import os
 import yaml
-import tempfile
-import shutil
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-import json
+from unittest.mock import patch
 
 
 class TestDockerComposeConfigurations(unittest.TestCase):

@@ -8,8 +8,9 @@ import unittest
 import os
 import re
 from pathlib import Path
-from typing import List, Dict, Tuple, Optional
-import subprocess
+from typing import List, Tuple, Optional
+
+# import subprocess
 
 
 class TestDocumentation(unittest.TestCase):

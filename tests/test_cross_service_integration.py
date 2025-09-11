@@ -211,7 +211,7 @@ class TestCrossServiceIntegration(unittest.TestCase):
             # Test aggregation query that Superset might use
             agg_result = conn.execute(
                 """
-                SELECT 
+                SELECT
                     region,
                     SUM(sales) as total_sales,
                     COUNT(*) as product_count
@@ -387,7 +387,7 @@ class TestCrossServiceIntegration(unittest.TestCase):
             # Test Airflow metadata tables exist
             cursor.execute(
                 """
-                SELECT table_name FROM information_schema.tables 
+                SELECT table_name FROM information_schema.tables
                 WHERE table_schema = 'public' AND table_name LIKE 'dag%'
                 ORDER BY table_name
             """
@@ -399,8 +399,8 @@ class TestCrossServiceIntegration(unittest.TestCase):
             # Check for specific important tables
             cursor.execute(
                 """
-                SELECT table_name FROM information_schema.tables 
-                WHERE table_schema = 'public' 
+                SELECT table_name FROM information_schema.tables
+                WHERE table_schema = 'public'
                 AND table_name IN ('dag', 'dag_run', 'task_instance')
             """
             )
@@ -551,7 +551,7 @@ class TestCrossServiceIntegration(unittest.TestCase):
             # Create aggregated data
             agg_result = conn.execute(
                 """
-                SELECT 
+                SELECT
                     product,
                     region,
                     SUM(sales) as total_sales,
