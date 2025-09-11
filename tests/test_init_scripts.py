@@ -5,11 +5,11 @@ Tests the core functionality of init-all-in-one-modular.sh and
 start-lakehouse.sh
 """
 
-import unittest
-import subprocess
 import os
-import tempfile
 import shutil
+import subprocess
+import tempfile
+import unittest
 from pathlib import Path
 from unittest.mock import patch
 

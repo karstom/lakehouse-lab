@@ -3,17 +3,18 @@ Test configuration and shared fixtures for the lakehouse test suite.
 This module provides common test utilities and fixtures.
 """
 
-import pytest
-import tempfile
-import shutil
 import os
-from pathlib import Path
-from unittest.mock import Mock, patch
-import docker
-import yaml
+import shutil
 import subprocess
+import tempfile
 import time
-from typing import Dict, List, Any, Generator, Optional
+from pathlib import Path
+from typing import Any, Dict, Generator, List, Optional
+from unittest.mock import Mock, patch
+
+import docker
+import pytest
+import yaml
 
 # Test configuration
 TEST_CONFIG = {

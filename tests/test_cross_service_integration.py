@@ -4,17 +4,18 @@ Cross-Service Integration Tests for Lakehouse Stack
 Tests that services work together correctly and share data seamlessly
 """
 
+import os
+import socket
+import subprocess
+import tempfile
+import time
 import unittest
-import requests
-import psycopg2
+from pathlib import Path
+
 import boto3
 import duckdb
-import time
-import tempfile
-import os
-from pathlib import Path
-import subprocess
-import socket
+import psycopg2
+import requests
 
 
 class TestCrossServiceIntegration(unittest.TestCase):

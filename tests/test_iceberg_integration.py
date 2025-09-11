@@ -4,12 +4,13 @@ Tests for Apache Iceberg integration functionality
 Tests Iceberg configuration, JAR availability, and basic functionality
 """
 
-import unittest
-import subprocess
 import os
-import yaml
+import subprocess
+import unittest
 from pathlib import Path
-from unittest.mock import patch, mock_open
+from unittest.mock import mock_open, patch
+
+import yaml
 
 
 class TestIcebergIntegration(unittest.TestCase):

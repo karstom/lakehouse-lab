@@ -4,11 +4,11 @@ Documentation testing and validation
 Tests documentation completeness, accuracy, and consistency
 """
 
-import unittest
 import os
 import re
+import unittest
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
 # import subprocess
 

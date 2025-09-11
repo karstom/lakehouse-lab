@@ -4,14 +4,15 @@ Service Health Tests for Lakehouse Stack
 Tests that all services are running and accessible after initialization
 """
 
-import unittest
-import requests
-import psycopg2
-import boto3
 import socket
-import time
-from pathlib import Path
 import subprocess
+import time
+import unittest
+from pathlib import Path
+
+import boto3
+import psycopg2
+import requests
 
 
 class TestServiceHealth(unittest.TestCase):

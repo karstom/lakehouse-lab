@@ -16,9 +16,10 @@ References:
 - https://github.com/syrusakbary/snapshottest
 """
 
-import requests
 import socket
 import time
+
+import requests
 from snapshottest import TestCase
 
 

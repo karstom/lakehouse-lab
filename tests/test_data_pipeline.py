@@ -4,15 +4,16 @@ Data Pipeline End-to-End Tests for Lakehouse Stack
 Tests complete data workflows from ingestion to visualization
 """
 
+import os
+import tempfile
+import time
 import unittest
-import requests
+from pathlib import Path
+
 import boto3
 import duckdb
 import pandas as pd
-import time
-import os
-import tempfile
-from pathlib import Path
+import requests
 
 
 class TestDataPipelineEndToEnd(unittest.TestCase):

@@ -7,9 +7,10 @@ Tests the fixes for:
 3. enable-auth.sh configuration parsing errors
 """
 
-import pytest
-import subprocess
 import os
+import subprocess
+
+import pytest
 
 
 class TestStartLakehouseScript:

@@ -4,11 +4,12 @@ Integration tests for Docker Compose configurations
 Tests that all compose files are valid and services are properly defined
 """
 
-import unittest
 import subprocess
-import yaml
+import unittest
 from pathlib import Path
 from unittest.mock import patch
+
+import yaml
 
 
 class TestDockerComposeConfigurations(unittest.TestCase):

@@ -6,10 +6,11 @@ Copy this file and adapt for any new service (e.g., Vizro, LanceDB, Homer, Grafa
 Fill in the SERVICE_NAME, endpoints, and any cross-service integration logic as needed.
 """
 
-import unittest
-import requests
 import socket
 import time
+import unittest
+
+import requests
 
 
 class TestServiceTemplate(unittest.TestCase):
