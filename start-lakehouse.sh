@@ -70,7 +70,8 @@ detect_host_ip() {
     fi
     
     # Method 4: Try using default gateway interface (exclude Docker interfaces)
-    local default_interface=$(ip route | grep '^default' | awk '{print $5}' | head -1)
+    local default_interface
+    default_interface=$(ip route | grep '^default' | awk '{print $5}' | head -1)
     if [[ -n "$default_interface" && "$default_interface" != docker* && "$default_interface" != br-* ]]; then
         detected_ip=$(ip addr show "$default_interface" 2>/dev/null | grep 'inet ' | awk '{print $2}' | cut -d'/' -f1)
         if [[ -n "$detected_ip" && "$detected_ip" != "127.0.0.1" ]]; then
@@ -123,7 +124,7 @@ check_service_health() {
     
     echo -e "${YELLOW}⏳ Checking $service_name health...${NC}"
     
-    for i in $(seq 1 $max_attempts); do
+    for i in $(seq 1 "$max_attempts"); do
         if curl -sf "$health_url" >/dev/null 2>&1; then
             echo -e "${GREEN}✅ $service_name is healthy${NC}"
             return 0
@@ -159,7 +160,8 @@ create_named_volumes() {
     log_info "Ensuring required named volumes exist..."
     
     # Get the project name (directory name)
-    local project_name=$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]')
+    local project_name
+    project_name=$(basename "$(pwd)" | tr '[:upper:]' '[:lower:]')
     
     # List of all required volumes for the lakehouse stack
     local volumes=(
@@ -252,26 +254,32 @@ start_with_dependencies() {
             
             # Layer 1: Storage
             echo -e "${BLUE}Layer 1: Storage services${NC}"
+            # shellcheck disable=SC2086
             docker compose $compose_files up -d --remove-orphans postgres minio
             check_service_health "MinIO" "http://localhost:9000/minio/health/live"
             
             # Layer 2: Processing
             echo -e "${BLUE}Layer 2: Compute engines${NC}"
+            # shellcheck disable=SC2086
             docker compose $compose_files up -d --remove-orphans spark-master spark-worker
             check_service_health "Spark Master" "http://localhost:8080" 15
             
             # Layer 3: Initialization
             echo -e "${BLUE}Layer 3: Data initialization${NC}"
+            # shellcheck disable=SC2086
             docker compose $compose_files up lakehouse-init
             
             # Layer 4: Applications
             echo -e "${BLUE}Layer 4: User applications${NC}"
+            # shellcheck disable=SC2086
             docker compose $compose_files up -d --remove-orphans jupyter airflow-init
             sleep 30  # Give airflow-init time to complete
+            # shellcheck disable=SC2086
             docker compose $compose_files up -d --remove-orphans airflow-scheduler airflow-webserver
             
             # Layer 5: BI and monitoring
             echo -e "${BLUE}Layer 5: BI and monitoring${NC}"
+            # shellcheck disable=SC2086
             docker compose $compose_files up -d --remove-orphans superset portainer
             
             # Optional services
@@ -290,6 +298,7 @@ start_with_dependencies() {
             fi
             
             # Check if Iceberg support should be enabled
+            # shellcheck disable=SC2086
             if [[ "${ENABLE_ICEBERG_OVERRIDE:-}" == "true" ]] || [[ -f ".iceberg-enabled" ]]; then
                 echo -e "${BLUE}🧊 Iceberg support detected - using enhanced configuration...${NC}"
                 compose_files="$compose_files -f docker-compose.iceberg.yml"

@@ -249,7 +249,7 @@ show_upgrade_options() {
     
     while true; do
         if $has_bind_mount_data; then
-            read -p "Please choose (1/2/3/4): " choice </dev/tty
+            read -r -p "Please choose (1/2/3/4): " choice </dev/tty
             case $choice in
                 1|smart|Smart|SMART)
                     UPGRADE_CHOICE="smart-upgrade"
@@ -272,7 +272,7 @@ show_upgrade_options() {
                     ;;
             esac
         else
-            read -p "Please choose (1/2/3): " choice </dev/tty
+            read -r -p "Please choose (1/2/3): " choice </dev/tty
             case $choice in
                 1|upgrade|Upgrade|UPGRADE)
                     UPGRADE_CHOICE="upgrade"
@@ -306,7 +306,8 @@ perform_upgrade() {
     fi
     
     # Backup current installation
-    local backup_dir="${INSTALL_DIR}_backup_$(date +%Y%m%d_%H%M%S)"
+    local backup_dir
+    backup_dir="${INSTALL_DIR}_backup_$(date +%Y%m%d_%H%M%S)"
     if [[ -d "$INSTALL_DIR" ]]; then
         print_step "Creating backup of current installation..."
         mv "$INSTALL_DIR" "$backup_dir"
@@ -352,7 +353,8 @@ perform_smart_upgrade() {
     echo ""
     
     # Remember the current working directory and ensure we use absolute paths
-    local original_dir="$(pwd)"
+    local original_dir
+    original_dir="$(pwd)"
     local abs_install_dir
     if [[ "$INSTALL_DIR" = /* ]]; then
         abs_install_dir="$INSTALL_DIR"
@@ -417,7 +419,8 @@ perform_legacy_upgrade() {
     echo ""
     
     # Remember the current working directory
-    local original_dir="$(pwd)"
+    local original_dir
+    original_dir="$(pwd)"
     local abs_install_dir
     if [[ "$INSTALL_DIR" = /* ]]; then
         abs_install_dir="$INSTALL_DIR"
@@ -527,7 +530,7 @@ install_docker_ubuntu() {
     sudo systemctl enable docker
     
     # Add user to docker group
-    sudo usermod -aG docker $USER
+    sudo usermod -aG docker "$USER"
     
     # Test Docker installation
     if sudo docker run --rm hello-world >/dev/null 2>&1; then
@@ -546,7 +549,7 @@ install_docker_centos() {
     sudo yum install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
     sudo systemctl start docker
     sudo systemctl enable docker
-    sudo usermod -aG docker $USER
+    sudo usermod -aG docker "$USER"
     print_warning "You may need to log out and back in for Docker permissions to take effect"
 }
 
@@ -715,7 +718,8 @@ download_lakehouse_lab() {
     
     # Detect if we're already in a directory with the same name as INSTALL_DIR
     # This prevents nesting like ~/lakehouse-lab/lakehouse-lab
-    local current_dir_name=$(basename "$(pwd)")
+    local current_dir_name
+    current_dir_name=$(basename "$(pwd)")
     local target_dir="$INSTALL_DIR"
     
     if [[ "$current_dir_name" == "$target_dir" ]] && [[ ! -f "docker-compose.yml" ]]; then
