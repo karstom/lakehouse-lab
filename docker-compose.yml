@@ -139,7 +139,7 @@ services:
 
   # Initialization Service
   lakehouse-init:
-    image: bash:5
+    image: python:3.11
     depends_on:
       minio:
         condition: service_healthy
