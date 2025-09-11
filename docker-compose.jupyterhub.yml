@@ -1,7 +1,8 @@
+---
 services:
   # Replace single-user Jupyter with JupyterHub
   jupyter:
-    build: 
+    build:
       context: ./jupyterhub
       dockerfile: Dockerfile.simple
     depends_on:
@@ -14,19 +15,20 @@ services:
     environment:
       # Database connection
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      JUPYTERHUB_DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/lakehouse
-      
+      JUPYTERHUB_DB_URL: >-
+        postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/lakehouse
+
       # Docker configuration
       DOCKER_NETWORK_NAME: lakehouse-lab_lakehouse
-      
+
       # Spark configuration for user notebooks
       SPARK_MASTER: spark://spark-master:7077
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      
+
       # API token for user provisioning
       JUPYTERHUB_API_TOKEN: ${JWT_SECRET:-lakehouse-admin-token}
-      
+
       # Resource limits
       JUPYTER_SPARK_DRIVER_MEMORY: ${JUPYTER_SPARK_DRIVER_MEMORY:-2g}
       JUPYTER_SPARK_EXECUTOR_MEMORY: ${JUPYTER_SPARK_EXECUTOR_MEMORY:-2g}
