@@ -729,7 +729,8 @@ download_lakehouse_lab() {
         target_dir="."
         
         # Remove any existing lakehouse files (but preserve other files)
-        rm -rf docker-compose*.yml .env* scripts/ templates/ -- *.sh README.md 2>/dev/null || true
+        # Note: scripts/ preserved here to allow credential generation in configure_environment()
+        rm -rf docker-compose*.yml .env* templates/ -- *.sh README.md 2>/dev/null || true
     elif [[ -d "$INSTALL_DIR" ]] && [[ $UPGRADE_MODE != "true" ]] && [[ $UPGRADE_MODE != "smart-upgrade" ]] && [[ $UPGRADE_MODE != "legacy-upgrade" ]] && [[ $REPLACE_MODE != "true" ]]; then
         print_warning "Directory $INSTALL_DIR already exists. Removing..."
         rm -rf "$INSTALL_DIR"
