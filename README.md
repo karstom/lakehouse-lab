@@ -1,13 +1,11 @@
 # Lakehouse Lab
 
-[![CI Status](https://github.com/karstom/lakehouse-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/karstom/lakehouse-lab/actions)
 [![GitHub release](https://img.shields.io/github/release/karstom/lakehouse-lab.svg)](https://github.com/karstom/lakehouse-lab/releases)
 [![Docker Compose](https://img.shields.io/badge/docker--compose-ready-blue)](https://docs.docker.com/compose/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](docs/CONTRIBUTING.md)
 [![Last Commit](https://img.shields.io/github/last-commit/karstom/lakehouse-lab)](https://github.com/karstom/lakehouse-lab/commits/main)
 
-> _Note: Update the badge URLs above to match your actual CI and coverage providers if different._
 
 ---
 
