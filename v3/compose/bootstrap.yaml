@@ -31,6 +31,7 @@ services:
       SEAWEEDFS_ADMIN_ACCESS_KEY: ${SEAWEEDFS_ADMIN_ACCESS_KEY:?}
       SEAWEEDFS_ADMIN_SECRET_KEY: ${SEAWEEDFS_ADMIN_SECRET_KEY:?}
       OIDC_CLIENT_SECRET_LAKEKEEPER: ${OIDC_CLIENT_SECRET_LAKEKEEPER:?}
+      OIDC_CLIENT_SECRET_SYNC: ${OIDC_CLIENT_SECRET_SYNC:?}
       SSL_CERT_FILE: /trust/ca-bundle.crt
       TZ: ${LAB_TZ:-UTC}
     volumes:
@@ -44,3 +45,34 @@ services:
     restart: "no"
     mem_limit: ${BOOTSTRAP_MEM:-256m}
     cpus: ${BOOTSTRAP_CPUS:-1}
+
+  # Keeps Trino's group file and Lakekeeper's roles in step with Keycloak groups, so an
+  # admin can change access in the Keycloak UI without a shell (OQ-20). It uses the
+  # read-only `lab-sync` account that bootstrap creates, never the master admin. `lab sync`
+  # triggers an immediate run.
+  identity-sync:
+    image: lakehouse-lab/v3-bootstrap:${PYTHON_IMAGE_TAG}
+    command: ["python3", "-m", "bootstrap", "sync"]
+    environment:
+      LAB_CATALOG_AUTHZ: ${LAB_CATALOG_AUTHZ:-openfga}
+      LAB_SYNC_INTERVAL: ${LAB_SYNC_INTERVAL:-30}
+      OIDC_CLIENT_SECRET_SYNC: ${OIDC_CLIENT_SECRET_SYNC:?}
+      OIDC_CLIENT_SECRET_LAKEKEEPER: ${OIDC_CLIENT_SECRET_LAKEKEEPER:?}
+      SSL_CERT_FILE: /trust/ca-bundle.crt
+      TZ: ${LAB_TZ:-UTC}
+    volumes:
+      - trust:/trust:ro
+      - trino-groups:/var/lib/lab/trino-groups
+    networks: [lab]
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+    healthcheck:
+      # Healthy while the last successful sync is younger than three intervals.
+      test: ["CMD", "python3", "-c", "import os,sys,time; i=int(os.environ.get('LAB_SYNC_INTERVAL','30')); sys.exit(0 if time.time()-os.path.getmtime('/tmp/identity-sync.ok') < 3*i+10 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    mem_limit: ${IDENTITY_SYNC_MEM:-128m}
+    cpus: ${IDENTITY_SYNC_CPUS:-0.25}

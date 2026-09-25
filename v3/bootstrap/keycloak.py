@@ -25,13 +25,30 @@ def token_url(realm=REALM):
     return f"{KC}/realms/{realm}/protocol/openid-connect/token"
 
 
+# Read-only identity for the long-running identity-sync service (OQ-20). It can only read
+# users, groups and clients in the lakehouse realm; the master admin password never leaves
+# the one-shot bootstrap.
+SYNC_CLIENT = "lab-sync"
+SYNC_ROLES = ("view-users", "query-users", "query-groups", "view-clients")
+
+
 class Admin:
-    def __init__(self, user, password):
+    def __init__(self, token):
+        self.h = {"Authorization": f"Bearer {token}"}
+        self.base = f"{KC}/admin/realms/{REALM}"
+
+    @classmethod
+    def with_password(cls, user, password):
+        """Master-realm admin: one-shot bootstrap only."""
         _, tok, _ = web.request("POST", token_url("master"), form={
             "grant_type": "password", "client_id": "admin-cli",
             "username": user, "password": password})
-        self.h = {"Authorization": f"Bearer {tok['access_token']}"}
-        self.base = f"{KC}/admin/realms/{REALM}"
+        return cls(tok["access_token"])
+
+    @classmethod
+    def with_client(cls, client_id, secret):
+        """A service account in the lakehouse realm (identity-sync)."""
+        return cls(client_credentials_token(client_id, secret))
 
     def get(self, path, **kw):
         return web.request("GET", self.base + path, headers=self.h, **kw)[1]
@@ -101,6 +118,37 @@ class Admin:
         self.call("PUT", f"/clients/{c['id']}", c)
         print(f"[keycloak] {client_id}: password grant {'enabled' if enabled else 'disabled'}")
         return True
+
+    def ensure_sync_client(self, secret):
+        """Create or repair the read-only lab-sync service account. Returns True if changed.
+        Done here rather than in the realm template so existing installs get it too (the
+        realm is imported only on first start)."""
+        changed = False
+        found = self.get(f"/clients?clientId={SYNC_CLIENT}")
+        if not found:
+            self.call("POST", "/clients", {
+                "clientId": SYNC_CLIENT, "enabled": True, "publicClient": False,
+                "clientAuthenticatorType": "client-secret", "secret": secret,
+                "serviceAccountsEnabled": True, "standardFlowEnabled": False,
+                "directAccessGrantsEnabled": False, "implicitFlowEnabled": False,
+                "description": "identity-sync: reads Keycloak groups (read-only)"})
+            print(f"[keycloak] created client {SYNC_CLIENT}")
+            changed = True
+        c = self.client(SYNC_CLIENT)
+        if self.get(f"/clients/{c['id']}/client-secret").get("value") != secret:
+            c["secret"] = secret
+            self.call("PUT", f"/clients/{c['id']}", c)
+            print(f"[keycloak] {SYNC_CLIENT}: secret updated from .secrets.env")
+            changed = True
+        sa = self.get(f"/clients/{c['id']}/service-account-user")
+        rm = self.client("realm-management")
+        have = {r["name"] for r in self.get(f"/users/{sa['id']}/role-mappings/clients/{rm['id']}")}
+        add = [self.get(f"/clients/{rm['id']}/roles/{r}") for r in SYNC_ROLES if r not in have]
+        if add:
+            self.call("POST", f"/users/{sa['id']}/role-mappings/clients/{rm['id']}", add)
+            print(f"[keycloak] {SYNC_CLIENT}: granted {[r['name'] for r in add]}")
+            changed = True
+        return changed
 
     def service_account_user(self, client_id):
         c = self.client(client_id)

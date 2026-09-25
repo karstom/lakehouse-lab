@@ -342,3 +342,18 @@ A Trino user's identity does **not** reach Lakekeeper with Trino 483.
 - **V2 workflows on `v3`:** all green except Security Scan. It also fails on `main`, because
   its pinned `aquasecurity/trivy-action@0.33.0` tag no longer exists upstream (V2
   maintenance item for the owner).
+
+## Follow-up: automatic identity sync (OQ-20) and the upgrade path
+
+- **New `identity-sync` service.** It re-syncs every 30 s using a read-only `lab-sync`
+  Keycloak account (users, groups and clients only), which bootstrap creates so existing
+  installs get it too. `lab sync` runs it immediately. New secret: `OIDC_CLIENT_SECRET_SYNC`.
+- **New smoke check 7:** a group change made through the Keycloak admin API takes effect in
+  Trino with no shell step. On the dev host, granting took 32.8 s and revoking 29.0 s, with
+  the whole smoke test passing 7/7. That run was an *upgrade* of the existing install: the
+  missing secret was added, `lab-sync` was created in the existing realm, and the new
+  service came up healthy.
+- **Upgrade bug found and fixed.** `install.sh` only built local images when they were
+  missing, so after pulling new code a re-run kept a stale bootstrap image.
+  `install.sh` now runs `up --build`, which is quick with the build cache; `lab up` does not.
+  Recorded as REG_V3_STALE_LOCAL_IMAGES_ON_UPGRADE.

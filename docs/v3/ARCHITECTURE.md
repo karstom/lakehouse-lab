@@ -92,6 +92,11 @@ JSON (clients, groups, mappers, redirect URIs templated from `LAB_DOMAIN`), then
 the first admin user with a generated password. `provision-user.sh` becomes a thin wrapper
 around the Keycloak admin API. After this, no service stores its own users.
 
+**Access is granted only through Keycloak groups.** The `identity-sync` service (every 30 s,
+read-only `lab-sync` account; `lab sync` for immediate) generates Trino's group file and
+Lakekeeper's role memberships from them, so an admin manages access entirely in the Keycloak
+UI (OQ-19, OQ-20).
+
 **External identity providers (ADR-016, optional):** Keycloak can hand logins to GitHub.
 First-time GitHub users land in no group and wait for an admin to add them. Accounts are
 never linked automatically by email, and a local admin always remains.

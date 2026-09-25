@@ -218,7 +218,10 @@ fi
 
 hdr "Starting the lab (profile $LAB_PROFILE); first start builds/pulls images and can take several minutes"
 t0=$(date +%s)
-if ! lab_compose up -d --wait --remove-orphans; then
+# --build: local images (bootstrap, smoke) are rebuilt from the checked-out code on every
+# install/upgrade, otherwise a re-run after `git pull` keeps running stale images. The build
+# cache makes this quick when nothing changed. `lab up` skips it for speed.
+if ! lab_compose up -d --wait --remove-orphans --build; then
   err "the stack did not become healthy."
   info "  See what failed:  $V3_DIR/lab status"
   info "  Service logs:     $V3_DIR/lab logs <service>"

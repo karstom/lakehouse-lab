@@ -109,8 +109,9 @@ def ensure_assignments(lk, path, wanted):
     return len(writes)
 
 
-def sync(lk, kc, wh, members):
-    """members: Keycloak group -> [usernames] (already read for the Trino group file)."""
+def sync(lk, kc, wh, members, quiet=False):
+    """members: Keycloak group -> [usernames] (already read for the Trino group file).
+    Returns the number of changes. quiet=True skips the 'unchanged' line (sync loop)."""
     wid = wh.get("warehouse-id") or wh["id"]
     role_ids = ensure_roles(lk)
 
@@ -129,5 +130,7 @@ def sync(lk, kc, wh, members):
 
     wanted = [{"type": t, "role": role_ids[g]} for g, ts in PROJECT_GRANTS.items() for t in ts]
     n += ensure_assignments(lk, "/permissions/project/assignments", wanted)
-    print(f"[lakekeeper] permissions: {n} grant(s) written, {changes} membership change(s)"
-          if n or changes else "[lakekeeper] permissions: unchanged")
+    if n or changes or not quiet:
+        print(f"[lakekeeper] permissions: {n} grant(s) written, {changes} membership change(s)"
+              if n or changes else "[lakekeeper] permissions: unchanged")
+    return n + changes

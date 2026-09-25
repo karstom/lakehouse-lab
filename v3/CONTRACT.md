@@ -84,6 +84,7 @@ URL-safe (INV_DB_PASSWORDS_URL_SAFE).
 | `SEAWEEDFS_STS_SIGNING_KEY` | SeaweedFS STS signing key |
 | `LAKEKEEPER_PG_ENCRYPTION_KEY` | Lakekeeper secret encryption |
 | `OIDC_CLIENT_SECRET_TRINO`, `OIDC_CLIENT_SECRET_LAKEKEEPER`, `OIDC_CLIENT_SECRET_CONSOLE` | confidential OIDC clients |
+| `OIDC_CLIENT_SECRET_SYNC` | read-only `lab-sync` service account used by `identity-sync` (created by bootstrap) |
 | `TRINO_INTERNAL_SECRET` | Trino shared secret |
 
 Test users (`alice` lab-admin, `eddie` engineer, `anna` analyst, `victor` viewer) are created
@@ -138,6 +139,8 @@ through a mounted `ca-bundle`.
      credentials are denied on a sibling prefix.
   5. `victor` (viewer) is denied a write in Trino.
   6. No static S3 key appears in the Trino config or environment.
+  7. A group change made through the Keycloak admin API (what the Keycloak UI does) reaches
+     Trino with no shell step, both granting and revoking (the `identity-sync` service, OQ-20).
 - The smoke test runs from a container on the `lab` network (Playwright image, pinned) that
   trusts the lab CA. The same command runs in CI and on the dev server.
 

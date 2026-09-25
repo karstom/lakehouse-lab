@@ -23,6 +23,7 @@ Usage: ./lab <command> [args]
   down                stop the lab; data volumes are kept
   status              show services and their health (exit 1 if any is unhealthy)
   urls                print the lab's URLs
+  sync                apply Keycloak group changes now (identity-sync also does it every 30s)
   logs [svc...]       show service logs (follows on a terminal; --no-follow to stop)
   reset [--all] [--yes]
                       delete this lab's containers AND data volumes, keeping settings,
@@ -166,6 +167,12 @@ cmd_reset() {
   fi
 }
 
+cmd_sync() {
+  [ $# -eq 0 ] || die "usage: lab sync"
+  require_install
+  lab_compose exec -T identity-sync python3 -m bootstrap sync --once
+}
+
 cmd_test() {
   require_install
   local t="$V3_DIR/tests/smoke/run.sh"
@@ -192,6 +199,7 @@ case "$sub" in
   urls) cmd_urls "$@" ;;
   logs) cmd_logs "$@" ;;
   reset) cmd_reset "$@" ;;
+  sync) cmd_sync "$@" ;;
   test) cmd_test "$@" ;;
   ca) cmd_ca "$@" ;;
   -h|--help|help) usage ;;

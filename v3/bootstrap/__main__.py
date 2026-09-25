@@ -22,6 +22,53 @@ def step(name):
     print(f"[bootstrap] -- {name}", flush=True)
 
 
+def sync_trino_groups(kc, gids, quiet=False):
+    """Keycloak group membership -> Trino file group provider. Returns the membership map."""
+    members = {g: kc.group_members(gids[g]) for g in keycloak.LAB_GROUPS}
+    changed = trino_groups.write(members)
+    if changed or not quiet:
+        print(f"[trino] {trino_groups.PATH}: {'written' if changed else 'unchanged'} "
+              f"({', '.join(f'{g}={len(u)}' for g, u in members.items())})", flush=True)
+    return members
+
+
+def sync_once(quiet):
+    """One identity sync: Keycloak groups -> Trino group file and Lakekeeper roles/grants.
+    Uses only the read-only lab-sync account and the Lakekeeper operator client (OQ-20)."""
+    kc = keycloak.Admin.with_client(keycloak.SYNC_CLIENT, env("OIDC_CLIENT_SECRET_SYNC"))
+    members = sync_trino_groups(kc, kc.group_ids(), quiet)
+    if env("LAB_CATALOG_AUTHZ", "openfga", required=False) == "openfga":
+        from . import lakekeeper_authz
+        lk = lakekeeper.Client(keycloak.client_credentials_token(
+            "lakekeeper", env("OIDC_CLIENT_SECRET_LAKEKEEPER")))
+        wh = lk.find_warehouse()
+        if wh is None:
+            raise RuntimeError("warehouse not found; has bootstrap completed?")
+        lakekeeper_authz.sync(lk, kc, wh, members, quiet=quiet)
+
+
+HEARTBEAT = "/tmp/identity-sync.ok"
+
+
+def sync_loop():
+    """identity-sync service: repeat sync_once every LAB_SYNC_INTERVAL seconds so group
+    changes made in the Keycloak UI take effect without a shell. Errors are logged and
+    retried on the next tick; the healthcheck watches the heartbeat file."""
+    interval = int(env("LAB_SYNC_INTERVAL", "30", required=False))
+    print(f"[identity-sync] every {interval}s: Keycloak groups -> Trino, Lakekeeper", flush=True)
+    quiet = False
+    while True:
+        try:
+            sync_once(quiet)
+            with open(HEARTBEAT, "w") as f:
+                f.write(str(time.time()))
+            quiet = True
+        except Exception as e:  # keep running; the next tick retries
+            print(f"[identity-sync] sync failed, retrying in {interval}s: {e}", file=sys.stderr, flush=True)
+            quiet = False
+        time.sleep(interval)
+
+
 def main():
     t0 = time.time()
     seed = env("LAB_SEED_TEST_USERS", "false", required=False).lower() == "true"
@@ -32,7 +79,7 @@ def main():
     # ---------------------------------------------------------------- Keycloak
     step("keycloak: users")
     web.wait_for(f"{keycloak.KC}/realms/{keycloak.REALM}/.well-known/openid-configuration")
-    kc = keycloak.Admin(env("KC_ADMIN_USER"), env("KC_ADMIN_PASSWORD"))
+    kc = keycloak.Admin.with_password(env("KC_ADMIN_USER"), env("KC_ADMIN_PASSWORD"))
     gids = kc.group_ids()
     changed = kc.ensure_user(env("LAB_ADMIN_USER"), env("LAB_ADMIN_PASSWORD"),
                              "Lab", "Admin", "lab-admin", gids)
@@ -41,14 +88,12 @@ def main():
         for username, first, last, group in keycloak.TEST_USERS:
             changed |= kc.ensure_user(username, pw, first, last, group, gids)
     changed |= kc.set_direct_grants("trino", seed)
+    changed |= kc.ensure_sync_client(env("OIDC_CLIENT_SECRET_SYNC"))
     print(f"[keycloak] users: {'updated' if changed else 'unchanged'} "
           f"(test users {'on' if seed else 'off'})")
 
     step("trino: group provider file from Keycloak groups (OQ-17)")
-    members = {g: kc.group_members(gids[g]) for g in keycloak.LAB_GROUPS}
-    changed = trino_groups.write(members)
-    print(f"[trino] {trino_groups.PATH}: {'written' if changed else 'unchanged'} "
-          f"({', '.join(f'{g}={len(u)}' for g, u in members.items())})")
+    members = sync_trino_groups(kc, gids)
 
     # ---------------------------------------------------------------- SeaweedFS
     step("seaweedfs: bucket")
@@ -78,7 +123,13 @@ def main():
 
 if __name__ == "__main__":
     try:
-        main()
+        if sys.argv[1:2] == ["sync"]:
+            if "--once" in sys.argv:
+                sync_once(quiet=False)
+            else:
+                sync_loop()
+        else:
+            main()
     except web.HTTPError as e:
         print(f"[bootstrap] FAILED: {e}", file=sys.stderr)
         sys.exit(1)

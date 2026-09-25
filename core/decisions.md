@@ -298,3 +298,19 @@
 **Commit:** 4dd6c9a
 **LastUpdated:** 2026-09-25
 **Author:** tooling-workstream
+
+---
+
+## NODE: DEC_V3_IDENTITY_SYNC_SERVICE
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3: access granted only via Keycloak groups; identity-sync keeps Trino + Lakekeeper in step
+**Summary:** Because Trino 483 can't pass user identity to Lakekeeper (OQ-19), Trino and Lakekeeper keep separate permission rules. Both are generated from Keycloak groups by the identity-sync service every 30 s, using a read-only lab-sync account created by bootstrap (never the master admin); `lab sync` runs it immediately. Access is granted only through Keycloak groups, so an admin needs no shell (OQ-20). New Keycloak clients are created idempotently by bootstrap rather than the realm template, so existing installs also get them.
+**Tags:** v3, identity, keycloak, trino, lakekeeper
+**Edges:**
+- DEPENDS_ON → DEC_V3_KEYCLOAK_SSO_SUBDOMAINS: Keycloak groups are the single place access is granted
+**Files:** `v3/bootstrap/__main__.py`, `v3/bootstrap/keycloak.py`, `v3/bootstrap/lakekeeper_authz.py`, `v3/compose/bootstrap.yaml`, `v3/lab`, `v3/tests/smoke/smoke.py`
+**Symbols:** `sync_once`, `sync_loop`, `ensure_sync_client`
+**Evidence:** lab test check 7: victor granted after 32.8s, revoked after 29.0s via Keycloak admin API only
+**Commit:** 39b2dce
+**LastUpdated:** 2026-09-25

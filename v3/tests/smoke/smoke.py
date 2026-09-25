@@ -209,6 +209,66 @@ def check_viewer_denied():
           {"current_user": me, "select_count": can_read, "insert_error": err, "count_after": after})
 
 
+# ---------------------------------------------------------------- 7. group change, no shell (OQ-20)
+def kc_admin_token():
+    r = requests.post(url("auth", "/realms/master/protocol/openid-connect/token"), data={
+        "grant_type": "password", "client_id": "admin-cli",
+        "username": os.environ["KC_ADMIN_USER"], "password": os.environ["KC_ADMIN_PASSWORD"]},
+        verify=CA, timeout=30)
+    r.raise_for_status()
+    return r.json()["access_token"]
+
+
+def victor_can_insert(table):
+    import trino
+    cur = trino_conn(user_token("victor")).cursor()
+    try:
+        run(cur, f"INSERT INTO {table} VALUES (1)")
+        return True
+    except trino.exceptions.TrinoUserError as e:
+        if "Access Denied" in e.message:
+            return False
+        raise
+
+
+def wait_until(pred, want, budget):
+    t0 = time.time()
+    while time.time() - t0 < budget:
+        if pred() == want:
+            return round(time.time() - t0, 1)
+        time.sleep(5)
+    return None
+
+
+def check_group_change_propagates():
+    """An admin moves victor viewer -> engineer through the Keycloak admin API (what the
+    Keycloak UI does), and Trino's permission follows with no shell step; then back."""
+    budget = 3 * int(os.environ.get("LAB_SYNC_INTERVAL", "30")) + 45  # sync + Trino's 15s refresh
+    base = url("auth", "/admin/realms/lakehouse")
+    h = {"Authorization": f"Bearer {kc_admin_token()}"}
+    uid = requests.get(f"{base}/users?exact=true&username=victor", headers=h, verify=CA, timeout=30).json()[0]["id"]
+    gid = {g["name"]: g["id"] for g in requests.get(f"{base}/groups", headers=h, verify=CA, timeout=30).json()}["engineer"]
+    table = f"lakehouse.{SCHEMA}.sync_probe"
+    alice = trino_conn(STATE.get("alice_token") or user_token("alice")).cursor()
+    run(alice, f"DROP TABLE IF EXISTS {table}")
+    run(alice, f"CREATE TABLE {table} (id bigint)")
+    before = victor_can_insert(table)
+    granted = revoked = None
+    try:
+        requests.put(f"{base}/users/{uid}/groups/{gid}", headers=h, verify=CA, timeout=30).raise_for_status()
+        granted = wait_until(lambda: victor_can_insert(table), True, budget)
+    finally:
+        h = {"Authorization": f"Bearer {kc_admin_token()}"}
+        requests.delete(f"{base}/users/{uid}/groups/{gid}", headers=h, verify=CA, timeout=30).raise_for_status()
+    if granted is not None:
+        revoked = wait_until(lambda: victor_can_insert(table), False, budget)
+    run(alice, f"DROP TABLE IF EXISTS {table}")
+    check("7.group_change_propagates_without_shell",
+          before is False and granted is not None and revoked is not None,
+          {"victor_insert_before": before, "seconds_until_granted": granted,
+           "seconds_until_revoked": revoked, "budget_s": budget})
+
+
 def main():
     if not PW:
         print("LAB_TEST_USER_PASSWORD is empty: the smoke test needs LAB_SEED_TEST_USERS=true")
@@ -217,6 +277,7 @@ def main():
     guarded("3.trino_alice_create_insert_read", check_trino_alice)
     guarded("4.pyiceberg_vended_credentials", check_pyiceberg_vended)
     guarded("5.viewer_write_denied", check_viewer_denied)
+    guarded("7.group_change_propagates_without_shell", check_group_change_propagates)
     failed = [k for k, v in RESULTS.items() if not v["pass"]]
     try:
         os.makedirs("/out", exist_ok=True)

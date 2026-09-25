@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Lakehouse Lab V3 end-to-end smoke test (CONTRACT.md "Test contract"). `./lab test` runs it.
-# Against the RUNNING stack; exits 0 only if all six checks pass:
+# Against the RUNNING stack; exits 0 only if all seven checks pass:
 #   1. the stack is healthy                                            (here, on the host)
 #   2. headless browser logs in as alice through auth. and reaches the Trino UI
 #   3. with alice's Keycloak token, Trino creates a namespace + Iceberg table, inserts, reads
@@ -8,7 +8,9 @@
 #      denied on a sibling prefix
 #   5. victor (viewer) is denied a write in Trino
 #   6. no static S3 key in Trino's config or environment                (here, on the host)
-# Checks 2-5 run in the `smoke` container (profile test) on the lab network: smoke.py.
+#   7. a group change made through the Keycloak admin API (as in the Keycloak UI) reaches
+#      Trino automatically via identity-sync, granting and then revoking (OQ-20)
+# Checks 2-5 and 7 run in the `smoke` container (profile test) on the lab network: smoke.py.
 #
 # Usage: tests/smoke/run.sh [--no-build]
 # Env:   LAB_SMOKE_OUT  where screenshots/results.json go (default: tests/smoke/out)
@@ -90,12 +92,12 @@ if LAB_SMOKE_OUT="$out" "${DC[@]}" --profile test run --rm "${build[@]}" \
      --user "$(id -u):$(id -g)" -e HOME=/tmp/smoke-home smoke; then
   :
 else
-  FAILED+=("2-5 (see [FAIL] lines above, $out/results.json)")
+  FAILED+=("2-5,7 (see [FAIL] lines above, $out/results.json)")
 fi
 
 echo
 if [ ${#FAILED[@]} -eq 0 ]; then
-  echo "SMOKE: PASS (6/6)"
+  echo "SMOKE: PASS (7/7)"
   exit 0
 fi
 echo "SMOKE: FAIL: ${FAILED[*]}"

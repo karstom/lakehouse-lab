@@ -202,3 +202,20 @@
 **Evidence:** WSL2 install on default 443/80 (lab.localhost) → lab test SMOKE: PASS (6/6); server 18443 → 6/6
 **Commit:** 13770d3
 **LastUpdated:** 2026-09-25
+
+---
+
+## NODE: REG_V3_STALE_LOCAL_IMAGES_ON_UPGRADE
+**Type:** Regression
+**Priority:** MEDIUM
+**Label:** V3 re-install after code change kept running stale locally built images
+**Summary:** Locally built images (bootstrap, smoke) were built only when missing, because install.sh ran `up` without `--build`. After new bootstrap code was synced, a re-install ran the old image: identity-sync fell through to the one-shot path and crash-looped. Fixed by having install.sh (the install and upgrade path) always run `up --build`; `lab up` stays fast. Anyone upgrading with `git pull` and install.sh would have hit this.
+**Tags:** v3, upgrade, images, installer
+**REGRESSED_N_TIMES:** 1
+**Edges:**
+- RELATES_TO → REG_UPGRADE_VOLUME_DATA_LOSS: another upgrade-path-only failure; test upgrades, not just clean installs
+- RELATES_TO → WATCH_INSTALL_UPGRADE_PATH: V2 lesson that upgrade paths need their own testing
+**Files:** `v3/install.sh`, `v3/compose/bootstrap.yaml`, `v3/tests/installer/test_unit.sh`
+**Evidence:** dev host: install.sh re-run over existing v3-p1 → bootstrap 'created client lab-sync', identity-sync healthy, lab test 7/7
+**Commit:** 39b2dce
+**LastUpdated:** 2026-09-25
