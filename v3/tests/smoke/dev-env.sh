@@ -21,6 +21,8 @@ LAB_SEED_TEST_USERS=true
 EOT
   echo "wrote .env"
 fi
+if [ "$https" = 443 ]; then auth_url="https://auth.$domain"; else auth_url="https://auth.$domain:$https"; fi
+echo "raw 'docker compose' needs: export LAB_AUTH_URL=$auth_url   (./lab and ./install.sh derive it)"
 
 if [ ! -f .secrets.env ]; then
   hex() { openssl rand -hex "$1"; }

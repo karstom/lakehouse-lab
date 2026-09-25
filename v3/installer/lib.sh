@@ -119,6 +119,12 @@ lab_settings() {
   export LAB_HTTP_PORT="${LAB_HTTP_PORT:-$LAB_DEFAULT_HTTP_PORT}"
   export LAB_PROFILE="${LAB_PROFILE:-$LAB_DEFAULT_PROFILE}"
   export LAB_STATE_DIR="${LAB_STATE_DIR:-$LAB_DEFAULT_STATE_DIR}"
+  # The public Keycloak origin, which is also the OIDC issuer origin. It is derived here
+  # and nowhere else: Keycloak drops the default :443, so Trino, Lakekeeper and Keycloak
+  # must all get the same normalized string (REG_V3_OIDC_ISSUER_DEFAULT_PORT). Never
+  # stored in .env.
+  LAB_AUTH_URL="$(service_url auth)"
+  export LAB_AUTH_URL
 }
 
 # state_dir_abs -> LAB_STATE_DIR resolved like compose does (relative to the project dir).

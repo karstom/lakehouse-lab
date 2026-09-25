@@ -9,6 +9,7 @@ services:
     environment:
       LAB_DOMAIN: ${LAB_DOMAIN:-lab.localhost}
       LAB_HTTPS_PORT: ${LAB_HTTPS_PORT:-443}
+      LAB_AUTH_URL: ${LAB_AUTH_URL:?LAB_AUTH_URL is derived from LAB_DOMAIN/LAB_HTTPS_PORT by installer/lib.sh; start the lab with ./lab or ./install.sh}
       OIDC_CLIENT_SECRET_TRINO: ${OIDC_CLIENT_SECRET_TRINO:?}
       TRINO_INTERNAL_SECRET: ${TRINO_INTERNAL_SECRET:?}
       TZ: ${LAB_TZ:-UTC}

@@ -20,6 +20,7 @@ services:
     environment:
       LAB_DOMAIN: ${LAB_DOMAIN:-lab.localhost}
       LAB_HTTPS_PORT: ${LAB_HTTPS_PORT:-443}
+      LAB_AUTH_URL: ${LAB_AUTH_URL:?LAB_AUTH_URL is derived from LAB_DOMAIN/LAB_HTTPS_PORT by installer/lib.sh; start the lab with ./lab or ./install.sh}
       LAB_TEST_USER_PASSWORD: ${LAB_TEST_USER_PASSWORD:-}
       # The test obtains user tokens with the password grant of the `trino` client, which
       # bootstrap enables only when LAB_SEED_TEST_USERS=true.

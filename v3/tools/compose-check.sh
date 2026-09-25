@@ -82,7 +82,8 @@ env_files+=(--env-file "$work/.env")
 
 # Run with a clean environment for interpolation, so nothing from the caller's shell
 # (or CI) can satisfy a variable that versions.env/.env should provide.
-clean_env=(PATH="$PATH" HOME="${HOME:-/tmp}" COMPOSE_PROJECT_NAME=lakehouse-compose-check)
+clean_env=(PATH="$PATH" HOME="${HOME:-/tmp}" COMPOSE_PROJECT_NAME=lakehouse-compose-check
+           LAB_AUTH_URL=https://auth.lab.localhost)  # what installer/lib.sh derives for the .env above
 for v in DOCKER_HOST DOCKER_CONTEXT DOCKER_CONFIG; do
   [ -n "${!v:-}" ] && clean_env+=("$v=${!v}")
 done

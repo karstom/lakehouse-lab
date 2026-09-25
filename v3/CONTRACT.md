@@ -53,6 +53,11 @@ docker compose --project-directory v3 --env-file v3/versions.env --env-file v3/.
   --profile core up -d --wait --remove-orphans
 ```
 
+`./lab` and `./install.sh` also export **`LAB_AUTH_URL`**, the public Keycloak origin derived
+from `LAB_DOMAIN`/`LAB_HTTPS_PORT` with the default `:443` omitted. It is the single source
+of the OIDC issuer origin and is never stored in `.env`. A raw `docker compose` call must
+export it; compose fails loudly without it.
+
 `v3/.env` holds non-secret settings. The installer writes it; users may edit it.
 
 | Var | Meaning | Default |

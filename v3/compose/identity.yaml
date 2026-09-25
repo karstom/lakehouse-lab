@@ -31,7 +31,7 @@ services:
       KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?}
       # Public URL; also the issuer. Back-channel calls from containers go to http://keycloak:8080
       # and still get tokens with this issuer.
-      KC_HOSTNAME: https://auth.${LAB_DOMAIN:-lab.localhost}:${LAB_HTTPS_PORT:-443}
+      KC_HOSTNAME: ${LAB_AUTH_URL:?LAB_AUTH_URL is derived from LAB_DOMAIN/LAB_HTTPS_PORT by installer/lib.sh; start the lab with ./lab or ./install.sh}
       KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
       KC_HTTP_ENABLED: "true"
       KC_PROXY_HEADERS: xforwarded

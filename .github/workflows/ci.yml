@@ -484,7 +484,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Performance Benchmarks
     if: github.event_name == 'schedule' || contains(github.event.head_commit.message, '[benchmark]')
-    needs: integration-tests
+    needs: configuration-tests
 
     steps:
     - name: Checkout code
@@ -546,7 +546,7 @@ jobs:
   deployment-readiness:
     runs-on: ubuntu-latest
     name: Deployment Readiness
-    needs: [integration-tests, security-scan, docs-validation]
+    needs: [configuration-tests, security-scan, docs-validation]
     if: github.ref == 'refs/heads/main'
 
     steps:

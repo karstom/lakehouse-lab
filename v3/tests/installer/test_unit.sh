@@ -261,6 +261,18 @@ assert_not "unknown command" "$T/lab" frob
 rm -f "$T/.env"
 assert_not "lab without install refuses" "$T/lab" status
 
+echo "== issuer origin (REG_V3_OIDC_ISSUER_DEFAULT_PORT)"
+for pair in "443:https://auth.lab.localhost" "18443:https://auth.lab.localhost:18443"; do
+  T3=$(mktemp -d)
+  printf 'LAB_DOMAIN=lab.localhost\nLAB_HTTPS_PORT=%s\n' "${pair%%:*}" >"$T3/.env"
+  got=$( LAB_ENV_FILE="$T3/.env"; LAB_AUTH_URL=stale; lab_settings; printf '%s' "$LAB_AUTH_URL" )
+  assert_eq "LAB_AUTH_URL for port ${pair%%:*}" "${pair#*:}" "$got"
+  rm -rf "$T3"
+done
+for f in compose/identity.yaml compose/catalog.yaml compose/engines.yaml config/trino/config.properties; do
+  assert_not "no hand-built auth origin in $f" grep -qF 'https://auth.$' "$SRC/$f"
+done
+
 echo "== repo hygiene (public repo)"
 t_begin hygiene
 leaks=$(grep -rnE '([0-9]{1,3}[.-]){3}[0-9]{1,3}\.sslip\.io|192\.168\.[0-9]+\.[0-9]+' \

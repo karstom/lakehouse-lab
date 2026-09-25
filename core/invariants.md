@@ -99,3 +99,18 @@
 **Symbols:** `generate_compose_override`
 **LastUpdated:** 2026-09-25
 **Provenance:** locations: `scripts/configure-services.sh:321`
+
+---
+
+## NODE: INV_V3_PUBLIC_ORIGIN_SINGLE_SOURCE
+**Type:** Invariant
+**Priority:** HIGH
+**Label:** V3 public URL origins are derived only by installer/lib.sh (LAB_AUTH_URL)
+**Summary:** The public Keycloak origin, which is also the OIDC issuer origin, is derived only in `lab_settings` (installer/lib.sh, via `service_url`) and exported as `LAB_AUTH_URL`, with the default :443 omitted. It is never stored in .env. Keycloak (KC_HOSTNAME), Lakekeeper (OPENID_PROVIDER_URI), Trino (oauth2.issuer) and the smoke test consume it; none of them may build `https://auth.${LAB_DOMAIN}:${LAB_HTTPS_PORT}` themselves. Keycloak normalizes away :443, so any hand-built copy produces an issuer mismatch at the default port.
+**Tags:** v3, oidc, issuer, keycloak, single-source
+**Edges:** _(none)_
+**Files:** `v3/installer/lib.sh`, `v3/compose/identity.yaml`, `v3/compose/catalog.yaml`, `v3/compose/engines.yaml`, `v3/compose/test.yaml`, `v3/config/trino/config.properties`, `v3/tests/smoke/smoke.py`
+**Symbols:** `lab_settings`, `service_url`
+**Evidence:** bash v3/tests/installer/run.sh → section 'issuer origin' passes (443 → https://auth.lab.localhost, 18443 → :18443; no hand-built origin in consumers)
+**Commit:** 13770d3
+**LastUpdated:** 2026-09-25

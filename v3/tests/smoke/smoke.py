@@ -16,7 +16,10 @@ import urllib.parse
 import requests
 
 D = os.environ["LAB_DOMAIN"]
-P = os.environ["LAB_HTTPS_PORT"]
+P = os.environ["LAB_HTTPS_PORT"]  # numeric port for the Trino client
+# Port suffix of every public URL, taken from the single derived origin (installer/lib.sh):
+# "" on 443, ":<port>" otherwise. Browsers drop a default :443, so never rebuild it here.
+PORT_SUFFIX = os.environ["LAB_AUTH_URL"].removeprefix(f"https://auth.{D}")
 PW = os.environ.get("LAB_TEST_USER_PASSWORD", "")
 TRINO_SECRET = os.environ["OIDC_CLIENT_SECRET_TRINO"]
 CA = "/trust/ca-bundle.crt"
@@ -29,7 +32,7 @@ RESULTS = {}
 
 
 def url(svc, path=""):
-    return f"https://{svc}.{D}:{P}{path}"
+    return f"https://{svc}.{D}{PORT_SUFFIX}{path}"
 
 
 def check(name, ok, evidence):

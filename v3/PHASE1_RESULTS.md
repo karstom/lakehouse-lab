@@ -319,3 +319,20 @@ A Trino user's identity does **not** reach Lakekeeper with Trino 483.
   not pins of shipped software (recorded in ADR-012).
 - **The smoke image's `apt-get install libnss3-tools` is unpinned.** It is build-time only
   and the base image is pinned by digest, so this is a reproducibility nit.
+
+## Lead note: first GitHub CI run
+
+- **Run 1 of `v3-ci` (commit 13770d3):** lint passed; **e2e failed.** Trino never became
+  healthy because of an OIDC issuer mismatch. CI uses the default ports 443/80, which no
+  validation run had covered: the server and WSL2 both used 18443. Three configs each built
+  `https://auth.${LAB_DOMAIN}:${LAB_HTTPS_PORT}` themselves, and Keycloak drops the
+  default `:443`.
+- **The fix:** the origin is derived once in `installer/lib.sh` (`LAB_AUTH_URL`, never
+  stored). Every consumer requires it with `:?`, and the smoke test's URL helper uses the
+  derived suffix. New unit tests cover 443 and non-443, and a hand-built origin in a
+  consumer fails the tests. Recorded as REG_V3_OIDC_ISSUER_DEFAULT_PORT and
+  INV_V3_PUBLIC_ORIGIN_SINGLE_SOURCE.
+- **Re-verified:** WSL2 install on **443/80** with `lab.localhost` (CI's exact path) passes
+  6/6, and the dev host on 18443 passes 6/6 after an in-place re-install.
+- **Also fixed:** the V2 `ci.yml` was invalid (`needs: integration-tests`, a job renamed in
+  78adc2a). V2 ShellCheck now ignores `spikes/` and `v3/`, which V3 CI lints itself.

@@ -184,3 +184,21 @@
 **Commit:** 4dd6c9a
 **LastUpdated:** 2026-09-25
 **Author:** claude-v3-p1-repair
+
+---
+
+## NODE: REG_V3_OIDC_ISSUER_DEFAULT_PORT
+**Type:** Regression
+**Priority:** MEDIUM
+**Label:** V3 Trino unhealthy on default port 443: OIDC issuer mismatch
+**Summary:** The first GitHub CI e2e run (default ports 443/80, lab.localhost) failed because Trino never became healthy: 'issuer claim in Metadata document different than the Issuer URL'. Three configs each hand-built `https://auth.${LAB_DOMAIN}:${LAB_HTTPS_PORT}`, and Keycloak normalizes the default :443 away, so the issuers differed only at 443; the server (18443) and WSL2 (18443) validation runs could not catch it. Fixed by deriving the origin once (LAB_AUTH_URL in lab_settings) and requiring it (`:?`) in every consumer. The smoke test's URL helper had the same bug and now uses the derived suffix.
+**Tags:** v3, oidc, issuer, ci, keycloak
+**REGRESSED_N_TIMES:** 1
+**Edges:**
+- VIOLATED_BY → INV_V3_PUBLIC_ORIGIN_SINGLE_SOURCE: each consumer built its own copy of the origin
+- RELATES_TO → REG_HOST_IP_DETECTION: same multiple-sources-of-truth class as V2's URL/IP bugs
+**Files:** `v3/installer/lib.sh`, `v3/compose/identity.yaml`, `v3/compose/catalog.yaml`, `v3/compose/engines.yaml`, `v3/config/trino/config.properties`, `v3/tests/smoke/smoke.py`
+**Symbols:** `lab_settings`
+**Evidence:** WSL2 install on default 443/80 (lab.localhost) → lab test SMOKE: PASS (6/6); server 18443 → 6/6
+**Commit:** 13770d3
+**LastUpdated:** 2026-09-25
