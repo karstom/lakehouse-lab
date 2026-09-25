@@ -1,0 +1,69 @@
+# Spike S-4: lakehouse-workspace image. Run with:
+#   docker compose -p v3-s4 --env-file ../versions.env --env-file versions.local.env ...
+# The runtime network is internal (no egress): the workspace must work with no internet.
+name: v3-s4
+
+x-build-args: &build-args
+  PYTHON_IMAGE_TAG: ${PYTHON_IMAGE_TAG:?}
+  PYTHON_IMAGE_DIGEST: ${PYTHON_IMAGE_DIGEST:?}
+  JUPYTERHUB_VERSION: ${JUPYTERHUB_VERSION:?}
+  JUPYTERLAB_VERSION: ${JUPYTERLAB_VERSION:?}
+  JUPYSQL_VERSION: ${JUPYSQL_VERSION:?}
+  JUPYTERLAB_GIT_VERSION: ${JUPYTERLAB_GIT_VERSION:?}
+  JUPYTER_SERVER_PROXY_VERSION: ${JUPYTER_SERVER_PROXY_VERSION:?}
+  JUPYTER_AI_VERSION: ${JUPYTER_AI_VERSION:?}
+  PYSPARK_VERSION: ${PYSPARK_VERSION:?}
+  DUCKDB_VERSION: ${DUCKDB_VERSION:?}
+  PYICEBERG_VERSION: ${PYICEBERG_VERSION:?}
+  TRINO_PYTHON_VERSION: ${TRINO_PYTHON_VERSION:?}
+  DBT_CORE_VERSION: ${DBT_CORE_VERSION:?}
+  DBT_TRINO_VERSION: ${DBT_TRINO_VERSION:?}
+  CODE_SERVER_VERSION: ${CODE_SERVER_VERSION:?}
+
+services:
+  workspace:
+    build:
+      context: .
+      target: workspace
+      args: *build-args
+    image: lakehouse-workspace:v3-s4-spike
+    mem_limit: 4g
+    cpus: 4
+    environment:
+      SPARK_REMOTE: sc://spark-connect:15002
+    volumes:
+      - home:/home/jovyan          # stands in for the JupyterHub per-user volume
+      - ./tests:/opt/s4-tests:ro
+    networks: [internal]
+
+  spark-connect:
+    image: apache/spark:${SPARK_IMAGE_TAG:?}
+    mem_limit: 4g
+    cpus: 4
+    environment:
+      SPARK_NO_DAEMONIZE: "true"
+    command: ["/opt/s4/start-spark-connect.sh"]
+    volumes:
+      - ./scripts/start-spark-connect.sh:/opt/s4/start-spark-connect.sh:ro
+    networks: [internal]
+
+  # OQ-2 comparison only (profile 'classic'): workspace with a local JVM driver.
+  workspace-classic:
+    profiles: [classic]
+    build:
+      context: .
+      target: workspace-classic
+      args: *build-args
+    image: lakehouse-workspace:v3-s4-spike-classic
+    mem_limit: 4g
+    cpus: 4
+    volumes:
+      - ./tests:/opt/s4-tests:ro
+    networks: [internal]
+
+networks:
+  internal:
+    internal: true
+
+volumes:
+  home:

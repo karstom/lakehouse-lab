@@ -33,6 +33,13 @@
 - **NEVER use `sudo` in init scripts** — they already run as root and sudo is not installed (DEC_REMOVE_SUDO_DEPENDENCIES_FROM_ALPINE_6EF3).
 - **NEVER add another copy of host-IP detection** — reuse `detect_host_ip` (WATCH_DUPLICATED_HOST_IP_DETECTION).
 
+## V3 Anti-Patterns (from Phase 0 spikes)
+
+- **NEVER write Spark `DROP TABLE … PURGE` against Lakekeeper** in V3 code or lessons. Spark deletes files on the client side after the catalog drop, and the signer rejects those requests. Use a plain `DROP` (DEC_V3_CATALOG_VENDED_STORAGE_ACCESS).
+- **NEVER configure Trino for Iceberg remote signing, or give it static S3 keys.** Trino 483 only supports vended credentials; use `X-Iceberg-Access-Delegation: vended-credentials` through Lakekeeper.
+- **NEVER put Caddy's internal CA in a volume that `down -v` or upgrades can wipe.** A new root makes every browser re-trust it (DEC_V3_KEYCLOAK_SSO_SUBDOMAINS).
+- **NEVER rely on `SSL_CERT_FILE` for JupyterHub OAuthenticator.** It uses pycurl; pass the CA through `http_request_kwargs`.
+
 <!-- EXAMPLES (delete these when you add real entries):
 
 ## Coding Anti-Patterns

@@ -63,8 +63,12 @@ flowchart LR
   record. This replaces V2's four copies of host-IP detection: the installer detects the IP
   **once**, writes `LAB_DOMAIN`, and nothing else ever guesses.
 - **TLS:** Caddy terminates TLS. On a public domain it gets ACME certificates automatically.
-  On `lab.localhost`/`sslip.io` it uses its internal CA. How beginners trust that CA is an
-  open question (OQ-3).
+  On `lab.localhost`/`sslip.io` it uses its internal CA. The installer generates that root CA
+  once and stores it outside any volume that upgrades can wipe. Remote users import it once,
+  and the Console links to the file. Plain HTTP only works on `*.localhost`; on `sslip.io`
+  it breaks OIDC (spike S-3, OQ-3).
+- Caddy carries every public hostname as a Docker network alias, so containers resolve the
+  same issuer URL as browsers.
 - Only Caddy publishes host ports (80/443), plus Postgres/Trino client ports as an explicit
   opt-in.
 
@@ -77,8 +81,8 @@ Each service maps these groups to its own roles.
 |---|---|---|
 | JupyterHub | `GenericOAuthenticator` (OIDC) | `lab-admin` → hub admin; everyone else gets a workspace |
 | Superset | FAB `AUTH_OAUTH` | admin → Admin, engineer/analyst → Alpha/Gamma+SQL Lab, viewer → Gamma |
-| Airflow 3 | `apache-airflow-providers-keycloak` auth manager | admin → Admin, engineer → Op/User, analyst/viewer → Viewer |
-| Trino | OAuth2 for web UI; JWT for clients | Group-based access rules via file-based access control |
+| Airflow 3 | `apache-airflow-providers-keycloak` auth manager | Roles come from Keycloak Authorization Services (UMA permissions), set up by the bootstrap job; admin → Admin, engineer → Op/User, analyst/viewer → Viewer |
+| Trino | OAuth2 for web UI; JWT for clients | Group-based access rules need a Trino group provider (`oauth2.groups-field` was removed in 483) |
 | Lakekeeper | Native OIDC; authorization via OpenFGA or allow-all (OQ-5) | Group → namespace/warehouse permissions |
 | Lab Console | OIDC login (PKCE, public client) | Shows only the tiles a user's groups can reach |
 | Spark UI, SeaweedFS console | Caddy `forward_auth` to an OIDC proxy | admin/engineer only |
@@ -87,6 +91,10 @@ Each service maps these groups to its own roles.
 JSON (clients, groups, mappers, redirect URIs templated from `LAB_DOMAIN`), then creates
 the first admin user with a generated password. `provision-user.sh` becomes a thin wrapper
 around the Keycloak admin API. After this, no service stores its own users.
+
+**External identity providers (ADR-016, optional):** Keycloak can hand logins to GitHub.
+First-time GitHub users land in no group and wait for an admin to add them. Accounts are
+never linked automatically by email, and a local admin always remains.
 
 **Service-to-service:** Airflow, Superset and the workspaces reach Trino with the **user's**
 token where the tool supports it, and otherwise with a per-service client-credentials
@@ -98,10 +106,12 @@ account. No service shares a long-lived password with another.
   "Iceberg overlay" and no path-based table access in lessons.
 - Engines connect to the catalog with the caller's identity. Lakekeeper checks
   authorization and gives storage access:
-  - **Remote signing** (SigV4). This is the default for Spark and Trino, and works with any
-    S3-compatible store.
-  - **Vended STS credentials.** DuckDB needs these because it can't use remote signing yet.
-    This depends on SeaweedFS STS, which is validated in spike S-2 (ROADMAP).
+  - **Remote signing** (SigV4) for Spark and PyIceberg.
+  - **Vended STS credentials** for Trino and DuckDB, since neither supports remote signing.
+    SeaweedFS issues them through AssumeRole with a per-table session policy set by
+    Lakekeeper, and they last at most 1 hour. Spikes S-1 and S-2 confirmed this works on
+    SeaweedFS 4.47 and that access is really limited to one table. SeaweedFS STS is therefore
+    part of every profile.
 - **No user ever sees an S3 key.** Static S3 credentials exist only for SeaweedFS admin,
   Lakekeeper's own storage profile, and backup. This removes the V2 regression class
   `REG_CREDENTIAL_PROPAGATION` structurally.
@@ -114,7 +124,8 @@ Each user gets a server from JupyterHub, built from one pre-built image `lakehou
 
 - JupyterLab with JupySQL (SQL cells against Trino/DuckDB), git extension, terminal
 - **code-server** (VS Code in the browser) launched from JupyterLab via `jupyter-server-proxy`
-- Pre-configured clients: PySpark 4.1 (Spark Connect or standalone), Trino Python client,
+- Pre-configured clients: PySpark 4.1 via **Spark Connect** (no JVM in the workspace; a
+  classic-driver image variant is opt-in for Spark UI lessons), Trino Python client,
   DuckDB with the Iceberg extension, dbt-core + dbt-trino, PyIceberg. Every client is
   pre-pointed at the catalog with the user's identity.
 - A starter dbt project and the learning-track content checked out into `~/lab`
@@ -170,7 +181,7 @@ flowchart LR
 
 | Profile | Services | Target RAM |
 |---|---|---|
-| `core` | Caddy, Keycloak, Postgres, SeaweedFS, Lakekeeper, Trino, JupyterHub (1–2 users), Console | ~12 GB (to be measured, OQ-4) |
+| `core` | Caddy, Keycloak, Postgres, SeaweedFS, Lakekeeper, Trino, JupyterHub (1–2 users), Console | ~12 GB of limits; idle use measured at ~3 GB (spikes). Load test still needed (OQ-4) |
 | `engineer` | core + Spark master/worker + Airflow | ~20 GB |
 | `full` | engineer + Superset + AI gateway | ~24 GB |
 | `server` | full, with bigger Spark worker and Trino memory for multi-TB work | 64 GB+ |

@@ -205,12 +205,13 @@
 **Type:** Decision
 **Priority:** HIGH
 **Label:** V3: storage access given out by Lakekeeper — no S3 keys for users
-**Summary:** In V3, engines never hold static S3 keys: Lakekeeper authorizes table access and remote-signs requests (the default for Spark and Trino) or gives out STS credentials (needed for DuckDB, whose Iceberg extension can't do remote signing). SeaweedFS STS with Lakekeeper is unproven and gated on spike S-2, with a Trino-attach fallback for DuckDB. This removes the root cause of REG_CREDENTIAL_PROPAGATION instead of guarding against it. ADR-006.
+**Summary:** In V3, engines never hold static S3 keys; Lakekeeper authorizes every table access. Spark and PyIceberg use remote signing. Trino (483 has no remote signing, trinodb/trino#21189) and DuckDB use STS credentials vended by SeaweedFS, which spikes S-1/S-2 showed are enforced per table and expire within 1 hour. SeaweedFS STS is therefore required in every profile. This removes the root cause of REG_CREDENTIAL_PROPAGATION. ADR-006, amended 2026-09-25.
 **Tags:** v3, credentials, catalog, storage
 **Edges:**
 - MITIGATES → REG_CREDENTIAL_PROPAGATION: removes storage credentials from all consumers
 - RELATES_TO → INV_ENV_IS_CREDENTIAL_SOURCE: V3 replaces the .env credential model
-**Files:** `docs/v3/DECISIONS.md`, `docs/v3/OPEN_QUESTIONS.md`
+**Files:** `docs/v3/DECISIONS.md`, `docs/v3/OPEN_QUESTIONS.md`, `spikes/s1-catalog-storage/RESULTS.md`, `spikes/s2-duckdb-sts/RESULTS.md`
+**Evidence:** `ssh $LAB_SERVER 'cd lakehouse-v3/spikes/s2-duckdb-sts && ./test.sh'` → EXIT=0, C1–C3 PASS (vended ASIA… creds, DuckDB read+insert, table-scoped probe 200/403)
 **Commit:** 6f267e7
 **LastUpdated:** 2026-09-25
 
@@ -258,4 +259,18 @@
 - RELATES_TO → DEC_REMOVE_MCP_SERVER_COMPLETELY_FROM_67B4: V2's custom MCP server was removed; V3 composes existing servers
 **Files:** `docs/v3/DECISIONS.md`, `docs/v3/ARCHITECTURE.md`, `docs/v3/OPEN_QUESTIONS.md`
 **Commit:** 6f267e7
+**LastUpdated:** 2026-09-25
+
+---
+
+## NODE: DEC_V3_EXTERNAL_IDP_GITHUB
+**Type:** Decision
+**Priority:** MEDIUM
+**Label:** V3 (proposed): optional external IdP via Keycloak brokering — GitHub first
+**Summary:** V3 can optionally hand logins to an external provider through Keycloak, with GitHub as the proof of concept. Apps are unchanged, and the installer renders the provider into the realm. A first GitHub login gets no group until an admin approves it. A GitHub login is never linked to an existing local account by email alone (that would allow account takeover); linking requires the local password. A local admin always remains. ADR-016, Phase 3; org restriction is OQ-18.
+**Tags:** v3, sso, keycloak, github, identity
+**Edges:**
+- DEPENDS_ON → DEC_V3_KEYCLOAK_SSO_SUBDOMAINS: brokering is Keycloak configuration on top of V3 SSO
+**Files:** `docs/v3/DECISIONS.md`, `docs/v3/ARCHITECTURE.md`, `docs/v3/OPEN_QUESTIONS.md`
+**Commit:** 8ae54c6
 **LastUpdated:** 2026-09-25

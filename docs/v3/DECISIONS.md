@@ -69,6 +69,15 @@ focuses on authorization.
   without going through Spark.
 - DuckDB covers laptop-scale work and teaching.
 
+**Spike S-1 result:** Spark 4.1.3 with the `iceberg-spark-runtime-4.1_2.13:1.11.0` and
+`iceberg-aws-bundle:1.11.0` JARs built into its image works. It needs no `hadoop-aws` or AWS
+SDK JARs, which removes two of V2's five version sites. Trino 483 reads, UPDATEs and DELETEs
+the same tables, and each engine sees the other's snapshots.
+
+**Lesson content must not use Spark `DROP TABLE … PURGE`** against Lakekeeper: Spark deletes
+the files itself after the catalog drop, and the signer rejects those requests. Use a plain
+`DROP` and let Lakekeeper clean up.
+
 **Rejected:**
 - Staying on Spark 3.5, which is on its way to end of life.
 - Dremio, which has an open-core licensing split.
@@ -100,6 +109,21 @@ per-service user writes in `provision-user.sh`.
 **Risk:** first-run bootstrap is where fragility would come back. It gets its own CI test
 (ADR-015).
 
+**Spike S-3 result (passed, verified from a clean start):**
+- One templated realm (`start --import-realm` with `${ENV}` placeholders) goes from
+  `down -v` to five working apps in about 2 minutes, with zero clicks.
+- One login reaches JupyterHub, Superset, Airflow, Trino and Lakekeeper.
+- Admin and viewer users get different roles in Superset and Airflow, and moving a user
+  between groups takes effect at their next login.
+
+What Phase 1 needs to know:
+- **Airflow 3's Keycloak auth manager gets roles from Keycloak Authorization Services**
+  (UMA permissions), not from token claims. That setup is one scripted bootstrap step, or it
+  can be exported into the realm template.
+- **Trino 483 removed `oauth2.groups-field`,** so group-based access rules need a Trino
+  group provider.
+- **Replace the spike's wildcard redirect URIs** with exact callback paths.
+
 ---
 
 ## ADR-005: Subdomain routing through Caddy
@@ -114,6 +138,22 @@ especially) behave badly under a URL sub-path. `*.localhost` resolves in browser
 setup. The installer works out the host once and writes `LAB_DOMAIN`, which retires V2's four
 copies of IP detection.
 
+**Spike S-3 results:**
+- **The pattern works.** Caddy carries every public hostname as a Docker network alias, so
+  the OIDC issuer URL is the same inside containers and in the browser, with no hairpin NAT.
+- **Proxy settings each service needs:**
+  - Superset: `ENABLE_PROXY_FIX`
+  - Airflow: `--proxy-headers` + `[api] base_url`
+  - Trino: `http-server.process-forwarded`
+  - Keycloak: `KC_PROXY_HEADERS=xforwarded`
+  - Lakekeeper: `BASE_URI`
+- **Plain HTTP on `sslip.io` is not viable** (OQ-3). The page isn't a secure context, so
+  browser PKCE breaks, Secure cookies break and the Trino UI disables itself. HTTP only works
+  on `*.localhost`.
+- **Remote installs therefore need the Caddy root CA trusted, or a real domain with ACME.**
+  The root CA must be generated once by the installer and kept outside any volume that
+  upgrades or `down -v` can wipe.
+
 **Rejected:**
 - **Path prefixes:** sub-path bugs and fiddly OIDC.
 - **Traefik:** capable, but Caddy's automatic TLS and forward-auth are simpler for a lab.
@@ -123,20 +163,37 @@ copies of IP detection.
 ---
 
 ## ADR-006: Storage access is given out by the catalog
-**Status:** Pending spike S-2
+**Status:** Accepted (amended after spikes S-1/S-2, 2026-09-25)
 
-**Decision:** Engines never hold static S3 keys. Lakekeeper authorizes each table access
-and either **remote-signs** requests (the default for Spark and Trino; plain SigV4, works on
-any S3 store) or gives out **short-lived STS credentials** (required for DuckDB, whose
-Iceberg extension doesn't support remote signing yet).
+**Decision:** Engines never hold static S3 keys. Lakekeeper authorizes each table access and
+gives storage access in one of two ways:
+- **Remote signing:** Spark and PyIceberg.
+- **Vended STS credentials:** Trino and DuckDB. These are limited to one table and last at
+  most 1 hour.
+
+**SeaweedFS STS is therefore required in every profile.** That means an `-s3.iam.config`
+file with a signing key, a vending role and a policy. The trust policy is narrowed to
+Lakekeeper's identity.
 
 **Why:** This removes storage credentials from notebooks, DAGs, tests and messages entirely,
 which is the root cause behind 16 V2 fix commits.
 
-**Spike S-2:** verify that SeaweedFS STS works with Lakekeeper-issued credentials.
-- If it works, STS vending is enabled for DuckDB.
-- If not, DuckDB in V3.0 reads through Trino (`duckdb` + `trino` attach) or uses a read-only
-  scoped key, documented as a known limitation.
+**Spike evidence:**
+- **Trino 483 has no remote signing.** Its Iceberg REST client only asks for vended
+  credentials (confirmed by a jar scan; upstream trinodb/trino#21189 is open), which is why
+  the original "remote signing for Trino" plan was dropped.
+- **SeaweedFS 4.47 enforces Lakekeeper's per-table session policy.** Vended credentials
+  could read and write their own table's prefix; the sibling table, paths outside the
+  warehouse, and bucket listing were all denied.
+- **DuckDB 1.5.5 works with vended credentials,** for both reads and INSERTs. The planned
+  fallbacks (going through Trino, or a scoped static key) are not needed.
+
+**Follow-ups (Phase 1):**
+- Test credential refresh after the 1-hour expiry.
+- Test read-only vending once authorization is on (OQ-5).
+- Lakekeeper caches STS credentials, so a revoked grant can keep working until the cached
+  credentials expire (OQ-14).
+- Revisit remote signing for Trino when upstream ships it.
 
 ---
 
@@ -152,6 +209,20 @@ container per user from a pre-built `lakehouse-workspace` image. It contains:
 **Why:** Analysts mostly work in SQL and BI, and engineers explore in notebooks but ship
 code in git. A notebooks-only lab would teach a Databricks-shop habit. One workspace that
 does both covers the engineering personas without building a custom IDE.
+
+**Spike S-4 result:** the image works and is **2.11 GB**, well under the 4 GB budget. Every
+pinned client imports correctly, code-server runs through `jupyter-server-proxy`, and DuckDB
+extensions are built into the image and load offline. The container needs no network at
+start.
+
+**Spark: Spark Connect by default (OQ-2).** The workspace carries a ~2 MB client and no JVM,
+and each session is isolated. A "classic driver" image variant is opt-in for Spark UI and
+RDD lessons, at about +722 MB and ~466 MB of JVM memory per user.
+
+**Rules the spike surfaced:**
+- Per-home wiring goes in the image ENTRYPOINT, not CMD, so the spawner's command overrides
+  still work.
+- dbt telemetry is turned off in the image.
 
 **Rejected:**
 - **JupyterLab only:** unrealistic for pipeline-as-code work.
@@ -219,6 +290,18 @@ opt-in modules (compose profiles). They are not part of core.
 - No `pip install` or `apt-get` when a container starts, and no `:latest`.
 - No logic in compose `command:` blocks beyond calling an entrypoint script.
 
+**Amendments from spike S-4 (Accepted):**
+- **Generated lockfiles are exempt from the version-literal rule.** The pip constraints
+  lock for the ~226 transitive dependencies is generated from `versions.env` by
+  `build.sh --relock`, starts with a `# GENERATED … do not edit` header, and is never
+  hand-edited. CI regenerates it whenever `versions.env` changes and fails if the committed
+  copy differs, so it stays derived rather than becoming a second source.
+- **Base images are pinned by tag and digest** (`*_IMAGE_TAG` + `*_IMAGE_DIGEST`), including
+  the Dockerfile syntax frontend.
+- **Pins that spikes needed get promoted into `versions.env`:** OAuthenticator, the Airflow
+  Keycloak provider, authlib, psycopg2, JupySQL, jupyterlab-git, the Python base image, and
+  Playwright (for tests).
+
 **Why:** This removes the three root causes behind most V2 fixes: runtime installs
 (`REG_JUPYTER_PYSPARK_VERSIONS`, `REG_SUPERSET_SETUP`, `REG_INIT_CONTAINER_BOOTSTRAP`),
 logic in YAML (`REG_COMPOSE_INLINE_SHELL`), and versions defined in several places
@@ -262,6 +345,12 @@ V3 writes only thin glue.
 
 **Open:** OQ-7 (gateway choice), OQ-8 (default providers and data policy).
 
+**Spike S-4 note:** jupyter-ai 3.2 installs cleanly, but no assistant persona works out of
+the box: each of its 8 ACP agent personas needs its agent's CLI installed, and there is no
+default chat model. Phase 5 must choose between the built-in `jupyternaut` extra (it uses
+LiteLLM, which fits the gateway plan) and building an ACP agent CLI into the image, or both.
+jupyter-ai also starts its own MCP server, which the `lab-context` design should reuse.
+
 ---
 
 ## ADR-015: CI starts the core profile and runs a smoke lesson
@@ -278,3 +367,44 @@ A nightly job does the same for `full` and for a V2 → V3 migration.
 
 **Why:** V2 replaced its startup test with config validation, so startup, init and upgrade
 regressions only reached users (`WATCH_CI_WORKFLOWS`). Pre-built images keep the V3 test fast.
+
+---
+
+## ADR-016: External identity providers through Keycloak (GitHub first)
+**Status:** Proposed (Phase 3)
+
+**Decision:** Keycloak can optionally hand logins to an external identity provider. **GitHub
+is the provider used to prove the concept.** The applications are unchanged: they only talk
+to Keycloak.
+- **Off by default.** The installer asks for a GitHub OAuth App client ID and secret and
+  renders the provider into the realm template. The app's callback URL is
+  `https://auth.<LAB_DOMAIN>/realms/lakehouse/broker/github/endpoint`.
+- **Signing in does not grant access.** A first GitHub login creates a Keycloak user with
+  **no group**, so it can reach nothing until an admin adds it to a group. Alternatively,
+  the admin pre-creates users, and GitHub logins only link to those existing accounts.
+- **No automatic linking by email.** A GitHub login is linked to an existing local account
+  only after the user proves they own that account (Keycloak's "link with existing account"
+  flow, which asks for the local password). Otherwise a GitHub account showing someone
+  else's email could take over their account.
+- **Local accounts always remain,** including a local admin, so a GitHub outage or no
+  network never locks anyone out.
+
+**Why:** Classrooms and teams shouldn't manage another set of passwords, and learners
+already have GitHub accounts. Because every app goes through Keycloak (ADR-004), this is
+configuration, not code. GitHub proves the concept with the least setup: an OAuth App takes
+minutes to register, and since the callback is a browser redirect, it should work with
+`sslip.io` and `localhost` addresses. Google and Microsoft check return URLs more strictly
+and in practice need a real domain.
+
+**Rejected / deferred:**
+- **Google, Microsoft Entra and generic OIDC/SAML:** same mechanism, deferred until GitHub
+  is proven.
+- **Giving new external users a default group like `viewer`:** convenient, but it grants
+  access to anyone with an account at the provider. It is only acceptable together with a
+  membership restriction (OQ-18).
+
+**Testing:** CI can't use real GitHub. It runs a second Keycloak realm acting as the
+external provider, to test the brokering, first-login and no-group behavior. The real GitHub
+login is a manual release check.
+
+**Open:** OQ-18.

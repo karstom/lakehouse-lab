@@ -14,6 +14,11 @@
 
 ## Phase 0: Spikes (de-risk before building)
 
+> **Status (2026-09-25): complete except the S-5 load test.** Every spike was redeployed from
+> scratch and checked by an independent agent. Results: [`spikes/RESULTS.md`](../../spikes/RESULTS.md).
+> S-1: partial (Trino has no remote signing, so ADR-006 was amended). S-2, S-3 and S-4: pass.
+> S-5: idle use measured; the load test moves into Phase 1.
+
 Each spike is a throwaway compose file plus a written result recorded in OPEN_QUESTIONS.md.
 
 | Spike | Question | Pass criteria |
@@ -47,6 +52,8 @@ minutes, and CI shows it green.
 - Airflow 3.1 with the Keycloak auth manager; sample DAGs: ingest, `dbt build`, papermill notebook
 - Superset 6 with OIDC and a Trino connection; sample dashboard over dbt models
 - Lab Console v1: login, service tiles, health
+- Optional GitHub login through Keycloak (ADR-016): installer prompt, first-login flow with
+  no group, admin approval in the Console, and a CI test against a mock provider
 
 **Exit:** the `full` profile passes a nightly end-to-end run: ingest → dbt → dashboard renders.
 
