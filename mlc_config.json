@@ -5,11 +5,22 @@
     },
     {
       "pattern": "^https://localhost.*"
+    },
+    {
+      "pattern": "^https?://[^/]*\\.localhost([:/]|$)"
+    },
+    {
+      "pattern": "^https?://[^/]*sslip\\.io([:/]|$)"
+    },
+    {
+      "pattern": "^https?://<"
     }
   ],
   "httpHeaders": [
     {
-      "urls": ["https://github.com"],
+      "urls": [
+        "https://github.com"
+      ],
       "headers": {
         "Accept": "text/html"
       }
