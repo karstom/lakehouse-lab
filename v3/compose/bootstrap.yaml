@@ -1,0 +1,46 @@
+# One-shot, idempotent bootstrap (re-running it changes nothing). Everything it does is in
+# bootstrap/ (Python stdlib only, baked into images/bootstrap). It:
+#   1. Keycloak: ensures the first lab admin (LAB_ADMIN_*, group lab-admin) and, only when
+#      LAB_SEED_TEST_USERS=true, the test users and the password grant on the trino client.
+#   2. Trino: writes the file group provider from Keycloak group membership (OQ-17).
+#   3. SeaweedFS: creates the warehouse bucket.
+#   4. Lakekeeper: bootstraps the server, creates the warehouse (STS vending + remote signing)
+#      and, with LAB_CATALOG_AUTHZ=openfga, grants catalog permissions from Keycloak groups.
+# Trino starts only after it succeeded.
+
+services:
+  bootstrap:
+    build:
+      context: ./bootstrap
+      dockerfile: ../images/bootstrap/Dockerfile
+      args:
+        PYTHON_IMAGE_TAG: ${PYTHON_IMAGE_TAG}
+        PYTHON_IMAGE_DIGEST: ${PYTHON_IMAGE_DIGEST}
+    image: lakehouse-lab/v3-bootstrap:${PYTHON_IMAGE_TAG}
+    command: ["python3", "-m", "bootstrap"]
+    environment:
+      LAB_DOMAIN: ${LAB_DOMAIN:-lab.localhost}
+      LAB_HTTPS_PORT: ${LAB_HTTPS_PORT:-443}
+      LAB_CATALOG_AUTHZ: ${LAB_CATALOG_AUTHZ:-openfga}
+      LAB_SEED_TEST_USERS: ${LAB_SEED_TEST_USERS:-false}
+      KC_ADMIN_USER: ${KC_ADMIN_USER:?}
+      KC_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?}
+      LAB_ADMIN_USER: ${LAB_ADMIN_USER:?}
+      LAB_ADMIN_PASSWORD: ${LAB_ADMIN_PASSWORD:?}
+      LAB_TEST_USER_PASSWORD: ${LAB_TEST_USER_PASSWORD:-}
+      SEAWEEDFS_ADMIN_ACCESS_KEY: ${SEAWEEDFS_ADMIN_ACCESS_KEY:?}
+      SEAWEEDFS_ADMIN_SECRET_KEY: ${SEAWEEDFS_ADMIN_SECRET_KEY:?}
+      OIDC_CLIENT_SECRET_LAKEKEEPER: ${OIDC_CLIENT_SECRET_LAKEKEEPER:?}
+      SSL_CERT_FILE: /trust/ca-bundle.crt
+      TZ: ${LAB_TZ:-UTC}
+    volumes:
+      - trust:/trust:ro
+      - trino-groups:/var/lib/lab/trino-groups
+    networks: [lab]
+    depends_on:
+      keycloak: {condition: service_healthy}
+      seaweedfs: {condition: service_healthy}
+      lakekeeper: {condition: service_healthy}
+    restart: "no"
+    mem_limit: ${BOOTSTRAP_MEM:-256m}
+    cpus: ${BOOTSTRAP_CPUS:-1}

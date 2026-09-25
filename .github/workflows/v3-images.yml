@@ -1,0 +1,137 @@
+# V3 images: build every v3/images/<name>/Dockerfile with build args from versions.env
+# (ADR-012). Branch pushes and PRs only build (validation). Images are pushed to GHCR
+# ONLY on a manual run (workflow_dispatch) or a 'v3.*' tag, never on a branch push.
+#
+# Image: ghcr.io/<owner>/lakehouse-<name>:<tag>, where <tag> is the git tag (v3.*) or the
+# dispatch input. See what would be built locally: python3 v3/tools/images_matrix.py
+name: v3-images
+
+on:
+  push:
+    branches: [v3]
+    tags: ["v3.*"] # path filters are not evaluated for tag pushes
+    paths:
+      - "v3/images/**"
+      - "v3/versions.env"
+      - "v3/compose.yaml"
+      - "v3/compose/**"
+      - "v3/tools/images_matrix.py"
+      - "v3/tools/versionsenv.py"
+      - ".github/workflows/v3-images.yml"
+  pull_request:
+    paths:
+      - "v3/images/**"
+      - "v3/versions.env"
+      - "v3/compose.yaml"
+      - "v3/compose/**"
+      - "v3/tools/images_matrix.py"
+      - "v3/tools/versionsenv.py"
+      - ".github/workflows/v3-images.yml"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag to publish (e.g. v3.0.0-rc.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v3-images-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Push only on a manual run or a v3.* tag.
+  PUSH: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v3.')) }}
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      count: ${{ steps.matrix.outputs.count }}
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Image tag
+        id: tag
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$EVENT" = workflow_dispatch ]; then
+            tag=$INPUT_TAG
+          elif [ "$REF_TYPE" = tag ]; then
+            tag=$REF_NAME
+          else
+            tag="ci-${GITHUB_SHA::12}"
+          fi
+          if ! [[ "$tag" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$ ]] || [ "$tag" = latest ]; then
+            echo "::error::invalid image tag '$tag'"
+            exit 1
+          fi
+          echo "tag=$tag" >>"$GITHUB_OUTPUT"
+
+      - name: Build contexts from compose (when compose.yaml exists)
+        run: |
+          if [ -f v3/compose.yaml ]; then
+            v3/tools/compose-check.sh --json-out "$RUNNER_TEMP/compose.json"
+          fi
+
+      - name: Matrix from v3/images/*/Dockerfile
+        id: matrix
+        run: |
+          args=(--registry "ghcr.io/${GITHUB_REPOSITORY_OWNER,,}" --github-output)
+          [ -s "$RUNNER_TEMP/compose.json" ] && args+=(--compose-json "$RUNNER_TEMP/compose.json")
+          python3 v3/tools/images_matrix.py "${args[@]}"
+
+  build:
+    needs: discover
+    if: ${{ needs.discover.outputs.count != '0' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GHCR
+        if: ${{ env.PUSH == 'true' }}
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build${{ env.PUSH == 'true' && ' and push' || '' }} ${{ matrix.name }}
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          build-args: ${{ matrix.build_args }}
+          platforms: linux/amd64
+          push: ${{ env.PUSH == 'true' }}
+          tags: |
+            ${{ matrix.image }}:${{ needs.discover.outputs.tag }}
+            ${{ matrix.image }}:sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ needs.discover.outputs.tag }}
+          cache-from: type=gha,scope=v3-${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=v3-${{ matrix.name }}

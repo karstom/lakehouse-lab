@@ -50,7 +50,7 @@ started as:
 
 ```
 docker compose --project-directory v3 --env-file v3/versions.env --env-file v3/.env \
-  --profile core up -d --wait
+  --profile core up -d --wait --remove-orphans
 ```
 
 `v3/.env` holds non-secret settings. The installer writes it; users may edit it.

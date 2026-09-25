@@ -1,6 +1,18 @@
 # .github/workflows/docs-check.yml
 name: Documentation Check
-on: [push, pull_request]
+on:
+  push:
+    paths-ignore:
+      - "v3/**"
+      - "spikes/**"
+      - "docs/v3/**"
+      - "core/**"
+  pull_request:
+    paths-ignore:
+      - "v3/**"
+      - "spikes/**"
+      - "docs/v3/**"
+      - "core/**"
 jobs:
   docs:
     runs-on: ubuntu-latest

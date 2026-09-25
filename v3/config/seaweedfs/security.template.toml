@@ -1,0 +1,17 @@
+# Rendered by entrypoint.sh. JWT keys for volume writes/reads and for the filer, so the
+# filer's gRPC/HTTP (including its IAM service) is not open to anything on the lab network.
+[jwt.signing]
+key = "__JWT_VOLUME_KEY__"
+expires_after_seconds = 60
+
+[jwt.signing.read]
+key = "__JWT_VOLUME_READ_KEY__"
+expires_after_seconds = 60
+
+[jwt.filer_signing]
+key = "__JWT_FILER_KEY__"
+expires_after_seconds = 60
+
+[jwt.filer_signing.read]
+key = "__JWT_FILER_READ_KEY__"
+expires_after_seconds = 60

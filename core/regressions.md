@@ -166,3 +166,21 @@
 **Symbols:** `detect_host_ip`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `8e7ac1d`, `082cfd4`, `556e661`
+
+---
+
+## NODE: REG_V3_CHROMIUM_LOCALHOST_LOOPBACK
+**Type:** Regression
+**Priority:** MEDIUM
+**Label:** V3 smoke browser check fails on lab.localhost: Chromium maps *.localhost to loopback
+**Summary:** On LAB_DOMAIN=lab.localhost (the WSL2 and CI default), the Playwright check in v3/tests/smoke/smoke.py failed with net::ERR_CONNECTION_REFUSED. Chromium hard-wires *.localhost to 127.0.0.1 and ignores the Docker DNS alias that points at Caddy. Validation had only covered the sslip domain. Fix: resolve trino.<domain> through Docker DNS and launch Chromium with --host-resolver-rules=MAP *.<domain> <ip>. Mapping to the hostname 'caddy' did not work. Validate every change on both lab.localhost and sslip.
+**Tags:** v3, smoke, playwright, chromium, localhost, wsl2, ci, dns
+**REGRESSED_N_TIMES:** 1
+**Edges:** _(none)_
+**Files:** `v3/tests/smoke/smoke.py`
+**Symbols:** `check_browser_login`
+**Evidence:** WSL2, install.sh --domain lab.localhost --project-name v3-wsl, then lab test: SMOKE PASS (6/6), check 2 final_url https://trino.lab.localhost:18443/ui/#/dashboard
+**LastVerified:** 2026-09-25
+**Commit:** 4dd6c9a
+**LastUpdated:** 2026-09-25
+**Author:** claude-v3-p1-repair

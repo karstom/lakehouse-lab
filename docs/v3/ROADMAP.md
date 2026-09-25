@@ -39,6 +39,11 @@ Each spike is a throwaway compose file plus a written result recorded in OPEN_QU
 **Exit:** a fresh install on Linux (and WSL2) reaches a logged-in Trino query in under 15
 minutes, and CI shows it green.
 
+> **Status (2026-09-25): built and independently verified.** Installs in about 1m40s on the
+> dev host (images cached), about 2 minutes on WSL2, and the smoke test passes 6/6 on both.
+> Details: [`v3/PHASE1_RESULTS.md`](../../v3/PHASE1_RESULTS.md). The GitHub CI run is
+> pending the first push.
+
 ## Phase 2: Workspace and engines
 
 - `lakehouse-workspace` image; JupyterHub with OIDC; code-server; per-user volumes

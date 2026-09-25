@@ -1,0 +1,28 @@
+# Object storage: SeaweedFS all-in-one (master + volume + filer + S3 gateway with IAM/STS).
+# ADR-001, ADR-006 (as amended). Not published; only Lakekeeper and bootstrap hold the admin
+# key. Engines get table-scoped STS credentials vended by Lakekeeper.
+
+services:
+  seaweedfs:
+    image: chrislusf/seaweedfs:${SEAWEEDFS_VERSION}
+    # The script renders the identity, IAM/STS and security.toml files from the environment,
+    # then hands over to the image's own entrypoint (which drops to the seaweed user).
+    entrypoint: ["/opt/lab/seaweedfs/entrypoint.sh"]
+    environment:
+      SEAWEEDFS_ADMIN_ACCESS_KEY: ${SEAWEEDFS_ADMIN_ACCESS_KEY:?}
+      SEAWEEDFS_ADMIN_SECRET_KEY: ${SEAWEEDFS_ADMIN_SECRET_KEY:?}
+      SEAWEEDFS_STS_SIGNING_KEY: ${SEAWEEDFS_STS_SIGNING_KEY:?}
+      TZ: ${LAB_TZ:-UTC}
+    volumes:
+      - ./config/seaweedfs:/opt/lab/seaweedfs:ro
+      - seaweedfs-data:/data
+    networks: [lab]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8333/healthz"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+      start_period: 5s
+    restart: unless-stopped
+    mem_limit: ${SEAWEEDFS_MEM:-1g}
+    cpus: ${SEAWEEDFS_CPUS:-2}

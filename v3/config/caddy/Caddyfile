@@ -1,0 +1,58 @@
+# Lakehouse Lab V3 edge (ADR-005). One site per service under LAB_DOMAIN.
+# TLS: Caddy's internal issuer, rooted in the installer-made CA in ${LAB_STATE_DIR}/ca (mounted
+# read-only at /etc/caddy/lab-ca). Caddy only derives intermediates and leaf certificates from
+# it, so `down -v` never changes the root browsers trust.
+# Caddy listens on the same port numbers inside the container as on the host, so URLs are
+# identical for browsers and for containers that reach Caddy through its network aliases.
+{
+	http_port {$LAB_HTTP_PORT}
+	https_port {$LAB_HTTPS_PORT}
+	local_certs
+	skip_install_trust
+	# Redirects are explicit (below) so they keep a non-standard HTTPS port.
+	auto_https disable_redirects
+	pki {
+		ca local {
+			name "Lakehouse Lab"
+			root {
+				format pem_file
+				cert /etc/caddy/lab-ca/root.crt
+				key /etc/caddy/lab-ca/root.key
+			}
+		}
+	}
+}
+
+# Plain HTTP: redirect everything to HTTPS on LAB_HTTPS_PORT. (HTTP-only access for
+# *.localhost is not offered: the OIDC issuer is always the HTTPS URL.)
+http://:{$LAB_HTTP_PORT} {
+	redir https://{host}:{$LAB_HTTPS_PORT}{uri} 308
+}
+
+(proxy_common) {
+	header {
+		-Server
+	}
+}
+
+auth.{$LAB_DOMAIN}:{$LAB_HTTPS_PORT} {
+	import proxy_common
+	reverse_proxy keycloak:8080
+}
+
+trino.{$LAB_DOMAIN}:{$LAB_HTTPS_PORT} {
+	import proxy_common
+	reverse_proxy trino:8080
+}
+
+catalog.{$LAB_DOMAIN}:{$LAB_HTTPS_PORT} {
+	import proxy_common
+	reverse_proxy lakekeeper:8181
+}
+
+# Phase 1: static placeholder (ADR-010). No login needed; it only links to the other services.
+console.{$LAB_DOMAIN}:{$LAB_HTTPS_PORT} {
+	import proxy_common
+	root * /srv/console
+	file_server
+}

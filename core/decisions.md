@@ -181,7 +181,8 @@
 - MITIGATES → REG_ICEBERG_JAR_VERSIONS: Iceberg becomes core with a REST catalog instead of an overlay
 - RELATES_TO → DEC_MIGRATE_FROM_BITNAMI_OFFICIAL_APACHE_4B39: V3 keeps official apache/spark images, moving 3.5 → 4.1
 **Files:** `docs/v3/README.md`, `docs/v3/ARCHITECTURE.md`, `docs/v3/DECISIONS.md`, `docs/v3/ROADMAP.md`
-**Commit:** 6f267e7
+**LastVerified:** 2026-09-25
+**Commit:** 4dd6c9a
 **LastUpdated:** 2026-09-25
 
 ---
@@ -196,7 +197,8 @@
 - MITIGATES → REG_HOST_IP_DETECTION: single LAB_DOMAIN replaces four detection copies
 - RELATES_TO → DEC_REMOVE_OAUTH_AUTHENTICATION_SYSTEM_ENTIRELY_2B27: revisits SSO without custom auth code
 **Files:** `docs/v3/DECISIONS.md`, `docs/v3/ARCHITECTURE.md`
-**Commit:** 6f267e7
+**LastVerified:** 2026-09-25
+**Commit:** 4dd6c9a
 **LastUpdated:** 2026-09-25
 
 ---
@@ -212,7 +214,8 @@
 - RELATES_TO → INV_ENV_IS_CREDENTIAL_SOURCE: V3 replaces the .env credential model
 **Files:** `docs/v3/DECISIONS.md`, `docs/v3/OPEN_QUESTIONS.md`, `spikes/s1-catalog-storage/RESULTS.md`, `spikes/s2-duckdb-sts/RESULTS.md`
 **Evidence:** `ssh $LAB_SERVER 'cd lakehouse-v3/spikes/s2-duckdb-sts && ./test.sh'` → EXIT=0, C1–C3 PASS (vended ASIA… creds, DuckDB read+insert, table-scoped probe 200/403)
-**Commit:** 6f267e7
+**LastVerified:** 2026-09-25
+**Commit:** 4dd6c9a
 **LastUpdated:** 2026-09-25
 
 ---
@@ -230,7 +233,8 @@
 - MITIGATES → REG_SUPERSET_SETUP: pinned pre-built Superset image
 - RELATES_TO → WATCH_CI_WORKFLOWS: restores a real startup test
 **Files:** `docs/v3/DECISIONS.md`, `docs/v3/ROADMAP.md`
-**Commit:** 6f267e7
+**LastVerified:** 2026-09-25
+**Commit:** 4dd6c9a
 **LastUpdated:** 2026-09-25
 
 ---
@@ -274,3 +278,23 @@
 **Files:** `docs/v3/DECISIONS.md`, `docs/v3/ARCHITECTURE.md`, `docs/v3/OPEN_QUESTIONS.md`
 **Commit:** 8ae54c6
 **LastUpdated:** 2026-09-25
+
+---
+
+## NODE: DEC_V3_CI_TOOLING
+**Type:** Decision
+**Priority:** MEDIUM
+**Label:** V3 CI: scripted lint (versions, compat, shellcheck, compose, actionlint) + real install e2e
+**Summary:** V3 CI (.github/workflows/v3-ci.yml) calls only scripts in v3/tools/ so every check runs identically locally: check_versions.py (version literals outside versions.env; GENERATED lockfiles and a per-line '# check-versions: ignore <reason>' pragma are the only escapes), check_compat.py (Spark minor/Iceberg runtime/Scala/PySpark offline table, --online verifies Maven Central/PyPI/Docker Hub), shellcheck.sh and actionlint.sh (pinned containers, tag+digest in v3/.pins/tooling.env), and compose-check.sh (contract compose command on a throwaway copy with generated .env/.secrets.env; fails on unset variables). The e2e job runs install.sh + lab test (ADR-015), retiring V2's config-only startup test. v3-images.yml pushes to GHCR only on workflow_dispatch or v3.* tags. Actions are pinned by commit SHA. V2 workflows ignore v3/**, spikes/**, docs/v3/**, core/**.
+**Tags:** ci, github-actions, versions, v3, lint
+**Edges:**
+- RELATES_TO → WATCH_CI_WORKFLOWS: V3 replacement with real startup coverage
+- RELATES_TO → DEC_V3_VERSIONS_FILE_PREBUILT_IMAGES: enforces ADR-012
+- RELATES_TO → INV_SPARK_VERSION_ALIGNMENT: check_compat enforces it
+**Files:** `.github/workflows/v3-ci.yml`, `.github/workflows/v3-images.yml`, `v3/tools/check_versions.py`, `v3/tools/check_compat.py`, `v3/tools/compose-check.sh`, `v3/tools/images_matrix.py`, `v3/.pins/tooling.env`
+**Paths:** `v3/tools`, `v3/tests/lint`
+**Evidence:** python3 -m unittest discover -s v3/tests/lint → OK (63 tests); python3 v3/tools/check_compat.py --online → OK; v3/tools/actionlint.sh → OK
+**LastVerified:** 2026-09-25
+**Commit:** 4dd6c9a
+**LastUpdated:** 2026-09-25
+**Author:** tooling-workstream

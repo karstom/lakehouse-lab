@@ -1,0 +1,35 @@
+# Stub stack for installer end-to-end tests (tests/installer/test_e2e.sh).
+# It mirrors the contract's shape without the real services: profile core, env from
+# .env/.secrets.env, the CA mounted read-only from ${LAB_STATE_DIR}/ca, a one-shot and a
+# named volume. It publishes NO ports. Tests run it as project v3-p1-inst.
+services:
+  edge:
+    image: caddy:${CADDY_VERSION}
+    profiles: [core]
+    mem_limit: 64m
+    cpus: 0.25
+    volumes:
+      - ${LAB_STATE_DIR:-./state}/ca:/ca:ro
+      - data:/data
+    healthcheck:
+      test: ["CMD", "test", "-s", "/ca/root.crt"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+    depends_on:
+      oneshot:
+        condition: service_completed_successfully
+  oneshot:
+    image: caddy:${CADDY_VERSION}
+    profiles: [core]
+    mem_limit: 32m
+    cpus: 0.25
+    env_file: [.secrets.env]
+    environment:
+      LAB_DOMAIN: ${LAB_DOMAIN}
+    volumes:
+      - ./check-env.sh:/check-env.sh:ro
+    entrypoint: ["/bin/sh", "/check-env.sh"]
+    restart: "no"
+volumes:
+  data: {}

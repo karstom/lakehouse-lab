@@ -1,6 +1,18 @@
 # .github/workflows/docker-compose-validation.yml
 name: Docker Compose Validation
-on: [push, pull_request]
+on:
+  push:
+    paths-ignore:
+      - "v3/**"
+      - "spikes/**"
+      - "docs/v3/**"
+      - "core/**"
+  pull_request:
+    paths-ignore:
+      - "v3/**"
+      - "spikes/**"
+      - "docs/v3/**"
+      - "core/**"
 jobs:
   validate:
     runs-on: ubuntu-latest

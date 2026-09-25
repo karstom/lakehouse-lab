@@ -41,6 +41,15 @@ Rust binary with a small footprint, native OIDC, and support for both remote sig
 vended credentials on S3-compatible storage. Its latest release (0.12, April 2026)
 focuses on authorization.
 
+**Phase 1 result:**
+- **Authorization uses OpenFGA (OQ-5).** One Lakekeeper role per Keycloak group, written by
+  the bootstrap job. `LAB_CATALOG_AUTHZ=allowall` is a verified fallback.
+- **A Trino user's identity does not reach Lakekeeper in Trino 483.** Lakekeeper
+  authorizes Trino's service identity, and per-user rules for SQL users are enforced in
+  Trino (file-based rules plus a group file generated from Keycloak, OQ-17).
+- **Lakekeeper's per-user rules apply** to clients that call the catalog directly: PyIceberg,
+  DuckDB and Spark.
+
 **Rejected:**
 - **Apache Polaris:** the ASF reference implementation and has more resume value, but it
   is JVM-based and heavier. It stays a documented alternative, since engines only depend
@@ -298,6 +307,9 @@ opt-in modules (compose profiles). They are not part of core.
   copy differs, so it stays derived rather than becoming a second source.
 - **Base images are pinned by tag and digest** (`*_IMAGE_TAG` + `*_IMAGE_DIGEST`), including
   the Dockerfile syntax frontend.
+- **Host requirement thresholds are exempt** (Phase 1 ruling): the installer's minimum
+  Docker/Compose versions (`LAB_MIN_DOCKER`, `LAB_MIN_COMPOSE` in `installer/checks.sh`)
+  describe the host, not software we ship.
 - **Pins that spikes needed get promoted into `versions.env`:** OAuthenticator, the Airflow
   Keycloak provider, authlib, psycopg2, JupySQL, jupyterlab-git, the Python base image, and
   Playwright (for tests).

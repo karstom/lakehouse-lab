@@ -1,6 +1,18 @@
 # .github/workflows/env-validation.yml
 name: Environment Validation
-on: [push, pull_request]
+on:
+  push:
+    paths-ignore:
+      - "v3/**"
+      - "spikes/**"
+      - "docs/v3/**"
+      - "core/**"
+  pull_request:
+    paths-ignore:
+      - "v3/**"
+      - "spikes/**"
+      - "docs/v3/**"
+      - "core/**"
 jobs:
   env-check:
     runs-on: ubuntu-latest

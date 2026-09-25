@@ -1,0 +1,49 @@
+# Lakehouse Lab V3: top-level compose file (CONTRACT.md). Always started as
+#
+#   docker compose --project-directory v3 --env-file v3/versions.env --env-file v3/.env \
+#     --profile core up -d --wait
+#
+# Versions come only from versions.env (ADR-012). Non-secret settings come from .env.
+# Secrets come from .secrets.env, which each fragment reads through `include.env_file`, so a
+# service sees only the secrets its fragment names in `environment:` (never the whole file).
+#
+# The core services carry no `profiles:` key, so every profile (core and later ones) includes
+# them; `smoke` is the only profiled service (profile `test`).
+#
+# Resources declared here, once (INV_VOLUME_NAMES_SINGLE_SOURCE): the `lab` network and every
+# named volume. Compose prefixes them with COMPOSE_PROJECT_NAME. No `external: true`.
+# The lab CA is NOT a volume: it lives in ${LAB_STATE_DIR}/ca, which `down -v` never touches.
+
+include:
+  - path: compose/edge.yaml
+    project_directory: .
+    env_file: [.secrets.env]
+  - path: compose/identity.yaml
+    project_directory: .
+    env_file: [.secrets.env]
+  - path: compose/storage.yaml
+    project_directory: .
+    env_file: [.secrets.env]
+  - path: compose/catalog.yaml
+    project_directory: .
+    env_file: [.secrets.env]
+  - path: compose/bootstrap.yaml
+    project_directory: .
+    env_file: [.secrets.env]
+  - path: compose/engines.yaml
+    project_directory: .
+    env_file: [.secrets.env]
+  - path: compose/test.yaml
+    project_directory: .
+    env_file: [.secrets.env]
+
+networks:
+  lab: {}
+
+volumes:
+  caddy-data: {}       # Caddy's intermediates and leaf certificates (re-issued from the root in state/ca)
+  caddy-config: {}
+  trust: {}            # ca-bundle.crt (system CAs + lab root), written by trust-init
+  postgres-data: {}    # keycloak, lakekeeper and openfga databases
+  seaweedfs-data: {}   # object data (the warehouse bucket)
+  trino-groups: {}     # Trino file group provider, generated from Keycloak by bootstrap (OQ-17)

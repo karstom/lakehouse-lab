@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lakehouse Lab</title>
+<style>
+  :root { --bg: #f7f7f5; --fg: #1d1d1b; --muted: #5f5f5a; --card: #ffffff; --line: #e2e2dc; --accent: #2b5fab; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #161615; --fg: #ecece8; --muted: #a3a39c; --card: #1f1f1d; --line: #33332f; --accent: #8db4ec; }
+  }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 44rem; margin: 0 auto; padding: 2.5rem 1rem; }
+  h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+  p { color: var(--muted); margin: 0 0 1.5rem; }
+  ul { list-style: none; padding: 0; display: grid; gap: .75rem; }
+  a.card { display: block; padding: 1rem 1.25rem; background: var(--card); border: 1px solid var(--line);
+           border-radius: .5rem; color: var(--fg); text-decoration: none; }
+  a.card:hover { border-color: var(--accent); }
+  a.card strong { color: var(--accent); }
+  a.card span { display: block; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Lakehouse Lab</h1>
+  <p>Core services. Sign in once through Keycloak; the other services reuse that login.</p>
+  <ul id="links"></ul>
+  <noscript>Open the services at auth., trino. and catalog. under this lab's domain.</noscript>
+</main>
+<script>
+  // console.<LAB_DOMAIN>:<port> -> <svc>.<LAB_DOMAIN>:<port>; nothing is hard-coded.
+  const host = location.host.replace(/^console\./, "");
+  const services = [
+    ["trino", "/ui/", "Trino", "Interactive SQL over the Iceberg catalog"],
+    ["catalog", "/ui/", "Catalog (Lakekeeper)", "Warehouses, namespaces, tables and permissions"],
+    ["auth", "/realms/lakehouse/account/", "Account (Keycloak)", "Your profile, password and sessions"],
+  ];
+  const ul = document.getElementById("links");
+  for (const [svc, path, name, desc] of services) {
+    const li = document.createElement("li");
+    const a = document.createElement("a");
+    a.className = "card";
+    a.href = `${location.protocol}//${svc}.${host}${path}`;
+    const s = document.createElement("strong"); s.textContent = name;
+    const d = document.createElement("span"); d.textContent = desc;
+    a.append(s, d); li.append(a); ul.append(li);
+  }
+</script>
+</body>
+</html>

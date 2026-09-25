@@ -1,0 +1,75 @@
+{
+  "catalogs": [
+    {
+      "group": "lab-admin|engineer",
+      "catalog": ".*",
+      "allow": "all"
+    },
+    {
+      "group": "analyst|viewer",
+      "catalog": "lakehouse",
+      "allow": "read-only"
+    },
+    {
+      "group": "lab-admin|engineer|analyst|viewer",
+      "catalog": "system",
+      "allow": "read-only"
+    }
+  ],
+  "schemas": [
+    {
+      "group": "lab-admin|engineer",
+      "owner": true
+    },
+    {
+      "owner": false
+    }
+  ],
+  "tables": [
+    {
+      "group": "lab-admin|engineer",
+      "privileges": [
+        "SELECT",
+        "INSERT",
+        "DELETE",
+        "UPDATE",
+        "OWNERSHIP",
+        "GRANT_SELECT"
+      ]
+    },
+    {
+      "group": "analyst|viewer",
+      "privileges": [
+        "SELECT"
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "group": "lab-admin",
+      "allow": [
+        "execute",
+        "kill",
+        "view"
+      ]
+    },
+    {
+      "group": "engineer|analyst|viewer",
+      "allow": [
+        "execute"
+      ]
+    }
+  ],
+  "system_session_properties": [
+    {
+      "group": "lab-admin|engineer|analyst|viewer",
+      "allow": true
+    }
+  ],
+  "catalog_session_properties": [
+    {
+      "group": "lab-admin|engineer|analyst|viewer",
+      "allow": true
+    }
+  ]
+}

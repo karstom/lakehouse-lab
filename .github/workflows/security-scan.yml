@@ -1,6 +1,18 @@
 # .github/workflows/security-scan.yml
 name: Security Scan
-on: [push, pull_request]
+on:
+  push:
+    paths-ignore:
+      - "v3/**"
+      - "spikes/**"
+      - "docs/v3/**"
+      - "core/**"
+  pull_request:
+    paths-ignore:
+      - "v3/**"
+      - "spikes/**"
+      - "docs/v3/**"
+      - "core/**"
 jobs:
   security:
     runs-on: ubuntu-latest

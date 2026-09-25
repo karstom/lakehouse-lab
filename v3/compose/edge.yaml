@@ -1,0 +1,56 @@
+# Edge: Caddy (TLS + routing for every public hostname) and trust-init (CA bundle for containers).
+# ADR-005. Caddy is the only service with published ports.
+
+services:
+  caddy:
+    image: caddy:${CADDY_VERSION}
+    environment:
+      LAB_DOMAIN: ${LAB_DOMAIN:-lab.localhost}
+      LAB_HTTPS_PORT: ${LAB_HTTPS_PORT:-443}
+      LAB_HTTP_PORT: ${LAB_HTTP_PORT:-80}
+    ports:
+      - "${LAB_HTTPS_PORT:-443}:${LAB_HTTPS_PORT:-443}"
+      - "${LAB_HTTP_PORT:-80}:${LAB_HTTP_PORT:-80}"
+    volumes:
+      - ./config/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./config/console:/srv/console:ro
+      # The installer-made root CA (never in a volume; survives down -v and upgrades).
+      - ${LAB_STATE_DIR:-./state}/ca:/etc/caddy/lab-ca:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      lab:
+        # Every public hostname resolves to Caddy inside the lab network too, so the OIDC
+        # issuer URL is byte-identical for browsers and containers (S-3 pattern).
+        aliases:
+          - auth.${LAB_DOMAIN:-lab.localhost}
+          - trino.${LAB_DOMAIN:-lab.localhost}
+          - catalog.${LAB_DOMAIN:-lab.localhost}
+          - console.${LAB_DOMAIN:-lab.localhost}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+    mem_limit: ${CADDY_MEM:-256m}
+    cpus: ${CADDY_CPUS:-1}
+
+  # One-shot: system CAs + the lab root -> the `trust` volume (/trust/ca-bundle.crt, /trust/root.crt).
+  # Needs only the public root.crt; root.key is never mounted anywhere but Caddy.
+  trust-init:
+    build:
+      context: ./bootstrap
+      dockerfile: ../images/bootstrap/Dockerfile
+      args:
+        PYTHON_IMAGE_TAG: ${PYTHON_IMAGE_TAG}
+        PYTHON_IMAGE_DIGEST: ${PYTHON_IMAGE_DIGEST}
+    image: lakehouse-lab/v3-bootstrap:${PYTHON_IMAGE_TAG}
+    entrypoint: ["/opt/lab/bootstrap/trust-init.sh"]
+    volumes:
+      - ${LAB_STATE_DIR:-./state}/ca/root.crt:/lab-ca/root.crt:ro
+      - trust:/trust
+    networks: [lab]
+    restart: "no"
+    mem_limit: ${TRUST_INIT_MEM:-64m}
+    cpus: ${TRUST_INIT_CPUS:-0.5}

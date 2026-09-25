@@ -1,0 +1,96 @@
+# Catalog: Lakekeeper (Iceberg REST, ADR-002) with OIDC, plus OpenFGA for its authorization (OQ-5).
+#
+# LAB_CATALOG_AUTHZ (in .env) selects Lakekeeper's authorizer:
+#   openfga  (default) fine-grained permissions; bootstrap grants them from Keycloak groups
+#   allowall every authenticated principal may do everything (fallback / debugging)
+# Authentication (OIDC via Keycloak) is on in both modes.
+
+x-lakekeeper-env: &lakekeeper-env
+  LAKEKEEPER__PG_DATABASE_URL_READ: postgres://lakekeeper:${LAKEKEEPER_DB_PASSWORD:?}@postgres:5432/lakekeeper
+  LAKEKEEPER__PG_DATABASE_URL_WRITE: postgres://lakekeeper:${LAKEKEEPER_DB_PASSWORD:?}@postgres:5432/lakekeeper
+  LAKEKEEPER__PG_ENCRYPTION_KEY: ${LAKEKEEPER_PG_ENCRYPTION_KEY:?}
+  # No LAKEKEEPER__BASE_URI: links Lakekeeper returns (catalog `uri`, signer URL) follow the
+  # request, so internal clients (Trino -> http://lakekeeper:8181) stay internal and browsers
+  # (via Caddy's X-Forwarded-* headers) get https://catalog.<LAB_DOMAIN>.
+  LAKEKEEPER__OPENID_PROVIDER_URI: https://auth.${LAB_DOMAIN:-lab.localhost}:${LAB_HTTPS_PORT:-443}/realms/lakehouse
+  LAKEKEEPER__OPENID_AUDIENCE: lakekeeper
+  LAKEKEEPER__OPENID_SUBJECT_CLAIM: sub
+  LAKEKEEPER__UI__OPENID_CLIENT_ID: lakekeeper-ui
+  LAKEKEEPER__UI__ENABLE_SURVEYS: "false"
+  LAKEKEEPER__AUTHZ_BACKEND: ${LAB_CATALOG_AUTHZ:-openfga}
+  LAKEKEEPER__OPENFGA__ENDPOINT: http://openfga:8081
+  # Lakekeeper (rustls-native-certs) reads the CA bundle from here for OIDC discovery/JWKS.
+  SSL_CERT_FILE: /trust/ca-bundle.crt
+  TZ: ${LAB_TZ:-UTC}
+  RUST_LOG: ${LAKEKEEPER_LOG:-info}
+
+x-openfga-env: &openfga-env
+  OPENFGA_DATASTORE_ENGINE: postgres
+  OPENFGA_DATASTORE_URI: postgres://lakekeeper:${LAKEKEEPER_DB_PASSWORD:?}@postgres:5432/openfga?sslmode=disable
+  OPENFGA_PLAYGROUND_ENABLED: "false"
+  OPENFGA_LOG_FORMAT: json
+
+services:
+  openfga-migrate:
+    image: openfga/openfga:${OPENFGA_VERSION}
+    command: ["migrate"]
+    environment: *openfga-env
+    networks: [lab]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+    mem_limit: ${OPENFGA_MIGRATE_MEM:-128m}
+    cpus: ${OPENFGA_MIGRATE_CPUS:-0.5}
+
+  openfga:
+    image: openfga/openfga:${OPENFGA_VERSION}
+    command: ["run"]
+    environment:
+      <<: *openfga-env
+      OPENFGA_DATASTORE_MAX_OPEN_CONNS: "20"
+    networks: [lab]
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/grpc_health_probe", "-addr=127.0.0.1:8081"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    depends_on:
+      openfga-migrate: {condition: service_completed_successfully}
+    restart: unless-stopped
+    mem_limit: ${OPENFGA_MEM:-256m}
+    cpus: ${OPENFGA_CPUS:-1}
+
+  lakekeeper-migrate:
+    image: quay.io/lakekeeper/catalog:${LAKEKEEPER_VERSION}
+    command: ["migrate"]
+    environment: *lakekeeper-env
+    volumes:
+      - trust:/trust:ro
+    networks: [lab]
+    depends_on:
+      postgres: {condition: service_healthy}
+      openfga: {condition: service_healthy}
+      trust-init: {condition: service_completed_successfully}
+    restart: "no"
+    mem_limit: ${LAKEKEEPER_MIGRATE_MEM:-256m}
+    cpus: ${LAKEKEEPER_MIGRATE_CPUS:-1}
+
+  lakekeeper:
+    image: quay.io/lakekeeper/catalog:${LAKEKEEPER_VERSION}
+    command: ["serve"]
+    environment: *lakekeeper-env
+    volumes:
+      - trust:/trust:ro
+    networks: [lab]
+    healthcheck:
+      test: ["CMD", "/home/nonroot/lakekeeper", "healthcheck", "-s"]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+    depends_on:
+      lakekeeper-migrate: {condition: service_completed_successfully}
+      keycloak: {condition: service_healthy}
+      caddy: {condition: service_healthy}
+    restart: unless-stopped
+    mem_limit: ${LAKEKEEPER_MEM:-512m}
+    cpus: ${LAKEKEEPER_CPUS:-1}

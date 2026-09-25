@@ -1,0 +1,34 @@
+# Smoke test driver (profile `test`; run by tests/smoke/run.sh, never by `up`).
+# Runs ON the lab network: it reaches https://<svc>.${LAB_DOMAIN}:${LAB_HTTPS_PORT} through
+# Caddy's aliases, trusting only the lab CA (imported into Chromium's NSS store like a user
+# would). The same command runs in CI and on the dev server.
+
+services:
+  smoke:
+    profiles: [test]
+    build:
+      context: ./images/smoke
+      args:
+        PLAYWRIGHT_IMAGE_TAG: ${PLAYWRIGHT_IMAGE_TAG}
+        PLAYWRIGHT_IMAGE_DIGEST: ${PLAYWRIGHT_IMAGE_DIGEST}
+        PLAYWRIGHT_VERSION: ${PLAYWRIGHT_VERSION}
+        TRINO_PYTHON_VERSION: ${TRINO_PYTHON_VERSION}
+        PYICEBERG_VERSION: ${PYICEBERG_VERSION}
+        PYARROW_VERSION: ${PYARROW_VERSION}
+    image: lakehouse-lab/v3-smoke:${PLAYWRIGHT_VERSION}
+    entrypoint: ["/opt/smoke/in-container.sh"]
+    environment:
+      LAB_DOMAIN: ${LAB_DOMAIN:-lab.localhost}
+      LAB_HTTPS_PORT: ${LAB_HTTPS_PORT:-443}
+      LAB_TEST_USER_PASSWORD: ${LAB_TEST_USER_PASSWORD:-}
+      # The test obtains user tokens with the password grant of the `trino` client, which
+      # bootstrap enables only when LAB_SEED_TEST_USERS=true.
+      OIDC_CLIENT_SECRET_TRINO: ${OIDC_CLIENT_SECRET_TRINO:?}
+    volumes:
+      - ./tests/smoke:/opt/smoke:ro
+      - trust:/trust:ro
+      - ${LAB_SMOKE_OUT:-./tests/smoke/out}:/out
+    networks: [lab]
+    restart: "no"
+    mem_limit: ${SMOKE_MEM:-2g}
+    cpus: ${SMOKE_CPUS:-2}

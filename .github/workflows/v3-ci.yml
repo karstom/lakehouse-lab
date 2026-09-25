@@ -1,0 +1,92 @@
+# V3 CI: lint (versions, compatibility, shell, compose, workflows), then a real install
+# plus the end-to-end smoke test (ADR-015). Every step calls a script in v3/tools/ or the
+# v3 CLI, so the same checks run locally:
+#   python3 v3/tools/check_versions.py && python3 v3/tools/check_compat.py
+#   v3/tools/shellcheck.sh && v3/tools/compose-check.sh && v3/tools/actionlint.sh
+# Actions are pinned by commit SHA; tool images by tag + digest (v3/versions.env).
+name: v3-ci
+
+on:
+  push:
+    branches: [v3]
+    paths:
+      - "v3/**"
+      - ".github/workflows/v3-*.yml"
+  pull_request:
+    paths:
+      - "v3/**"
+      - ".github/workflows/v3-*.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v3-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Unit tests for the lint tools
+        run: python3 -m unittest discover -s v3/tests/lint -v
+
+      # Each check runs even if an earlier one failed, so one run reports everything.
+      - name: Installer unit tests (fake docker, no daemon)
+        if: ${{ !cancelled() }}
+        run: bash v3/tests/installer/test_unit.sh
+
+
+      - name: Version literals outside versions.env (ADR-012)
+        if: ${{ !cancelled() }}
+        run: python3 v3/tools/check_versions.py --format github
+
+      - name: Spark / Iceberg / Scala / PySpark compatibility
+        if: ${{ !cancelled() }}
+        run: python3 v3/tools/check_compat.py
+
+      - name: ShellCheck (v3 scripts)
+        if: ${{ !cancelled() }}
+        run: v3/tools/shellcheck.sh
+
+      - name: docker compose config (contract command, generated .env/.secrets.env)
+        if: ${{ !cancelled() }}
+        run: v3/tools/compose-check.sh
+
+      - name: actionlint (v3 workflows)
+        if: ${{ !cancelled() }}
+        run: v3/tools/actionlint.sh
+
+  e2e:
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install (core profile, test users)
+        run: v3/install.sh --non-interactive --seed-test-users --domain lab.localhost
+
+      - name: Smoke test
+        run: v3/lab test
+
+      - name: Collect diagnostics
+        if: ${{ failure() }}
+        run: v3/tools/ci-collect-logs.sh "$RUNNER_TEMP/v3-diagnostics"
+
+      - name: Upload diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: v3-e2e-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/v3-diagnostics
+          retention-days: 7
+          if-no-files-found: warn

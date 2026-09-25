@@ -1,0 +1,199 @@
+#!/usr/bin/env bash
+# Lakehouse Lab V3 CLI. Every compose call goes through lab_compose (installer/lib.sh), which
+# runs the contract's command for THIS install's project (COMPOSE_PROJECT_NAME in .env).
+set -euo pipefail
+
+V3_DIR=$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=installer/lib.sh
+. "$V3_DIR/installer/lib.sh"
+# shellcheck source=installer/checks.sh
+. "$V3_DIR/installer/checks.sh"
+# shellcheck source=installer/domain.sh
+. "$V3_DIR/installer/domain.sh"
+# shellcheck source=installer/ca.sh
+. "$V3_DIR/installer/ca.sh"
+# shellcheck source=installer/trust.sh
+. "$V3_DIR/installer/trust.sh"
+
+usage() {
+  cat <<'EOF'
+Usage: ./lab <command> [args]
+
+  up                  start the lab (docker compose up -d --wait --remove-orphans) and print its URLs
+  down                stop the lab; data volumes are kept
+  status              show services and their health (exit 1 if any is unhealthy)
+  urls                print the lab's URLs
+  logs [svc...]       show service logs (follows on a terminal; --no-follow to stop)
+  reset [--all] [--yes]
+                      delete this lab's containers AND data volumes, keeping settings,
+                      secrets and the lab CA. --all also deletes LAB_STATE_DIR (the CA:
+                      every browser must re-trust the new one). Asks for confirmation.
+  test [args]         run the end-to-end smoke test (tests/smoke/run.sh)
+  ca                  print the lab CA's path and how to trust it
+EOF
+}
+
+require_install() {
+  [ -f "$LAB_ENV_FILE" ] || die "no $LAB_ENV_FILE; run $V3_DIR/install.sh first."
+  lab_settings
+  valid_project_name "$COMPOSE_PROJECT_NAME" || die "invalid COMPOSE_PROJECT_NAME in $LAB_ENV_FILE"
+}
+
+require_stack_files() {
+  [ -f "$LAB_SECRETS_FILE" ] || die "no $LAB_SECRETS_FILE; run $V3_DIR/install.sh first."
+  [ -f "$(ca_dir)/root.crt" ] || die "no lab CA in $(ca_dir); run $V3_DIR/install.sh first."
+  [ -f "$LAB_COMPOSE_FILE" ] || die "no $LAB_COMPOSE_FILE"
+}
+
+cmd_up() {
+  [ $# -eq 0 ] || die "usage: lab up"
+  require_install
+  require_stack_files
+  lab_compose up -d --wait --remove-orphans || {
+    err "the stack did not become healthy; see '$V3_DIR/lab status' and '$V3_DIR/lab logs <service>'."
+    exit 1
+  }
+  print_urls
+}
+
+cmd_down() {
+  local a
+  for a in "$@"; do
+    case "$a" in
+      -v|--volumes|--volumes=*) die "'lab down' never deletes volumes. To delete this lab's data use 'lab reset'." ;;
+      *) die "usage: lab down" ;;
+    esac
+  done
+  require_install
+  lab_compose down --remove-orphans
+}
+
+# cmd_status -> table, then exit 1 if a long-running service is not healthy/running
+# or a one-shot exited non-zero.
+cmd_status() {
+  [ $# -eq 0 ] || die "usage: lab status"
+  require_install
+  local rows bad=0 svc state health code status n=0
+  info "Project $COMPOSE_PROJECT_NAME  (https://*.${LAB_DOMAIN}:${LAB_HTTPS_PORT})"
+  rows=$(lab_compose ps -a --format '{{.Service}}|{{.State}}|{{.Health}}|{{.ExitCode}}|{{.Status}}') || die "docker compose ps failed"
+  if [ -z "$rows" ]; then
+    info "No containers. Start the lab with: $V3_DIR/lab up"
+    return 1
+  fi
+  printf '%-24s %-10s %-10s %s\n' SERVICE STATE HEALTH STATUS
+  while IFS='|' read -r svc state health code status; do
+    [ -n "$svc" ] || continue
+    n=$((n + 1))
+    printf '%-24s %-10s %-10s %s\n' "$svc" "$state" "${health:--}" "$status"
+    case "$state" in
+      running) [ -z "$health" ] || [ "$health" = healthy ] || bad=1 ;;
+      exited)  [ "$code" = 0 ] || bad=1 ;;   # one-shots (bootstrap) must exit 0
+      *)       bad=1 ;;
+    esac
+  done <<<"$rows"
+  if [ "$bad" = 0 ]; then ok "$n container(s), all healthy"; else warn "some services are not healthy"; return 1; fi
+}
+
+cmd_urls() {
+  [ $# -eq 0 ] || die "usage: lab urls"
+  require_install
+  print_urls
+}
+
+cmd_logs() {
+  local follow=1 a
+  local -a svcs=()
+  [ -t 1 ] || follow=0
+  for a in "$@"; do
+    case "$a" in
+      --no-follow) follow=0 ;;
+      -f|--follow) follow=1 ;;
+      -*) die "usage: lab logs [--no-follow] [service...]" ;;
+      *) svcs+=("$a") ;;
+    esac
+  done
+  require_install
+  if [ "$follow" = 1 ]; then
+    lab_compose logs --tail 200 -f ${svcs[@]+"${svcs[@]}"}
+  else
+    lab_compose logs --tail 200 --no-color ${svcs[@]+"${svcs[@]}"}
+  fi
+}
+
+# safe_rm_state DIR -> remove the state dir, refusing anything that looks wrong.
+safe_rm_state() {
+  local d=$1 real
+  [ -e "$d" ] || return 0
+  [ -d "$d" ] || die "$d is not a directory; not removing it."
+  real=$(cd -P "$d" && pwd)
+  case "$real" in
+    /|/home|/root|/tmp|/var|/usr|/etc|"$HOME"|"$V3_DIR"|"$(dirname "$V3_DIR")")
+      die "refusing to delete LAB_STATE_DIR=$real" ;;
+  esac
+  rm -rf -- "$real"
+}
+
+cmd_reset() {
+  local all=0 yes=0 a ans
+  for a in "$@"; do
+    case "$a" in
+      --all) all=1 ;;
+      --yes|-y) yes=1 ;;
+      *) die "usage: lab reset [--all] [--yes]" ;;
+    esac
+  done
+  require_install
+  info "This deletes every container and data volume of compose project '$COMPOSE_PROJECT_NAME'"
+  info "(tables, users' data, Keycloak and catalog databases). Settings and secrets are kept."
+  if [ "$all" = 1 ]; then
+    info "--all: also deletes $(state_dir_abs), including the lab CA. Every browser must re-trust the new CA."
+  else
+    info "The lab CA in $(ca_dir) is kept."
+  fi
+  if [ "$yes" != 1 ]; then
+    [ -t 0 ] || die "not a terminal; pass --yes to confirm."
+    read -r -p "Type the project name ($COMPOSE_PROJECT_NAME) to confirm: " ans || ans=""
+    [ "$ans" = "$COMPOSE_PROJECT_NAME" ] || die "not confirmed; nothing changed."
+  fi
+  # Scoped to this project only: -p comes from .env via lab_compose, never a wildcard.
+  lab_compose down -v --remove-orphans
+  if [ "$all" = 1 ]; then
+    safe_rm_state "$(state_dir_abs)"
+    ok "Removed $(state_dir_abs)"
+    info "Run $V3_DIR/install.sh to create a new CA and start again."
+  else
+    info "Start fresh with: $V3_DIR/lab up"
+  fi
+}
+
+cmd_test() {
+  require_install
+  local t="$V3_DIR/tests/smoke/run.sh"
+  [ -x "$t" ] || die "smoke test $t not found or not executable."
+  cd "$V3_DIR"
+  exec "$t" "$@"
+}
+
+cmd_ca() {
+  [ $# -eq 0 ] || die "usage: lab ca"
+  require_install
+  local crt
+  crt="$(ca_dir)/root.crt"
+  [ -f "$crt" ] || die "no lab CA at $crt; run $V3_DIR/install.sh."
+  print_trust_instructions "$crt"
+}
+
+[ $# -gt 0 ] || { usage; exit 1; }
+sub=$1; shift
+case "$sub" in
+  up) cmd_up "$@" ;;
+  down) cmd_down "$@" ;;
+  status|ps) cmd_status "$@" ;;
+  urls) cmd_urls "$@" ;;
+  logs) cmd_logs "$@" ;;
+  reset) cmd_reset "$@" ;;
+  test) cmd_test "$@" ;;
+  ca) cmd_ca "$@" ;;
+  -h|--help|help) usage ;;
+  *) usage >&2; die "unknown command: $sub" ;;
+esac

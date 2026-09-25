@@ -1,0 +1,63 @@
+# Identity and metadata: Postgres (one database + owner per service) and Keycloak (ADR-004).
+
+services:
+  postgres:
+    image: postgres:${POSTGRES_VERSION}
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run install.sh (missing .secrets.env)}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?}
+      LAKEKEEPER_DB_PASSWORD: ${LAKEKEEPER_DB_PASSWORD:?}
+      TZ: ${LAB_TZ:-UTC}
+    volumes:
+      - ./config/postgres/init-dbs.sh:/docker-entrypoint-initdb.d/10-init-dbs.sh:ro
+      - postgres-data:/var/lib/postgresql/data
+    networks: [lab]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    restart: unless-stopped
+    mem_limit: ${POSTGRES_MEM:-512m}
+    cpus: ${POSTGRES_CPUS:-1}
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:${KEYCLOAK_VERSION}
+    command: ["start", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?}
+      # Public URL; also the issuer. Back-channel calls from containers go to http://keycloak:8080
+      # and still get tokens with this issuer.
+      KC_HOSTNAME: https://auth.${LAB_DOMAIN:-lab.localhost}:${LAB_HTTPS_PORT:-443}
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_ADMIN_USER:?}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?}
+      JAVA_OPTS_KC_HEAP: "-XX:MaxRAMPercentage=65 -XX:InitialRAMPercentage=20"
+      TZ: ${LAB_TZ:-UTC}
+      # Placeholders substituted into the realm template at (first) import:
+      LAB_DOMAIN: ${LAB_DOMAIN:-lab.localhost}
+      LAB_HTTPS_PORT: ${LAB_HTTPS_PORT:-443}
+      OIDC_CLIENT_SECRET_TRINO: ${OIDC_CLIENT_SECRET_TRINO:?}
+      OIDC_CLIENT_SECRET_LAKEKEEPER: ${OIDC_CLIENT_SECRET_LAKEKEEPER:?}
+      OIDC_CLIENT_SECRET_CONSOLE: ${OIDC_CLIENT_SECRET_CONSOLE:?}
+    volumes:
+      - ./config/keycloak/realm-lakehouse.json:/opt/keycloak/data/import/realm-lakehouse.json:ro
+      - ./config/healthcheck:/opt/lab/healthcheck:ro
+    networks: [lab]
+    healthcheck:
+      test: ["CMD", "/opt/lab/healthcheck/http-ok.sh", "9000", "/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+      start_period: 30s
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: unless-stopped
+    mem_limit: ${KEYCLOAK_MEM:-1280m}
+    cpus: ${KEYCLOAK_CPUS:-2}
