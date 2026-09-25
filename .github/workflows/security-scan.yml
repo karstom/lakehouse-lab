@@ -17,16 +17,21 @@ jobs:
   security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      # trivy-action was hijacked on 2026-03-19 (CVE-2026-33634 / GHSA-69fq-xp46-6x23): tags were
+      # repointed to a credential stealer and later deleted, which is why the old 0.33.0 tag no longer
+      # resolves. Actions are pinned by commit SHA (tags can be moved), and the Trivy binary is pinned
+      # too, because malicious Trivy builds v0.69.4-v0.69.6 were published in the same attack.
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.33.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0 (verified commit)
         with:
+          version: 'v0.74.0'
           scan-type: 'fs'
           scan-ref: '.'
           format: 'sarif'
           output: 'trivy-results.sarif'
       - name: Check for hardcoded secrets
-        uses: trufflesecurity/trufflehog@v3.88.1
+        uses: trufflesecurity/trufflehog@d73edfb85d79432e3c767c407afdee59c9a34fde  # v3.88.1
         with:
           path: ./
 
