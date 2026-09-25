@@ -1,0 +1,5 @@
+# Per-install, never commit (public repo)
+.env
+.secrets.env
+state/
+**/out/
