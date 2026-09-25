@@ -158,3 +158,95 @@ through a mounted `ca-bundle`.
 - **WSL2 check:** the lead's local machine (7 GB RAM, Docker available) with
   `LAB_DOMAIN=lab.localhost`.
 - **Agents do not `git commit` or `git push`.** The lead integrates and pushes.
+
+---
+
+# Phase 2: Workspace and engines
+
+> Added by the lead after Phase 1 (all exit criteria met, CI green) and the OQ-20
+> identity-sync follow-up. Everything above still applies. Design: ADR-007/008/003,
+> OQ-2/OQ-15. Evidence: `spikes/s4-workspace-image/RESULTS.md`, `v3/PHASE1_RESULTS.md`.
+
+## Scope and exit
+
+**Adds to `core`:**
+- JupyterHub (OIDC login via Keycloak) spawning one **workspace** container per user from a
+  pre-built `lakehouse-workspace` image. The image contains JupyterLab, SQL cells,
+  jupyterlab-git, a terminal, code-server through jupyter-server-proxy, the Trino client,
+  DuckDB with its extensions built in, PyIceberg, dbt-core + dbt-trino, the Spark Connect
+  client, and jupyter-ai (installed, not configured: Phase 5).
+- **Sample data:** bootstrap creates `lakehouse.samples.*` Iceberg tables with Trino
+  `CREATE TABLE AS` from Trino's built-in `tpch` connector (`tiny` scale). No downloads.
+- A starter dbt project (Trino target) over the samples, copied into each new user's home.
+
+**Adds profile `engineer`:** Spark 4.1 master, one worker, and a **shared Spark Connect
+server**. Profile `engineer` also includes everything in core. (Airflow and Superset come in
+Phase 3.)
+
+**Exit:**
+1. The smoke test is extended to cover the workspace and passes in CI for **both** `core`
+   and `engineer` (a CI matrix):
+   - Alice logs into `jupyter.` in a headless browser and her workspace starts.
+   - Inside it, as alice with her own token: a Trino query over `samples`, DuckDB `ATTACH`
+     of the catalog with vended credentials, and `dbt build` of the starter project.
+   - `engineer` profile only: Spark Connect creates and reads an Iceberg table as alice.
+2. `victor` (viewer) is still denied writes from inside his workspace.
+3. Idempotency, upgrade-in-place from Phase 1 (re-run `install.sh` on an existing install)
+   and the existing 7 smoke checks keep passing.
+
+## Workstreams and ownership
+
+| Workstream | Owns |
+|---|---|
+| **WORKSPACE** | `images/workspace/`, `compose/workspace.yaml`, `config/jupyterhub/`, `starter/` (dbt project + a README notebook), `bootstrap/jupyterhub_client.py` |
+| **SPARK+DATA** | `images/spark/`, `compose/spark.yaml`, `config/spark/`, `bootstrap/samples.py`, `config/trino/catalog/tpch.properties`, edits to `config/trino/rules.json` |
+| **TESTS+CI** | `tests/smoke/` (new checks), `.github/workflows/v3-ci.yml` (profile matrix), `lab`/`installer/` changes for the `engineer` profile and per-user volume cleanup, bootstrap removal of test users when `LAB_SEED_TEST_USERS=false` (`bootstrap/keycloak.py`) |
+
+Only the **integrator** edits `bootstrap/__main__.py`, `compose.yaml`, `versions.env` and
+this contract. New pins go in `v3/.pins/<workstream>.env`. Any new Keycloak client is created
+idempotently by bootstrap (pattern: `ensure_sync_client`), **never** only in the realm
+template: the realm is imported on first start only, so existing installs would never get it.
+
+## Identity in the workspace (the hard part)
+
+- JupyterHub uses GenericOAuthenticator against realm `lakehouse`, with a new confidential
+  client `jupyterhub` (secret `OIDC_CLIENT_SECRET_JUPYTERHUB` from the installer) and
+  `enable_auth_state` (key `JUPYTERHUB_CRYPT_KEY` from the installer).
+- **Workspace clients act as the logged-in user.** Trino (JWT), Lakekeeper/PyIceberg/DuckDB
+  (OAuth token, vended credentials) and dbt-trino (`method: jwt`) all use the user's own
+  Keycloak token, which must stay valid for hours-long sessions. Access tokens last 5 min,
+  so provide a single helper in the image, for example `lab_token()` in Python plus a
+  `lab-token` CLI. It gets a fresh token (refresh-token grant or the hub's auth-state
+  refresh) and is the ONE place clients get tokens. Document the mechanism chosen.
+- **Spark Connect identity (OQ-15).** Preferred: a per-session catalog token. Spark
+  Connect gives each client its own session, and the Iceberg REST catalog is configured per
+  session with the user's token, so Lakekeeper authorizes the real user. Decision rule:
+  - adopt it if alice can write through Spark and victor is denied;
+  - otherwise use the Spark service identity, **enforce "engineer/lab-admin only" for Spark
+    Connect**, and document the evidence.
+- Groups keep coming only from Keycloak; `identity-sync` is unchanged.
+
+## Docker access (the host runs production)
+
+- DockerSpawner **never** gets `/var/run/docker.sock` directly. A pinned
+  `docker-socket-proxy` sidecar exposes only what DockerSpawner needs (containers, images
+  read, networks, volumes), on an internal network that only JupyterHub is attached to.
+- Every spawned container and volume has label `com.docker.compose.project=${COMPOSE_PROJECT_NAME}`
+  plus `lab.role=workspace`, and name prefix `${COMPOSE_PROJECT_NAME}-ws-`. Each has
+  `mem_limit`/`cpus` (`WORKSPACE_MEM`/`WORKSPACE_CPUS`) and joins only the `lab` network.
+- **Per-user home volumes** are the one exception to "volumes declared only in compose".
+  JupyterHub creates them from a single name template
+  (`${COMPOSE_PROJECT_NAME}-home-{username}`) with the labels above. `lab reset` must also
+  delete them, selected by label for this project only. `lab down` stops workspace
+  containers too.
+- On the dev host: never list, stop or remove anything outside `v3-`-prefixed projects. The
+  verifier audits this with `docker ps -a` and `docker volume ls` before and after.
+
+## Hostnames and resources
+
+- New public hostname: `jupyter.` (JupyterHub; workspaces are reached through the hub).
+  Spark UI and forward-auth come later (Phase 3).
+- Budgets:
+  - `core` + one active workspace fits **≤ 10 GB** of limits;
+  - `engineer` + one workspace fits a **16 GB** machine and the GitHub runner (16 GB). Use
+    lower CI limits if needed, via env overrides in the workflow, not by editing defaults.
