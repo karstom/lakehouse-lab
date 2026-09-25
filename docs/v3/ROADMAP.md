@@ -41,8 +41,8 @@ minutes, and CI shows it green.
 
 > **Status (2026-09-25): built and independently verified.** Installs in about 1m40s on the
 > dev host (images cached), about 2 minutes on WSL2, and the smoke test passes 6/6 on both.
-> Details: [`v3/PHASE1_RESULTS.md`](../../v3/PHASE1_RESULTS.md). The GitHub CI run is
-> pending the first push.
+> Details: [`v3/PHASE1_RESULTS.md`](../../v3/PHASE1_RESULTS.md). **GitHub `v3-ci` is green:**
+> the e2e install and smoke test take 2m25s on a fresh runner. **Exit criteria met.**
 
 ## Phase 2: Workspace and engines
 

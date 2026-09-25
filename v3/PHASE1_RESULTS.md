@@ -336,3 +336,9 @@ A Trino user's identity does **not** reach Lakekeeper with Trino 483.
   6/6, and the dev host on 18443 passes 6/6 after an in-place re-install.
 - **Also fixed:** the V2 `ci.yml` was invalid (`needs: integration-tests`, a job renamed in
   78adc2a). V2 ShellCheck now ignores `spikes/` and `v3/`, which V3 CI lints itself.
+- **Run 2 of `v3-ci` (commit fbe5d0d): green.** lint passed in 14 s; e2e passed in **2 m 25 s on a
+  fresh GitHub runner**, including image pulls and builds. That closes the "CI runs the same
+  path" and "cold-cache install time" gaps.
+- **V2 workflows on `v3`:** all green except Security Scan. It also fails on `main`, because
+  its pinned `aquasecurity/trivy-action@0.33.0` tag no longer exists upstream (V2
+  maintenance item for the owner).
