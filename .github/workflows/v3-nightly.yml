@@ -11,6 +11,12 @@
 name: v3-nightly
 
 on:
+  # schedule and workflow_dispatch only run from the default branch (main). Until V3 is
+  # merged, a change to this file on v3 runs it once, so the full profile still gets a real
+  # runner result before merge.
+  push:
+    branches: [v3]
+    paths: [".github/workflows/v3-nightly.yml"]
   schedule:
     - cron: "17 3 * * *"
   workflow_dispatch:
@@ -39,7 +45,7 @@ jobs:
     env:
       PYTHONDONTWRITEBYTECODE: "1"
       LAB_PROFILE_UNDER_TEST: ${{ inputs.profile || 'full' }}
-      LAB_SMOKE_LONG: ${{ (github.event_name == 'schedule' || inputs.long) && '1' || '0' }}
+      LAB_SMOKE_LONG: ${{ (github.event_name != 'workflow_dispatch' || inputs.long) && '1' || '0' }}
       # CI-sized limits, as in v3-ci.yml (shell variables win over compose defaults because
       # .env does not set them). Limits are ceilings; the measured use is in the summary.
       WORKSPACE_MEM: 1536M
