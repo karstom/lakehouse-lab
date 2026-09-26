@@ -391,3 +391,125 @@ Memory target: `full` ≤ 24 GB of limits with one workspace.
   - `spark.ui.killEnabled=false` everywhere (the Connect driver is shared).
   - A new service joins `spark` only if Spark calls it or it must proxy the Spark UI. Smoke
     check 15 proves from a viewer's workspace that 8080, 8081 and 4040 do not connect.
+
+---
+
+# Phase 4: Learning tracks
+
+> Added by the lead after Phase 3 (verified, CI green). Everything above still applies.
+> Design: ROADMAP Phase 4, OQ-10. The goal is that a beginner can **learn the job**, not
+> just run the stack.
+
+## Scope and exit
+
+- **Two tracks**, each a sequence of short modules. A module is about 30–60 minutes and has:
+  - a lesson (`README.md`: goal, concepts, steps);
+  - starter files (notebook, SQL, dbt, DAG);
+  - a **machine-checkable checkpoint**;
+  - a `tutor.md` (learning objectives, common mistakes, hints). Phase 5's AI tutor mode
+    reads this; nothing uses it before then.
+- **Engineer track** (profile `engineer`):
+  - E1 files → Iceberg with Spark;
+  - E2 table maintenance (snapshots, time travel, compaction, snapshot expiry);
+  - E3 author and schedule your own Airflow DAG;
+  - E4 promote a notebook to a scheduled job (papermill), then to a Spark batch job
+    (ADR-017).
+- **Analyst track** (A1–A3 on `core`, A4 on `full`):
+  - A1 SQL over `samples` (Superset SQL Lab on `full`; JupySQL on `core`);
+  - A2 exploratory analysis in JupySQL + DuckDB;
+  - A3 your first dbt model in your own schema;
+  - A4 a chart and dashboard in Superset over your model.
+
+**Exit:**
+1. Every module's reference solution passes its checkpoint **as a seeded user, inside that
+   user's workspace**, and `lab-tracks reset <module>` restores the module to its starting
+   state:
+   - module 1 of each track in the PR CI matrix;
+   - all modules in the nightly `full` job.
+2. **Content survives upgrades.** Tracks are copied into a new home as `~/tracks/`, and later
+   image upgrades add new files without overwriting the user's edits. `lab-tracks reset`
+   restores a pristine copy on request.
+3. **Beginner validation** (ROADMAP exit): at least two real beginners complete module 1 of
+   each track without help. **Owner-run; agents can't do this.** Agents deliver a short
+   facilitator guide plus a feedback form (markdown).
+
+## Content location (OQ-10, interim)
+
+Tracks live in `v3/tracks/` inside this repo, laid out to move to their own repo later
+without code changes. The workspace image copies them in at build time, the same way as
+`starter/`. Moving them is a later owner decision, because creating a new public repo is an
+outward-facing step.
+
+```
+v3/tracks/
+  README.md                     track overview, prerequisites per profile
+  engineer/E1-files-to-iceberg/ README.md  tutor.md  notebook.ipynb  checkpoint.py  (solution/ — see below)
+  analyst/A1-sql-basics/        ...
+  FACILITATOR.md  FEEDBACK.md   beginner-session guide and form (exit 3)
+```
+
+**Solutions:** reference solutions live under `v3/tests/tracks/solutions/` (test-only; not
+copied into homes), so learners don't see answers by default. CI runs them.
+
+## Workspace tooling
+
+- `lab-tracks` CLI (in the workspace image):
+  - `list` shows modules and status;
+  - `check <module>` runs the checkpoint as the user, using `lab_token()`, and prints clear
+    pass/fail hints;
+  - `reset <module>` restores pristine files, and drops the module's objects in the user's
+    own schema/namespace **only**.
+- Progress goes to `~/.lab-progress.json`. The Console may later show it; not required now.
+- Checkpoints verify *outcomes* (tables, rows, snapshots, DAG runs, dbt models, Superset
+  objects through its API as the user), never file contents.
+
+## E3 needs one piece of new infrastructure: user DAGs
+
+- A shared volume `<project>_dags-user` is mounted read-write at `~/airflow-dags` in
+  **engineer/lab-admin** workspaces only (group-based in `jupyterhub_config.py`), and
+  read-only into Airflow's dag-processor/scheduler at `dags/user/`.
+- **Each user's DAG files live in `~/airflow-dags/<username>/`.** The DAG id prefix
+  `u_<username>_` is enforced by an Airflow DAG policy; files that break it are rejected
+  with a visible import error.
+- The **Docker proxy allowlist** gains exactly `<project>_dags-user` as an allowed bind
+  (INV_V3_DOCKER_PROXY_PROJECT_SCOPE). Smoke check 11 grows a case: the volume is allowed
+  for workspaces, and other volumes are still refused.
+- Security note (to document): a user DAG runs with Airflow's worker identity (lab-batch
+  for data access). That's acceptable because engineers are already trusted to trigger and
+  edit DAGs; analysts and viewers never get the mount.
+
+## Workstreams and ownership
+
+| Workstream | Owns |
+|---|---|
+| **ENGINEER-TRACK** | `v3/tracks/engineer/`, `v3/tests/tracks/solutions/engineer/`, user-DAG infra (`config/airflow/` DAG policy, `compose/airflow.yaml` mount, `config/jupyterhub/` group mount, `config/jupyterhub/docker-proxy.cfg` + `tests/smoke/proxy_probe.py` new case) |
+| **ANALYST-TRACK** | `v3/tracks/analyst/`, `v3/tests/tracks/solutions/analyst/`, Superset API helpers for A4 checkpoints |
+| **TOOLING+CI** | `lab-tracks` CLI + progress + reset (`images/workspace/`), track copy-on-upgrade, `tests/smoke/` check 17 (run solution → checkpoint → reset per module), CI wiring (PR: module 1 of each track; nightly: all), `v3/tracks/README.md`, `FACILITATOR.md`, `FEEDBACK.md` |
+
+The integrator owns `bootstrap/__main__.py`, `compose.yaml`, `versions.env` and this
+contract, as before.
+
+## Required: root-cause the intermittent workspace-kernel failures (TOOLING+CI)
+
+Two intermittent failures have been seen in workspace kernels. Every Phase 4 module runs in
+a kernel, and learners would see the same thing (a notebook that stops answering, or HTTP
+403), so this is **not** a test-only problem:
+- WATCH_V3_SPARK_CONNECT_INTERMITTENT_HANG: a kernel went silent after a Spark
+  `ForbiddenException`.
+- In the Phase 3 verification, alice's kernel returned **HTTP 403 / no result** on checks 8
+  and 10 after a successful login and spawn. It passed on rerun. The stack-dump fetch also
+  got HTTP 403.
+
+**Required:**
+1. **Reproduce.** Loop the in-workspace probe (login → spawn → kernel → Trino/Spark step →
+   stop) at least 30 times per user on the dev host (project v3-p4-*, not v3-p1). Collect the
+   thread dumps, the JupyterHub and single-user server logs, oauth/XSRF cookie state, and
+   the Docker proxy logs for each failure.
+2. **Find and fix the root cause** (candidates: hub-to-single-user OAuth token or cookie
+   expiry, XSRF, spawn-readiness race, the proxy allowlist refusing a Docker call, the Spark
+   Connect client). Record it as a Regression node with evidence.
+3. **Retries only if the cause is external and outside our control.** In that case a
+   *bounded* retry is allowed only for the "kernel never started/answered" class, and every
+   retry is counted and shown in the smoke evidence; it must never hide an assertion
+   failure. Justify it in `PHASE4_RESULTS.md`.
+4. **Exit condition:** the 30-iteration loop runs with zero unexplained failures.

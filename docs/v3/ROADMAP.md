@@ -67,6 +67,11 @@ minutes, and CI shows it green.
 
 **Exit:** the `full` profile passes a nightly end-to-end run: ingest → dbt → dashboard renders.
 
+> **Status (2026-09-26): built, independently verified, and CI green.** GitHub `v3-ci`
+> (commit 63b6edf): `core` e2e in 7m06s, `engineer` in 10m56s. `v3-nightly` on `full` with
+> the long ADR-017 check: 20m01s on a standard 16 GB runner. Details:
+> [`v3/PHASE3_RESULTS.md`](../../v3/PHASE3_RESULTS.md).
+
 ## Phase 4: Learning tracks
 
 - **Engineer track:** landing files → Iceberg with Spark → table maintenance (compaction,

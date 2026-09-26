@@ -365,3 +365,11 @@ The check:
 - **`v3-p3` (clean room)** was reset: 0 containers, volumes and networks. Its directory was deleted. No `v3-p3-*` workstream project has any Docker object.
 - **Non-v3 Docker objects before vs after: identical** (11 containers, 22 volumes, 4 networks).
 - The workstreams' scratch directories (`~/lakehouse-v3/p3-airflow*`, `p3-tests*`) have no Docker objects. They are left for their owners, as in Phase 2.
+
+## GitHub CI (commit 63b6edf)
+
+- **`v3-ci`:** lint 25 s; **e2e (core) 7 m 06 s**; **e2e (engineer) 10 m 56 s**. Green.
+- **`v3-nightly` on `full` with `LAB_SMOKE_LONG=1`:** **20 m 01 s**, green, on a standard
+  GitHub runner. That answers "does `full` fit a 16 GB runner?": **yes**. Until V3 is on
+  `main`, the nightly job also runs on `v3` whenever its workflow file changes, because
+  scheduled and manual runs only fire from the default branch.
