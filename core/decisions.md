@@ -518,3 +518,78 @@
 **LastVerified:** 2026-09-26
 **Commit:** 3b5516e
 **LastUpdated:** 2026-09-26
+
+---
+
+## NODE: DEC_V3_USER_DAGS_SHARED_VOLUME
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3 Phase 4: user DAGs via one shared volume, group-based rw mount, Airflow cluster policy
+**Summary:** Engineer track E3/E4 needs learners to author Airflow DAGs. One compose volume <project>_dags-user is mounted rw at ~/airflow-dags in engineer/lab-admin workspaces only (LabSpawner._workspace_volumes decides per start from hub groups synced from Keycloak; mounted only if the volume exists, so profile core never creates it) and ro into dag-processor/scheduler/triggerer at dags/user/. A one-shot airflow-dags-user chowns the volume root to the workspace uid. config/airflow/policy/airflow_local_settings.py (mounted as $AIRFLOW_HOME/config) refuses DAGs not in user/<name>/ or whose id lacks u_<name>_ (visible import error), reserves u_ for user DAGs, sets task owner and tag user:<name>. The Docker proxy allowlist gains exactly <project>_dags-user (check 11 has 5 new cases). User DAGs run as lab-batch and write lakehouse.analytics.u_<user>_* (lab-batch cannot write eng_<user>); check_tracks warns this needs a lead decision. Folder separation is by policy on dag ids, not by file permissions (all workspaces are uid 1000): documented trust decision.
+**Tags:** v3, phase4, airflow, user-dags, docker-proxy, jupyterhub, tracks
+**Edges:**
+- RELATES_TO → INV_V3_DOCKER_PROXY_PROJECT_SCOPE: the allowlist gains one named volume, still project-scoped
+- RELATES_TO → DEC_V3_LONG_SPARK_JOBS_VIA_AIRFLOW: user DAGs act as lab-batch
+**Files:** `v3/config/airflow/policy/airflow_local_settings.py`, `v3/config/airflow/dags-user-init.sh`, `v3/compose/airflow.yaml`, `v3/config/jupyterhub/jupyterhub_config.py`, `v3/config/jupyterhub/docker-proxy.cfg`, `v3/tests/smoke/proxy_probe.py`, `v3/tracks/engineer/_shared/trackcheck.py`
+**Symbols:** `LabSpawner._workspace_volumes`, `dag_policy`, `check`
+**Evidence:** dev host v3-p4-engineer: proxy_probe {"cases": 19, "unexpected": []}; docker inspect ws-eddie/ws-alice show v3-p4-engineer_dags-user:/home/jovyan/airflow-dags rw, ws-victor/ws-anna have no such mount; airflow dags list-import-errors shows the policy messages for user/stray_dag.py and user/eddie/orders_summary_dag.py
+**LastVerified:** 2026-09-26
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-26
+**Author:** engineer-track
+
+---
+
+## NODE: DEC_V3_ANALYST_OWN_SCHEMA_GENERATED_TRINO_RULES
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3 Phase 4: analysts own lakehouse.dbt_<user>; Trino rules generated from Keycloak groups
+**Summary:** Analyst track A1-A3 writes lakehouse.dbt_<user>, but analysts were read-only in config/trino/rules.json. Trino file rules cannot substitute the user into a schema pattern (no ${USER}; the file then fails to load on Trino 483), so bootstrap and identity-sync generate the rules Trino reads (trino-groups/rules.json = static config/trino/rules.json + one user-and-schema rule pair per analyst member, java-regex-escaped). access-control.properties points at the generated file; bootstrap/identity-sync mount ./config/trino read-only as a directory. Access still comes only from the Keycloak group; removal takes effect on the next sync tick (measured 25 s).
+**Tags:** v3, trino, authorization, analyst, phase4, identity-sync
+**Edges:**
+- RELATED_TO → DEC_V3_IDENTITY_SYNC_SERVICE: same sync loop writes the rules
+- RELATED_TO → REG_V3_STALE_BIND_MOUNT_CONFIG_ON_UPGRADE: Trino no longer bind-mounts rules.json; config hash still covers config/trino
+**Files:** `v3/bootstrap/trino_groups.py`, `v3/bootstrap/__main__.py`, `v3/config/trino/access-control.properties`, `v3/config/trino/rules.json`, `v3/compose/bootstrap.yaml`, `v3/compose/engines.yaml`, `v3/tests/bootstrap/test_trino_user_schemas.py`
+**Symbols:** `trino_groups.write_rules`, `trino_groups.render_rules`, `trino_groups.user_schema_rules`, `sync_trino_groups`
+**Evidence:** python3 -m unittest discover -s v3/tests/bootstrap -> 46 OK (6 in test_trino_user_schemas); v3-p1 upgrade: bootstrap log '[trino] /var/lib/lab/trino-groups/rules.json: written'; smoke check 17 A1-A4 as anna PASS; analyst workstream: anna denied in analytics/dbt_eddie, victor denied creating dbt_victor
+**LastVerified:** 2026-09-26
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-26
+**Author:** integrator
+
+---
+
+## NODE: DEC_V3_SUPERSET_API_BEARER_KEYCLOAK
+**Type:** Decision
+**Priority:** MEDIUM
+**Label:** V3 Phase 4: Superset API accepts the user's own Keycloak token (azp jupyterhub); role lab_author
+**Summary:** The A4 checkpoint must read and reset Superset objects as the learner, from the workspace, where the only credential is lab_token(). LabSecurityManager.request_loader (config/superset/lab_bearer.py) accepts a Bearer access token verified against the realm JWKS, issuer from LAB_AUTH_URL, typ Bearer, azp in LAB_SUPERSET_BEARER_CLIENTS (default jupyterhub), for an existing active Superset user only; roles are recomputed from the token groups via AUTH_ROLES_MAPPING. Writes still need Superset's CSRF token. New role lab_author (can_write Dataset) for analyst and engineer, since Gamma cannot create datasets (HTTP 403).
+**Tags:** v3, superset, auth, analyst, phase4
+**Edges:**
+- RELATED_TO → DEC_V3_SUPERSET_TRINO_IMPERSONATION: queries still run in Trino as the user
+- RELATED_TO → INV_V3_PUBLIC_ORIGIN_SINGLE_SOURCE: issuer derived from LAB_AUTH_URL
+**Files:** `v3/config/superset/lab_bearer.py`, `v3/config/superset/superset_config.py`, `v3/config/superset/lab_init.py`, `v3/images/superset/Dockerfile`, `v3/tracks/analyst/_shared/superset_api.py`
+**Symbols:** `lab_bearer.load_user`, `lab_bearer.verify`, `LabSecurityManager.request_loader`, `ensure_role_permissions`
+**Evidence:** smoke check 17 A4 as anna: solve, check PASS, reset, check not-yet (v3-p1 upgrade and v3-p4 clean runs, PHASE4_RESULTS.md)
+**LastVerified:** 2026-09-26
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-26
+**Author:** integrator
+
+---
+
+## NODE: DEC_V3_TRACK_USER_PRODUCTION_TABLES
+**Type:** Decision
+**Priority:** MEDIUM
+**Label:** V3 Phase 4: engineer DAG output goes to lakehouse.analytics.u_<user>_*, and counts as the learner's own
+**Summary:** E3/E4 DAGs run as lab-batch, which can write analytics but not eng_<user>. Lead decision at Phase 4 integration: their output tables are lakehouse.analytics.u_<user>_* ({prod} in module.json), treated as the learner's own objects, so lab-tracks reset may drop them (trackcheck only drops analytics tables with the user's prefix). check_tracks.py accepts analytics.{prod}* and still warns for any other shared-schema reset. Documented in v3/tracks/README.md and CONTRACT.md (Phase 4 integration conventions).
+**Tags:** v3, tracks, airflow, phase4, reset
+**Edges:**
+- RELATED_TO → DEC_V3_USER_DAGS_SHARED_VOLUME: the DAGs that write these tables
+- RELATED_TO → DEC_V3_LONG_SPARK_JOBS_VIA_AIRFLOW: lab-batch identity
+**Files:** `v3/tools/check_tracks.py`, `v3/tests/lint/test_check_tracks.py`, `v3/tracks/README.md`, `v3/tracks/engineer/_shared/trackcheck.py`, `v3/CONTRACT.md`
+**Evidence:** python3 v3/tools/check_tracks.py -> 0 error(s), 0 warning(s); test_check_tracks OK
+**LastVerified:** 2026-09-26
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-26
+**Author:** integrator

@@ -83,3 +83,4 @@ volumes:
   trino-groups: {}     # Trino file group provider, generated from Keycloak by bootstrap (OQ-17)
   jupyterhub-data: {}  # hub database (users, servers, encrypted auth state) + cookie secret
   airflow-data: {}     # Airflow task logs + executed notebooks (profiles engineer/full)
+  dags-user: {}        # user DAGs (Phase 4, E3): rw at ~/airflow-dags in engineer/lab-admin workspaces, ro in Airflow at dags/user/

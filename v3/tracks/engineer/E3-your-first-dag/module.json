@@ -1,0 +1,24 @@
+{
+  "id": "E3",
+  "track": "engineer",
+  "title": "Author and schedule your own Airflow DAG",
+  "minutes": 50,
+  "profile": "engineer",
+  "groups": ["engineer", "lab-admin"],
+  "requires": [],
+  "lesson": "README.md",
+  "tutor": "tutor.md",
+  "start": "orders_summary_dag.py",
+  "checkpoint": "checkpoint.py",
+  "reset": {
+    "tables": ["lakehouse.analytics.{prod}orders_summary"],
+    "drop_namespace_if_empty": false,
+    "dag_files": ["orders_summary_dag.py", "jobs/orders_summary.py"],
+    "generated": []
+  },
+  "solution": {
+    "run": "solve.py",
+    "timeout_s": 900,
+    "trigger_dags": ["{dag}orders_summary"]
+  }
+}

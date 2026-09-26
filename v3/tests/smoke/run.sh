@@ -26,24 +26,34 @@
 #  15. Console tiles differ for alice and victor; Spark UI 200 for alice, 403 for victor
 #  16. external IdP (mock realm as alias github-mock): first login has no group and is
 #      refused; access follows an admin's group change; no linking by e-mail
-# Checks 2-5, 7-10 and 12-16 run in the `smoke` container (profile test) on the lab network:
+#  17. learning tracks (tracks.py): per selected module, as its seeded test user in their own
+#      workspace, the reference solution passes the checkpoint and `lab-tracks reset` brings
+#      back the start state (LAB_SMOKE_TRACKS: first (default) | all | none | E1,A3)
+# Checks 2-5, 7-10 and 12-17 run in the `smoke` container (profile test) on the lab network:
 # smoke.py, with workspace.py driving the workspace and kernel_probe.py running inside it.
 #
-# Usage: tests/smoke/run.sh [--no-build] [--long]
+# Usage: tests/smoke/run.sh [--no-build] [--long] [--tracks SPEC]
 # Env:   LAB_SMOKE_OUT  where screenshots/results.json go (default: tests/smoke/out)
 #        LAB_SMOKE_ONLY debugging only: comma list of in-container checks to run (e.g. 8,9)
 #        LAB_SMOKE_LONG=1 same as --long (nightly CI)
+#        LAB_SMOKE_TRACKS same as --tracks: modules for check 17 (first | all | none | E1,A3)
 set -uo pipefail
 
 build=(--build)
 LAB_SMOKE_LONG=${LAB_SMOKE_LONG:-}
-for a in "$@"; do
-  case "$a" in
+LAB_SMOKE_TRACKS=${LAB_SMOKE_TRACKS:-first}
+usage="usage: tests/smoke/run.sh [--no-build] [--long] [--tracks first|all|none|ID,...]"
+while [ $# -gt 0 ]; do
+  case "$1" in
     --no-build) build=() ;;
     --long) LAB_SMOKE_LONG=1 ;;
-    *) echo "usage: tests/smoke/run.sh [--no-build] [--long]" >&2; exit 2 ;;
+    --tracks) [ $# -ge 2 ] || { echo "$usage" >&2; exit 2; }; LAB_SMOKE_TRACKS=$2; shift ;;
+    --tracks=*) LAB_SMOKE_TRACKS=${1#--tracks=} ;;
+    *) echo "$usage" >&2; exit 2 ;;
   esac
+  shift
 done
+[[ "$LAB_SMOKE_TRACKS" =~ ^[A-Za-z0-9,_-]+$ ]] || { echo "run.sh: bad --tracks '$LAB_SMOKE_TRACKS'" >&2; exit 2; }
 
 V3=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 ENV_FILE="$V3/.env"
@@ -113,13 +123,15 @@ else
 fi
 
 # ---------------------------------------------------------------- 2-5. in the smoke container
-echo "== 2-5, 7-10, 12-16. browser login, Trino, PyIceberg, viewer denial, group sync, workspaces, Phase 3 apps and IdP (smoke container on the lab network)"
+echo "== 2-5, 7-10, 12-17. browser login, Trino, PyIceberg, viewer denial, group sync, workspaces, Phase 3 apps and IdP, learning tracks (smoke container on the lab network)"
 out=${LAB_SMOKE_OUT:-$V3/tests/smoke/out}
 mkdir -p "$out"
 rm -f "$out/summary.env" "$out/results.json"
 if LAB_SMOKE_OUT="$out" "${DC[@]}" --profile test run --rm ${build[@]+"${build[@]}"} \
      --user "$(id -u):$(id -g)" -e HOME=/tmp/smoke-home -e LAB_PROFILE="$PROFILE" \
-     -e LAB_SMOKE_ONLY="${LAB_SMOKE_ONLY:-}" -e LAB_SMOKE_LONG="$LAB_SMOKE_LONG" smoke; then
+     -e LAB_SMOKE_ONLY="${LAB_SMOKE_ONLY:-}" -e LAB_SMOKE_LONG="$LAB_SMOKE_LONG" \
+     -e LAB_SMOKE_TRACKS="$LAB_SMOKE_TRACKS" \
+     -v "$V3/tracks:/opt/tracks:ro" -v "$V3/tests/tracks:/opt/tracks-tests:ro" smoke; then
   :
 else
   FAILED+=("in-container checks (see [FAIL] lines above, $out/results.json)")

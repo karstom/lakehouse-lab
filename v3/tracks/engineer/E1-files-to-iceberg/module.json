@@ -1,0 +1,24 @@
+{
+  "id": "E1",
+  "track": "engineer",
+  "title": "Files to Iceberg with Spark",
+  "minutes": 45,
+  "profile": "engineer",
+  "groups": ["engineer", "lab-admin"],
+  "requires": [],
+  "lesson": "README.md",
+  "tutor": "tutor.md",
+  "start": "notebook.ipynb",
+  "checkpoint": "checkpoint.py",
+  "reset": {
+    "tables": ["lakehouse.{ns}.shipments"],
+    "drop_namespace_if_empty": true,
+    "dag_files": [],
+    "generated": ["data", "__pycache__"]
+  },
+  "solution": {
+    "run": "solve.py",
+    "timeout_s": 600,
+    "trigger_dags": []
+  }
+}

@@ -25,7 +25,11 @@ cp -R "$here/." "$ctx/image/"
   echo "    image: ${tag}"
   echo "    build:"
   echo "      context: ./image"
-  [ -d "$v3/starter" ] && printf '      additional_contexts:\n        starter: %s\n' "$v3/starter"
+  # The named build contexts the Dockerfile copies from (compose/workspace.yaml).
+  echo "      additional_contexts:"
+  for c in starter tracks; do
+    [ -d "$v3/$c" ] && printf '        %s: %s\n' "$c" "$v3/$c"
+  done
   echo "      args:"
   sed -n 's/^[[:space:]]*ARG[[:space:]]\+\([A-Za-z_][A-Za-z0-9_]*\).*/\1/p' "$here/Dockerfile" | sort -u |
     while read -r arg; do

@@ -30,6 +30,11 @@ def sync_trino_groups(kc, gids, quiet=False):
     if changed or not quiet:
         print(f"[trino] {trino_groups.PATH}: {'written' if changed else 'unchanged'} "
               f"({', '.join(f'{g}={len(u)}' for g, u in members.items())})", flush=True)
+    # Phase 4: the rules Trino reads = static rules + each analyst's own dbt_<user> schema.
+    changed = trino_groups.write_rules(members)
+    if changed or not quiet:
+        print(f"[trino] {trino_groups.RULES_PATH}: {'written' if changed else 'unchanged'}",
+              flush=True)
     return members
 
 

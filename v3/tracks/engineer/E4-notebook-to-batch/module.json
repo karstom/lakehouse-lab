@@ -1,0 +1,33 @@
+{
+  "id": "E4",
+  "track": "engineer",
+  "title": "Notebook to scheduled job to Spark batch",
+  "minutes": 60,
+  "profile": "engineer",
+  "groups": ["engineer", "lab-admin"],
+  "requires": ["E3"],
+  "lesson": "README.md",
+  "tutor": "tutor.md",
+  "start": "revenue_report.ipynb",
+  "checkpoint": "checkpoint.py",
+  "reset": {
+    "tables": [
+      "lakehouse.{ns}.revenue_by_nation",
+      "lakehouse.analytics.{prod}revenue_by_nation",
+      "lakehouse.analytics.{prod}revenue_by_nation_spark"
+    ],
+    "drop_namespace_if_empty": true,
+    "dag_files": [
+      "revenue_report_dag.py",
+      "revenue_report.ipynb",
+      "revenue_spark_dag.py",
+      "jobs/revenue_by_nation_spark.py"
+    ],
+    "generated": []
+  },
+  "solution": {
+    "run": "solve.py",
+    "timeout_s": 1200,
+    "trigger_dags": ["{dag}revenue_report", "{dag}revenue_spark"]
+  }
+}

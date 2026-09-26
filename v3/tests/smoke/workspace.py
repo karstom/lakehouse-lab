@@ -41,27 +41,36 @@ async ({base, code, timeoutMs}) => {
   const wsUrl = location.origin.replace(/^http/, "ws") + base + "api/kernels/" + kernel.id + "/channels?" + q;
   const res = await new Promise((resolve) => {
     let stdout = "", stderr = "", status = null, idle = false, done = false;
+    // Diagnostics for a timeout (kernel-loop root-cause work): what reached us, and when.
+    const trace = {ws_open_ms: null, msgs: 0, mine: 0, first_mine: null, last_mine: null,
+                   execute_input: false, busy: false};
     const finish = (extra) => {
       if (done) return; done = true; clearTimeout(timer);
       try { ws.close(); } catch (e) {}
-      resolve(Object.assign({stdout, stderr, status}, extra || {}));
+      resolve(Object.assign({stdout, stderr, status, trace}, extra || {}));
     };
     const timer = setTimeout(() => finish({timeout: true}), timeoutMs);
     const ws = new WebSocket(wsUrl);
     ws.onerror = () => finish({error: "websocket error (" + wsUrl.split("?")[0] + ")"});
     ws.onclose = (ev) => finish({error: "websocket closed, code " + ev.code});
-    ws.onopen = () => ws.send(JSON.stringify({
+    ws.onopen = () => { trace.ws_open_ms = Date.now() - t0; ws.send(JSON.stringify({
       header: {msg_id: msgId, username: "", session, msg_type: "execute_request",
                version: "5.3", date: new Date().toISOString()},
       parent_header: {}, metadata: {}, channel: "shell", buffers: [],
       content: {code, silent: false, store_history: false, user_expressions: {},
-                allow_stdin: false, stop_on_error: true}}));
+                allow_stdin: false, stop_on_error: true}})); };
     ws.onmessage = (ev) => {
       if (typeof ev.data !== "string") return;
+      trace.msgs += 1;
       let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
       if (!msg.parent_header || msg.parent_header.msg_id !== msgId) return;
       const t = (msg.header && msg.header.msg_type) || msg.msg_type;
       const c = msg.content || {};
+      trace.mine += 1;
+      trace.last_mine = [Date.now() - t0, t];
+      if (trace.first_mine === null) trace.first_mine = [Date.now() - t0, t];
+      if (t === "execute_input") trace.execute_input = true;
+      if (t === "status" && c.execution_state === "busy") trace.busy = true;
       if (t === "stream") { if (c.name === "stdout") stdout += c.text; else stderr += c.text; }
       else if (t === "error") { stderr += c.ename + ": " + c.evalue + "\n"; }
       else if (t === "execute_reply") { status = c.status; }
@@ -70,6 +79,13 @@ async ({base, code, timeoutMs}) => {
     };
   });
   res.kernel_seconds = Math.round((Date.now() - t0) / 100) / 10;
+  if (res.timeout || res.error) {
+    // The server's view of the kernel before we delete it: "busy" means our code is still
+    // running (a hang in user code); "idle" means the request or its output never reached us.
+    try { const k = await fetch(base + "api/kernels/" + kernel.id, {headers: hdr, credentials: "same-origin"});
+          res.kernel_state = k.ok ? (await k.json()).execution_state : ("HTTP " + k.status); }
+    catch (e) { res.kernel_state = "error: " + e; }
+  }
   try { await fetch(base + "api/kernels/" + kernel.id, {method: "DELETE", headers: hdr,
                     credentials: "same-origin"}); } catch (e) {}
   return res;
@@ -204,14 +220,20 @@ class Workspace:
         result = parse_probe_output(raw.get("stdout"))
         if raw.get("timeout"):
             raw["stack_dump"] = self.read_file(".smoke-stack.txt")[-4000:]
+            raw["probe_progress"] = self.read_file(".smoke-progress.txt")[-2000:]
         return result, raw
 
     def read_file(self, path):
         """A text file from the user's home, through the Jupyter contents API."""
         try:
+            # JupyterHub >= 4.1 checks XSRF on every cookie-authenticated request that is not
+            # a navigation, GETs included: without the header the server answers 403 (this
+            # is why the Phase 3 stack-dump fetch got "HTTP 403").
             return self.page.evaluate("""async ({base, path}) => {
+              const m = document.cookie.match(/(?:^|;\\s*)_xsrf=([^;]*)/);
+              const hdr = m ? {"X-XSRFToken": decodeURIComponent(m[1])} : {};
               const r = await fetch(base + "api/contents/" + path + "?content=1&type=file&format=text",
-                                    {credentials: "same-origin"});
+                                    {headers: hdr, credentials: "same-origin"});
               return r.ok ? ((await r.json()).content || "") : ("HTTP " + r.status);
             }""", {"base": self.base, "path": path}) or ""
         except Exception as e:  # noqa: BLE001 - diagnostics only

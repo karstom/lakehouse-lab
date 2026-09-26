@@ -169,6 +169,14 @@ CONTAINER_NAME_TEMPLATE = f"{PROJECT}-ws-{{username}}"
 # Compose names project resources <project>_<name>.
 LAB_NETWORK = f"{PROJECT}_lab"
 TRUST_VOLUME = f"{PROJECT}_trust"
+# User DAGs (CONTRACT Phase 4, E3): the shared volume compose declares for Airflow (profiles
+# engineer/full) is mounted read-write at ~/airflow-dags, for members of these groups only.
+# Airflow reads it at dags/user/ and its cluster policy (config/airflow/policy) ties each
+# folder ~/airflow-dags/<username>/ to dag ids u_<username>_. The docker proxy allows this
+# one extra volume (docker-proxy.cfg); which workspaces get it is decided here.
+DAGS_USER_VOLUME = f"{PROJECT}_dags-user"
+DAGS_USER_MOUNT = "/home/jovyan/airflow-dags"
+DAGS_USER_GROUPS = frozenset({"engineer", "lab-admin"})
 
 
 class LabSpawner(DockerSpawner):
@@ -177,7 +185,9 @@ class LabSpawner(DockerSpawner):
       container call to the `<project>-ws-` prefix (ids and id prefixes could reach any
       container on the host's daemon), and
     * creates the user's home volume itself, with the lab labels (Docker would create it
-      implicitly, unlabelled, on first mount)."""
+      implicitly, unlabelled, on first mount), and
+    * mounts the user-DAG volume for engineers and lab admins only, and only when it exists
+      (profiles engineer/full), so Docker never creates it implicitly either."""
 
     async def get_object(self):
         obj = await super().get_object()
@@ -198,7 +208,25 @@ class LabSpawner(DockerSpawner):
         except docker.errors.NotFound:
             await self.docker("create_volume", name, labels=dict(LABELS))
             self.log.info("created home volume %s", name)
+        self.volumes = await self._workspace_volumes()
         return await super().start()
+
+    async def _workspace_volumes(self):
+        """The volumes of this start. Decided on every start (containers are removed on
+        stop), from the groups the hub holds for the user: they are synced from Keycloak at
+        login and on every token refresh (refresh_pre_spawn), so a group change reaches the
+        mount at the next start after the next refresh."""
+        volumes = dict(BASE_VOLUMES)
+        groups = {g.name for g in self.user.groups}
+        if not groups & DAGS_USER_GROUPS:
+            return volumes
+        try:
+            await self.docker("inspect_volume", DAGS_USER_VOLUME)
+        except docker.errors.NotFound:          # profile core: no Airflow, no user DAGs
+            return volumes
+        volumes[DAGS_USER_VOLUME] = {"bind": DAGS_USER_MOUNT, "mode": "rw"}
+        self.log.info("mounting %s at %s for %s", DAGS_USER_VOLUME, DAGS_USER_MOUNT, self.user.name)
+        return volumes
 
 
 c.JupyterHub.spawner_class = LabSpawner
@@ -214,10 +242,11 @@ s.network_name = LAB_NETWORK
 s.use_internal_ip = True
 s.remove = True                      # containers are disposable; the home volume persists
 s.extra_create_kwargs = {"labels": dict(LABELS)}
-s.volumes = {
+BASE_VOLUMES = {
     HOME_VOLUME_TEMPLATE: "/home/jovyan",
     TRUST_VOLUME: {"bind": "/trust", "mode": "ro"},
 }
+s.volumes = dict(BASE_VOLUMES)       # LabSpawner.start adds the user-DAG volume per user
 s.notebook_dir = "/home/jovyan"
 # Compose-style sizes ("2g", "1536m"); DockerSpawner's byte parser wants upper-case suffixes.
 s.mem_limit = need("WORKSPACE_MEM").upper()

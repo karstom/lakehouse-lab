@@ -47,9 +47,17 @@ jobs:
         if: ${{ !cancelled() }}
         run: python3 -m unittest discover -s v3/tests/bootstrap -v
 
-      - name: Smoke test unit tests (workspace probe, Phase 3 gating and mock IdP; no lab)
+      - name: Smoke test unit tests (workspace probe, Phase 3 gating and mock IdP, check 17 plan; no lab)
         if: ${{ !cancelled() }}
         run: python3 -m unittest discover -s v3/tests/smoke -p 'test_*.py' -v
+
+      - name: lab-tracks unit tests (copy-on-upgrade, reset with backup, checkpoint protocol; no lab)
+        if: ${{ !cancelled() }}
+        run: python3 -m unittest discover -s v3/tests/workspace -v
+
+      - name: Learning tracks lint (module interface, solutions, no PURGE, no downloads)
+        if: ${{ !cancelled() }}
+        run: python3 v3/tools/check_tracks.py --format github
 
       - name: Version literals outside versions.env (ADR-012)
         if: ${{ !cancelled() }}
@@ -83,6 +91,8 @@ jobs:
   # runners. Profile-gated checks print a [SKIP] line: 10 and 12 (Spark, Airflow) run on
   # engineer only, 14 (Superset) only on full (nightly), 13 (ADR-017 long run) only with
   # LAB_SMOKE_LONG=1 (nightly). 15 (Console) and 16 (mock external IdP) run on both.
+  # 17 (learning tracks) runs module 1 of each track that the profile includes: A1 on core,
+  # A1 and E1 on engineer (all modules run nightly).
   e2e:
     needs: lint
     runs-on: ubuntu-latest
@@ -112,8 +122,10 @@ jobs:
       AIRFLOW_SCHEDULER_MEM: 1g
       AIRFLOW_DAG_PROCESSOR_MEM: 384m
       AIRFLOW_TRIGGERER_MEM: 384m
-      # Keep PR runs reasonable: the >= 5 min ADR-017 check is nightly only.
+      # Keep PR runs reasonable: the >= 5 min ADR-017 check is nightly only, and check 17
+      # runs only the first module of each track (CONTRACT Phase 4 exit 1).
       LAB_SMOKE_LONG: "0"
+      LAB_SMOKE_TRACKS: first
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

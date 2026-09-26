@@ -353,3 +353,41 @@
 **LastVerified:** 2026-09-26
 **Commit:** 3b5516e
 **LastUpdated:** 2026-09-26
+
+---
+
+## NODE: REG_V3_TRINO_CURRENT_USER_IN_AGGREGATE
+**Type:** Regression
+**Priority:** LOW
+**Label:** Trino 483 fails on current_user in a GROUP BY select list (E3 job)
+**Summary:** The E3 job's CREATE OR REPLACE TABLE ... SELECT ..., current_user AS written_by ... GROUP BY failed in Airflow with GENERIC_INTERNAL_ERROR "aggregation analysis not yet implemented for: io.trino.sql.tree.CurrentUser". Fixed by reading SELECT current_user first and binding it as a parameter. current_user in an outer non-aggregating SELECT over a grouped subquery (E4 notebook) works.
+**Tags:** v3, trino, sql, tracks, e3
+**REGRESSED_N_TIMES:** 1
+**Edges:** _(none)_
+**Files:** `v3/tracks/engineer/E3-your-first-dag/jobs/orders_summary.py`
+**Symbols:** `build`
+**Evidence:** task log dag_id=u_eddie_orders_summary scheduled__2026-09-26 build_summary: TrinoQueryError INTERNAL_ERROR; after fix manual run success, check E3 PASSED
+**LastVerified:** 2026-09-26
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-26
+**Author:** engineer-track
+
+---
+
+## NODE: REG_V3_WORKSPACE_KERNEL_FIRST_MESSAGE_STALL
+**Type:** Regression
+**Priority:** HIGH
+**Label:** V3 workspace kernel ignored its first execute (ipykernel 7.x shell-thread missed wakeup): smoke 'kernel timeout / HTTP 403'
+**Summary:** Intermittent workspace-kernel failures (Phase 3 alice 'HTTP 403 / no result' on checks 8/10; Phase 4 loop kernel_timeout) were one bug: ipykernel 7.x (7.3.0) sometimes leaves a shell message that arrives right after kernel start unread on its shell socket; the kernel stays idle and processes it only when a NEW zmq peer sends a shell message (not a control message, not a second message from the same peer). A learner sees a first cell that never runs. The 'HTTP 403' was secondary: workspace.py's stack-dump fetch sent no X-XSRFToken, which JupyterHub >= 4.1 requires on non-navigation GETs. Fix: workspace image holds ipykernel at 6.31.0 (IPYKERNEL_VERSION, v3/.pins/tooling.env, requirements.in, relocked); harness read_file sends the XSRF header. Not an external cause, so no retries.
+**Tags:** v3, workspace, jupyter, ipykernel, flaky, kernel, xsrf, smoke
+**REGRESSED_N_TIMES:** 1
+**Edges:**
+- RELATED_TO → WATCH_V3_SPARK_CONNECT_INTERMITTENT_HANG: same signature is the likely explanation of that 'hang after refusal' (the refusal was logged when the stalled request ran at teardown)
+- RELATED_TO → DEC_V3_WORKSPACE_JUPYTERHUB_CODESERVER_DBT: workspace image dependency pin
+**Files:** `v3/images/workspace/requirements.in`, `v3/images/workspace/Dockerfile`, `v3/images/workspace/lock/constraints.txt`, `v3/versions.env`, `v3/compose/workspace.yaml`, `v3/tests/smoke/workspace.py`, `v3/tests/smoke/kernel_probe.py`, `v3/tests/smoke/kernel_loop.py`, `v3/tests/smoke/kernel-loop.sh`, `v3/tools/kernel_ws_race.py`
+**Symbols:** `KERNEL_EXEC_JS`, `Workspace.read_file`, `Workspace.run_probe`, `probe`
+**Evidence:** Dev host, project v3-p4-tooling (engineer), tests/smoke/kernel-loop.sh (login->spawn->kernel->Trino+Spark->stop): before the fix 3/120 kernel_timeout (eddie, anna, victor; plus 1/26 in the interrupted baseline), every one with kernel execution_state=idle after 300 s, 3 nudge status msgs and 0 msgs for our execute, and ~/.smoke-progress.txt showing the probe started only at websocket close. With ipykernel 6.31.0: 0/120 kernel failures (1 unrelated stop_failed: Caddy->CHP keep-alive 502 on DELETE). Lab-less repro v3/tools/kernel_ws_race.py on the image's Jupyter stack: 7.3.0 lost 43/400 (execute sent on open) and 6/80 kernel_info handshakes (JupyterLab style), each released only by a shell message from a second websocket; 6.31.0 lost 0/400 at normal load (1/300 more during a concurrent image build had state 'starting' after 10 s: a slow start, not this signature).
+**LastVerified:** 2026-09-26
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-26
+**Author:** tooling-ci

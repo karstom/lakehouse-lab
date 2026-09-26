@@ -16,11 +16,13 @@ services:
       context: ./images/workspace
       additional_contexts:
         starter: ./starter
+        tracks: ./tracks           # learning tracks (Phase 4), copied to /opt/lakehouse/tracks
       args:
         PYTHON_IMAGE_TAG: ${PYTHON_IMAGE_TAG}
         PYTHON_IMAGE_DIGEST: ${PYTHON_IMAGE_DIGEST}
         JUPYTERHUB_VERSION: ${JUPYTERHUB_VERSION}
         JUPYTERLAB_VERSION: ${JUPYTERLAB_VERSION}
+        IPYKERNEL_VERSION: ${IPYKERNEL_VERSION}
         JUPYSQL_VERSION: ${JUPYSQL_VERSION}
         JUPYTERLAB_GIT_VERSION: ${JUPYTERLAB_GIT_VERSION}
         JUPYTER_SERVER_PROXY_VERSION: ${JUPYTER_SERVER_PROXY_VERSION}

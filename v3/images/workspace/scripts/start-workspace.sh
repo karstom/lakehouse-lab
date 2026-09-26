@@ -24,6 +24,15 @@ if [ ! -e "$marker" ] && [ -d /opt/lakehouse/starter ]; then
   date -u +%Y-%m-%dT%H:%M:%SZ >"$marker"
 fi
 
+# Learning tracks, copy-on-upgrade (lakehouse/tracks.py `sync`), on EVERY start: files new in
+# this image are copied into ~/tracks; files the learner edited are never overwritten and
+# files they deleted are not brought back. A failure is logged and never stops the start.
+if [ -d /opt/lakehouse/tracks ]; then
+  mkdir -p "$HOME/.lakehouse"
+  python -m lakehouse.tracks sync 2>"$HOME/.lakehouse/tracks-sync.err" \
+    || echo "start-workspace: lab-tracks sync failed (see ~/.lakehouse/tracks-sync.err); continuing" >&2
+fi
+
 # A CMD that names a program (spawner cmd override, `docker run IMG python ...`): run it as-is.
 if [ $# -gt 0 ] && [ "${1#-}" = "$1" ]; then
   exec "$@"

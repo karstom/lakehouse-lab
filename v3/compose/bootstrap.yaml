@@ -53,6 +53,9 @@ services:
     volumes:
       - trust:/trust:ro
       - trino-groups:/var/lib/lab/trino-groups
+      # Static Trino rules; trino_groups.write_rules adds the per-analyst schema rules. A
+      # directory mount, so an edited rules.json is seen without recreating the container.
+      - ./config/trino:/etc/lab/trino:ro
     networks: [lab]
     depends_on:
       keycloak: {condition: service_healthy}
@@ -79,6 +82,9 @@ services:
     volumes:
       - trust:/trust:ro
       - trino-groups:/var/lib/lab/trino-groups
+      # Static Trino rules; trino_groups.write_rules adds the per-analyst schema rules. A
+      # directory mount, so an edited rules.json is seen without recreating the container.
+      - ./config/trino:/etc/lab/trino:ro
     networks: [lab]
     depends_on:
       bootstrap: {condition: service_completed_successfully}

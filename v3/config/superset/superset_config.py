@@ -11,6 +11,7 @@ import os
 from flask_appbuilder.security.manager import AUTH_OAUTH
 from superset.security import SupersetSecurityManager
 
+import lab_bearer
 import lab_trino
 
 _issuer = f"{os.environ['LAB_AUTH_URL'].rstrip('/')}/realms/{lab_trino.REALM}"
@@ -30,15 +31,19 @@ SESSION_COOKIE_SAMESITE = "Lax"
 # Group -> roles (CONTRACT Phase 3): lab-admin is Admin; analyst and engineer get Gamma plus
 # SQL Lab; viewer gets Gamma. LAB_DATA_ROLE (created by lab_init.py) lets the non-admin roles
 # open datasets at all; what they can actually read is decided by Trino, per user.
+# LAB_AUTHOR_ROLE (lab_init.py; Phase 4, analyst track A4) lets analysts and engineers add
+# datasets (Gamma is read-only on datasets): "+ Dataset" and SQL Lab's "Save dataset". Superset
+# lets only a dataset's owners (and Admin) change or delete it.
 LAB_DATA_ROLE = "lab_data"
+LAB_AUTHOR_ROLE = "lab_author"
 AUTH_TYPE = AUTH_OAUTH
 AUTH_USER_REGISTRATION = True
 AUTH_USER_REGISTRATION_ROLE = "Public"      # no permissions: a user with no lab group sees nothing
 AUTH_ROLES_SYNC_AT_LOGIN = True             # demotions apply at the next login too
 AUTH_ROLES_MAPPING = {
     "lab-admin": ["Admin"],
-    "engineer": ["Gamma", "sql_lab", LAB_DATA_ROLE],
-    "analyst": ["Gamma", "sql_lab", LAB_DATA_ROLE],
+    "engineer": ["Gamma", "sql_lab", LAB_DATA_ROLE, LAB_AUTHOR_ROLE],
+    "analyst": ["Gamma", "sql_lab", LAB_DATA_ROLE, LAB_AUTHOR_ROLE],
     "viewer": ["Gamma", LAB_DATA_ROLE],
 }
 OAUTH_PROVIDERS = [{
@@ -65,6 +70,12 @@ class LabSecurityManager(SupersetSecurityManager):
         if info.get("username") and not info.get("email"):
             info["email"] = f"{info['username']}@users.lab.invalid"
         return info
+
+    def request_loader(self, request):
+        """API calls from a workspace with the user's own Keycloak token (lab_bearer.py;
+        the analyst track's A4 checkpoint). Consulted only when there is no session user."""
+        user = lab_bearer.load_user(self, request)
+        return user if user is not None else super().request_loader(request)
 
 
 CUSTOM_SECURITY_MANAGER = LabSecurityManager

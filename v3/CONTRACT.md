@@ -513,3 +513,31 @@ a kernel, and learners would see the same thing (a notebook that stops answering
    retry is counted and shown in the smoke evidence; it must never hide an assertion
    failure. Justify it in `PHASE4_RESULTS.md`.
 4. **Exit condition:** the 30-iteration loop runs with zero unexplained failures.
+
+## Conventions added at Phase 4 integration
+
+- **Module interface** (one for both tracks; `v3/tracks/README.md` is the reference, and
+  `tools/check_tracks.py` enforces it in CI): `module.json` (`id`, `track`, `title`,
+  `profile`, `groups`; optional `minutes`, `test_user`, `solution.timeout_s`,
+  `solution.browser_logins`, and a free-form `reset` block), `README.md`, `tutor.md`, and
+  `checkpoint.py` handling `--json` (last line `LAB_TRACKS_RESULT {...}`; exit 0 passed,
+  1 not yet, 2 could not run) and `--reset`. Track helpers live in `<track>/_shared/`;
+  solution helpers in `tests/tracks/solutions/<track>/_lib/`.
+- **The learner's own objects** (what `reset` may drop): the module's namespace
+  (`eng_<you>`), the analyst's schema `dbt_<you>` (only the module's tables), DAG files in
+  `~/airflow-dags/<you>/`, Superset objects the learner owns, and **(lead decision)** the
+  learner's production tables `lakehouse.analytics.u_<you>_*`, which their own DAGs write as
+  `lab-batch` (E3/E4). `lab-batch` cannot write `eng_<you>`, and a prefixed table in the
+  shared production schema is what a real team does.
+- **Analysts own one schema, `lakehouse.dbt_<you>`.** Trino's file rules cannot put the user
+  into a schema name, so bootstrap and identity-sync GENERATE the rules Trino reads
+  (`trino-groups/rules.json` = `config/trino/rules.json` + one user-and-schema rule pair per
+  `analyst` member; `bootstrap/trino_groups.py`). Access still comes only from the Keycloak
+  group; leaving `analyst` removes the rule on the next sync tick.
+- **Superset API as the user** (A4): Superset accepts the user's own Keycloak access token
+  (`azp` `jupyterhub` only, existing active Superset user only, roles recomputed from the
+  token's groups; `config/superset/lab_bearer.py`). Role `lab_author` (analyst, engineer) may
+  add datasets; owners-only edits stay Superset's rule.
+- **Workspace kernels:** `IPYKERNEL_VERSION` is pinned on the 6.x line
+  (REG_V3_WORKSPACE_KERNEL_FIRST_MESSAGE_STALL). Caddy drops idle upstream connections to
+  JupyterHub after 4 s, before the hub proxy's 5 s (WATCH_V3_CADDY_UPSTREAM_KEEPALIVE_502).

@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+"""lab-tracks CLI: see lakehouse/tracks.py."""
+import sys
+
+from lakehouse.tracks import main
+
+sys.exit(main())

@@ -9,6 +9,13 @@
 #   airflow-dag-processor parses dags/
 #   airflow-triggerer     deferred tasks (the lab DAGs use none; without it the UI's health
 #                         panel shows the triggerer as down)
+#   airflow-dags-user     one-shot: makes the user-DAG volume writable for workspaces
+#
+# User DAGs (CONTRACT Phase 4, E3): the volume `dags-user` (declared in compose.yaml) is
+# mounted read-only at /opt/lab/dags/user in the dag-processor, scheduler and triggerer, and
+# read-write at ~/airflow-dags in engineer/lab-admin workspaces (config/jupyterhub). The
+# cluster policy in config/airflow/policy (mounted as $AIRFLOW_HOME/config) requires each
+# user DAG to sit in user/<username>/ with a dag_id starting u_<username>_.
 #
 # Identity:
 #   * People log in through Keycloak client `airflow`; what they may do is decided by the
@@ -89,6 +96,20 @@ services:
     mem_limit: ${AIRFLOW_DB_INIT_MEM:-128m}
     cpus: ${AIRFLOW_DB_INIT_CPUS:-0.5}
 
+  airflow-dags-user:
+    <<: *airflow-image
+    profiles: [engineer, full]
+    # Runs as root only to chown the volume's top directory (config/airflow/dags-user-init.sh).
+    user: "0:0"
+    entrypoint: ["/opt/lab/airflow/dags-user-init.sh", "/opt/lab/dags-user"]
+    volumes:
+      - ./config/airflow:/opt/lab/airflow:ro
+      - dags-user:/opt/lab/dags-user
+    network_mode: none
+    restart: "no"
+    mem_limit: ${AIRFLOW_DAGS_USER_INIT_MEM:-64m}
+    cpus: ${AIRFLOW_DAGS_USER_INIT_CPUS:-0.25}
+
   airflow-init:
     <<: *airflow-image
     profiles: [engineer, full]
@@ -145,6 +166,8 @@ services:
       - trust:/trust:ro
       - airflow-data:/opt/lab/data
       - ./dags:/opt/lab/dags:ro
+      - dags-user:/opt/lab/dags/user:ro           # user DAGs (E3); mountpoint: dags/user/
+      - ./config/airflow/policy:/opt/airflow/config:ro   # cluster policy for user DAGs
       - ./config/airflow:/opt/lab/airflow:ro
       # The starter dbt project (the same one every workspace gets), read-only; dbt writes its
       # target/ and logs/ elsewhere (dags/lab_dbt_build.py).
@@ -158,6 +181,7 @@ services:
       start_period: 30s
     depends_on:
       airflow-api: {condition: service_healthy}
+      airflow-dags-user: {condition: service_completed_successfully}
       postgres: {condition: service_healthy, restart: true}   # see compose/identity.yaml keycloak
     restart: unless-stopped
     mem_limit: ${AIRFLOW_SCHEDULER_MEM:-1536m}
@@ -172,6 +196,8 @@ services:
       - trust:/trust:ro
       - airflow-data:/opt/lab/data
       - ./dags:/opt/lab/dags:ro
+      - dags-user:/opt/lab/dags/user:ro
+      - ./config/airflow/policy:/opt/airflow/config:ro
     networks: [lab]
     healthcheck:
       test: ["CMD-SHELL", "airflow jobs check --job-type DagProcessorJob --local >/dev/null 2>&1"]
@@ -181,6 +207,7 @@ services:
       start_period: 90s
     depends_on:
       airflow-init: {condition: service_completed_successfully}
+      airflow-dags-user: {condition: service_completed_successfully}
       postgres: {condition: service_healthy, restart: true}   # see compose/identity.yaml keycloak
     restart: unless-stopped
     mem_limit: ${AIRFLOW_DAG_PROCESSOR_MEM:-512m}
@@ -195,6 +222,8 @@ services:
       - trust:/trust:ro
       - airflow-data:/opt/lab/data
       - ./dags:/opt/lab/dags:ro
+      - dags-user:/opt/lab/dags/user:ro
+      - ./config/airflow/policy:/opt/airflow/config:ro
     networks: [lab]
     healthcheck:
       test: ["CMD-SHELL", "airflow jobs check --job-type TriggererJob --local >/dev/null 2>&1"]

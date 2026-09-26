@@ -10,6 +10,7 @@ FROM python:${PYTHON_IMAGE_TAG}@${PYTHON_IMAGE_DIGEST}
 
 ARG JUPYTERHUB_VERSION
 ARG JUPYTERLAB_VERSION
+ARG IPYKERNEL_VERSION
 ARG JUPYSQL_VERSION
 ARG JUPYTERLAB_GIT_VERSION
 ARG JUPYTER_SERVER_PROXY_VERSION
@@ -47,8 +48,9 @@ COPY scripts/install-duckdb-extensions.py /usr/local/lib/lakehouse/install-duckd
 RUN python /usr/local/lib/lakehouse/install-duckdb-extensions.py
 
 # Pre-wired clients. `lakehouse` (lab_token(), trino/duckdb/pyiceberg/spark helpers) is the ONE
-# place clients get the user's token; /opt/lakehouse/bin holds `lab-token` and the `dbt` shim
-# that hands dbt-trino a fresh token. PyIceberg reads /etc/lakehouse/pyiceberg/.pyiceberg.yaml.
+# place clients get the user's token; /opt/lakehouse/bin holds `lab-token`, the `dbt` shim
+# that hands dbt-trino a fresh token, and `lab-tracks` (learning tracks: list/check/reset).
+# PyIceberg reads /etc/lakehouse/pyiceberg/.pyiceberg.yaml.
 COPY lakehouse/ /opt/lakehouse/python/lakehouse/
 COPY bin/ /opt/lakehouse/bin/
 COPY etc/pyiceberg/ /etc/lakehouse/pyiceberg/
@@ -56,7 +58,12 @@ COPY config/jupyter_server_config.py /etc/jupyter/jupyter_server_config.py
 COPY scripts/start-workspace.sh /usr/local/bin/start-workspace.sh
 # Starter dbt project + README notebook, copied into a new user's home on first start.
 COPY --from=starter . /opt/lakehouse/starter/
+# Learning tracks (v3/tracks, named build context `tracks`): the pristine lessons. Every start
+# copies what is new into ~/tracks without overwriting the learner's edits (`lab-tracks sync`,
+# lakehouse/tracks.py); `lab-tracks reset` restores a module from here.
+COPY --from=tracks . /opt/lakehouse/tracks/
 RUN chmod 0755 /opt/lakehouse/bin/* /usr/local/bin/start-workspace.sh \
+ && chmod -R a+rX,go-w /opt/lakehouse/tracks \
  && python -m compileall -q /opt/lakehouse/python
 
 ENV PYTHONPATH=/opt/lakehouse/python \

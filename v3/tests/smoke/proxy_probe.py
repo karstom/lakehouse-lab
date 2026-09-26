@@ -36,6 +36,9 @@ def create(binds=None, net=f"{P}_lab", extra=None, name=WS):
 
 
 home, trust = f"{P}-home-proxyprobe:/home/jovyan:rw", f"{P}_trust:/trust:ro"
+# The user-DAG volume (CONTRACT Phase 4): the one extra volume a workspace may mount. Which
+# workspaces get it (engineer/lab-admin) is the hub's decision, not the proxy's.
+dags = f"{P}_dags-user:/home/jovyan/airflow-dags:rw"
 cases = [
     # (name, status, expected)
     ("list containers", req("GET", "/containers/json"), 403),
@@ -53,8 +56,13 @@ cases = [
     ("attach an extra network", create([trust], extra={"NetworkingConfig": {"EndpointsConfig": {"bridge": {}}}}), 403),
     ("create a foreign-named volume", req("POST", "/volumes/create", {"Name": "someone-else_probe", "Driver": "no-such-driver"}), 403),
     ("create outside the ws- prefix", create([home, trust], name=f"{P}-notws-probe"), 403),
+    ("another volume of this project", create([home, trust, f"{P}_airflow-data:/x"]), 403),
+    ("another project's user-DAG volume", create([home, trust, "someone-else_dags-user:/x"]), 403),
+    ("a look-alike of the user-DAG volume", create([home, trust, f"{P}_dags-user2:/x"]), 403),
     # Allowed by the proxy: Docker itself answers 404 (no such image), nothing is created.
     ("in-scope create passes the proxy", create([home, trust]), 404),
+    ("in-scope create with the user-DAG volume", create([home, trust, dags]), 404),
+    ("user-DAG volume listed first", create([dags, home, trust]), 404),
 ]
 bad = [{"case": n, "got": got, "want": want} for n, got, want in cases if got != want]
 print(json.dumps({"cases": len(cases), "unexpected": bad}))

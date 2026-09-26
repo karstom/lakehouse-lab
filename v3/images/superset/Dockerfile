@@ -21,7 +21,7 @@ RUN python3 -c 'import os,sys; sys.stdout.write(os.path.expandvars(open(sys.argv
       -r /tmp/req/requirements.txt -c /tmp/req/constraints.txt \
  && uv pip check --python /app/.venv/bin/python \
  && rm -rf /tmp/req
-COPY --from=config --chown=root:root superset_config.py lab_trino.py /app/pythonpath/
+COPY --from=config --chown=root:root superset_config.py lab_trino.py lab_bearer.py /app/pythonpath/
 COPY --from=config --chown=root:root start.sh lab_init.py /app/lakehouse/
 COPY --from=config --chown=root:root dashboards /app/lakehouse/dashboards
 RUN chmod 0755 /app/lakehouse/start.sh
