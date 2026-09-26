@@ -1,0 +1,4 @@
+# Not DAG files: helpers, job scripts (run in /opt/lab/jobs) and notebooks.
+lab_batch/
+jobs/
+notebooks/

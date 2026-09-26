@@ -1,0 +1,210 @@
+# Profiles `engineer` and `full`: Airflow (ADR-009, ADR-017; CONTRACT Phase 3) with the Keycloak auth
+# manager, behind Caddy at airflow.<LAB_DOMAIN>. LocalExecutor: tasks run inside the
+# scheduler container, in the /opt/lab/jobs virtualenv (images/airflow).
+#
+#   airflow-db            one-shot: role + database `airflow` in the shared Postgres (idempotent)
+#   airflow-init          one-shot: `airflow db migrate`
+#   airflow-api           UI + REST API + the task execution API
+#   airflow-scheduler     scheduling and the LocalExecutor (runs the tasks)
+#   airflow-dag-processor parses dags/
+#   airflow-triggerer     deferred tasks (the lab DAGs use none; without it the UI's health
+#                         panel shows the triggerer as down)
+#
+# Identity:
+#   * People log in through Keycloak client `airflow`; what they may do is decided by the
+#     client's UMA model, which bootstrap builds (bootstrap/airflow_client.py, OQ-16):
+#     lab-admin Admin, engineer trigger/edit, analyst and viewer read-only.
+#   * DAGs act as the batch service identity `lab-batch` (client credentials, re-fetched by
+#     the jobs themselves; bootstrap/batch_client.py). Only the scheduler, which runs the
+#     tasks, holds its secret. Airflow records who triggered each run.
+# The Keycloak master admin password is never given to an Airflow container.
+
+x-airflow-image: &airflow-image
+  build:
+    context: ./images/airflow
+    args:
+      AIRFLOW_VERSION: ${AIRFLOW_VERSION}
+      AIRFLOW_PYTHON: ${AIRFLOW_PYTHON}
+      AIRFLOW_IMAGE_DIGEST: ${AIRFLOW_IMAGE_DIGEST:?}
+      AIRFLOW_PROVIDERS_KEYCLOAK_VERSION: ${AIRFLOW_PROVIDERS_KEYCLOAK_VERSION}
+      DBT_CORE_VERSION: ${DBT_CORE_VERSION}
+      DBT_TRINO_VERSION: ${DBT_TRINO_VERSION}
+      TRINO_PYTHON_VERSION: ${TRINO_PYTHON_VERSION}
+      PAPERMILL_VERSION: ${PAPERMILL_VERSION:?}
+      PYSPARK_VERSION: ${PYSPARK_VERSION}
+      PANDAS_VERSION: ${PANDAS_VERSION}
+      PYARROW_VERSION: ${PYARROW_VERSION}
+  image: lakehouse-lab/v3-airflow:${AIRFLOW_VERSION}
+  labels:
+    # Recreated by `up` when config/airflow changes (installer/lib.sh lab_config_hashes).
+    lab.config-hash: ${LAB_CONFIG_HASH_AIRFLOW:-}
+
+x-airflow-env: &airflow-env
+  LAB_DOMAIN: ${LAB_DOMAIN:-lab.localhost}
+  LAB_AUTH_URL: ${LAB_AUTH_URL:?LAB_AUTH_URL is derived from LAB_DOMAIN/LAB_HTTPS_PORT by installer/lib.sh; start the lab with ./lab or ./install.sh}
+  AIRFLOW_DB_PASSWORD: ${AIRFLOW_DB_PASSWORD:?}
+  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_CMD: /opt/lab/bin/db-url
+  AIRFLOW__CORE__EXECUTOR: LocalExecutor
+  AIRFLOW__CORE__PARALLELISM: ${AIRFLOW_PARALLELISM:-4}
+  AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+  AIRFLOW__CORE__DAGS_FOLDER: /opt/lab/dags
+  # The lab DAGs have no schedule; they run when someone triggers them, so they start unpaused.
+  AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+  AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:?}
+  AIRFLOW__CORE__AUTH_MANAGER: airflow.providers.keycloak.auth_manager.keycloak_auth_manager.KeycloakAuthManager
+  AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-api:8080/execution/
+  AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW_JWT_SECRET:?}
+  AIRFLOW__API__WORKERS: "1"
+  AIRFLOW__API__EXPOSE_CONFIG: "false"
+  AIRFLOW__KEYCLOAK_AUTH_MANAGER__CLIENT_ID: airflow
+  AIRFLOW__KEYCLOAK_AUTH_MANAGER__REALM: lakehouse
+  AIRFLOW__LOGGING__BASE_LOG_FOLDER: /opt/lab/data/logs
+  AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: "30"
+  AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: "true"
+  # Keycloak (via Caddy) and Trino are behind the lab CA.
+  REQUESTS_CA_BUNDLE: /trust/ca-bundle.crt
+  SSL_CERT_FILE: /trust/ca-bundle.crt
+  TZ: ${LAB_TZ:-UTC}
+
+services:
+  airflow-db:
+    image: postgres:${POSTGRES_VERSION}
+    profiles: [engineer, full]
+    entrypoint: ["/opt/lab/airflow/init-db.sh"]
+    labels:
+      lab.config-hash: ${LAB_CONFIG_HASH_AIRFLOW:-}
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      AIRFLOW_DB_PASSWORD: ${AIRFLOW_DB_PASSWORD:?}
+    volumes:
+      - ./config/airflow:/opt/lab/airflow:ro
+    # The postgres image declares VOLUME /var/lib/postgresql/data; without a mount there, every
+    # run of this client-only container would leave an anonymous volume behind.
+    tmpfs:
+      - /var/lib/postgresql/data
+    networks: [lab]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+    mem_limit: ${AIRFLOW_DB_INIT_MEM:-128m}
+    cpus: ${AIRFLOW_DB_INIT_CPUS:-0.5}
+
+  airflow-init:
+    <<: *airflow-image
+    profiles: [engineer, full]
+    command: ["db", "migrate"]
+    environment: *airflow-env
+    volumes:
+      - trust:/trust:ro
+    networks: [lab]
+    depends_on:
+      airflow-db: {condition: service_completed_successfully}
+    restart: "no"
+    mem_limit: ${AIRFLOW_INIT_MEM:-768m}
+    cpus: ${AIRFLOW_INIT_CPUS:-1}
+
+  airflow-api:
+    <<: *airflow-image
+    profiles: [engineer, full]
+    command: ["api-server", "--proxy-headers"]
+    environment:
+      <<: *airflow-env
+      AIRFLOW__KEYCLOAK_AUTH_MANAGER__CLIENT_SECRET: ${OIDC_CLIENT_SECRET_AIRFLOW:?}
+    volumes:
+      - trust:/trust:ro
+      - airflow-data:/opt/lab/data
+    networks: [lab]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/api/v2/monitor/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    depends_on:
+      airflow-init: {condition: service_completed_successfully}
+      bootstrap: {condition: service_completed_successfully}
+      caddy: {condition: service_healthy}
+      postgres: {condition: service_healthy, restart: true}   # see compose/identity.yaml keycloak
+    restart: unless-stopped
+    mem_limit: ${AIRFLOW_API_MEM:-1g}
+    cpus: ${AIRFLOW_API_CPUS:-1}
+
+  airflow-scheduler:
+    <<: *airflow-image
+    profiles: [engineer, full]
+    command: ["scheduler"]
+    environment:
+      <<: *airflow-env
+      # The batch service identity (ADR-017). Tasks fetch their own client-credentials tokens.
+      LAB_BATCH_CLIENT_ID: lab-batch
+      OIDC_CLIENT_SECRET_BATCH: ${OIDC_CLIENT_SECRET_BATCH:?}
+      LAB_SPARK_REMOTE: ${LAB_SPARK_REMOTE:-sc://spark-connect:15002}
+      LAB_DBT_PROJECT_DIR: /opt/lab/starter/dbt_lakehouse
+      DBT_PROFILES_DIR: /opt/lab/airflow/dbt
+    volumes:
+      - trust:/trust:ro
+      - airflow-data:/opt/lab/data
+      - ./dags:/opt/lab/dags:ro
+      - ./config/airflow:/opt/lab/airflow:ro
+      # The starter dbt project (the same one every workspace gets), read-only; dbt writes its
+      # target/ and logs/ elsewhere (dags/lab_dbt_build.py).
+      - ./starter/dbt_lakehouse:/opt/lab/starter/dbt_lakehouse:ro
+    networks: [lab]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8974/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    depends_on:
+      airflow-api: {condition: service_healthy}
+      postgres: {condition: service_healthy, restart: true}   # see compose/identity.yaml keycloak
+    restart: unless-stopped
+    mem_limit: ${AIRFLOW_SCHEDULER_MEM:-1536m}
+    cpus: ${AIRFLOW_SCHEDULER_CPUS:-2}
+
+  airflow-dag-processor:
+    <<: *airflow-image
+    profiles: [engineer, full]
+    command: ["dag-processor"]
+    environment: *airflow-env
+    volumes:
+      - trust:/trust:ro
+      - airflow-data:/opt/lab/data
+      - ./dags:/opt/lab/dags:ro
+    networks: [lab]
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type DagProcessorJob --local >/dev/null 2>&1"]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 90s
+    depends_on:
+      airflow-init: {condition: service_completed_successfully}
+      postgres: {condition: service_healthy, restart: true}   # see compose/identity.yaml keycloak
+    restart: unless-stopped
+    mem_limit: ${AIRFLOW_DAG_PROCESSOR_MEM:-512m}
+    cpus: ${AIRFLOW_DAG_PROCESSOR_CPUS:-1}
+
+  airflow-triggerer:
+    <<: *airflow-image
+    profiles: [engineer, full]
+    command: ["triggerer"]
+    environment: *airflow-env
+    volumes:
+      - trust:/trust:ro
+      - airflow-data:/opt/lab/data
+      - ./dags:/opt/lab/dags:ro
+    networks: [lab]
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type TriggererJob --local >/dev/null 2>&1"]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 90s
+    depends_on:
+      airflow-api: {condition: service_healthy}
+      postgres: {condition: service_healthy, restart: true}   # see compose/identity.yaml keycloak
+    restart: unless-stopped
+    mem_limit: ${AIRFLOW_TRIGGERER_MEM:-512m}
+    cpus: ${AIRFLOW_TRIGGERER_CPUS:-0.5}

@@ -31,7 +31,9 @@ Usage: ./lab <command> [args]
                       workspace home volumes), keeping settings,
                       secrets and the lab CA. --all also deletes LAB_STATE_DIR (the CA:
                       every browser must re-trust the new one). Asks for confirmation.
-  test [args]         run the end-to-end smoke test (tests/smoke/run.sh)
+  test [--long] [--no-build]
+                      run the end-to-end smoke test (tests/smoke/run.sh); --long adds the
+                      slow ADR-017 check (a >= 5 min Spark batch past its token lifetime)
   ca                  print the lab CA's path and how to trust it
 EOF
 }

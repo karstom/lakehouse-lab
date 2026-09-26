@@ -31,6 +31,12 @@ services:
           - catalog.${LAB_DOMAIN:-lab.localhost}
           - console.${LAB_DOMAIN:-lab.localhost}
           - jupyter.${LAB_DOMAIN:-lab.localhost}
+          - airflow.${LAB_DOMAIN:-lab.localhost}
+          - superset.${LAB_DOMAIN:-lab.localhost}
+          - spark.${LAB_DOMAIN:-lab.localhost}
+      # Only to proxy the Spark master UI (spark.<LAB_DOMAIN>, forward-auth). No aliases here:
+      # nothing on `spark` uses a public hostname (CONTRACT Phase 3, Networks).
+      spark: {}
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
       interval: 5s

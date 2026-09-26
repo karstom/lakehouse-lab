@@ -34,7 +34,7 @@ V3_DIR="$WORK/libtree"; mkdir -p "$V3_DIR"
 # shellcheck source=../../installer/ca.sh
 . "$SRC/installer/ca.sh"
 
-CONTRACT_SECRETS="POSTGRES_PASSWORD KEYCLOAK_DB_PASSWORD LAKEKEEPER_DB_PASSWORD KC_ADMIN_USER KC_ADMIN_PASSWORD LAB_ADMIN_USER LAB_ADMIN_PASSWORD SEAWEEDFS_ADMIN_ACCESS_KEY SEAWEEDFS_ADMIN_SECRET_KEY SEAWEEDFS_STS_SIGNING_KEY LAKEKEEPER_PG_ENCRYPTION_KEY OIDC_CLIENT_SECRET_TRINO OIDC_CLIENT_SECRET_LAKEKEEPER OIDC_CLIENT_SECRET_CONSOLE OIDC_CLIENT_SECRET_SYNC OIDC_CLIENT_SECRET_JUPYTERHUB JUPYTERHUB_CRYPT_KEY TRINO_INTERNAL_SECRET LAB_TEST_USER_PASSWORD"
+CONTRACT_SECRETS="POSTGRES_PASSWORD KEYCLOAK_DB_PASSWORD LAKEKEEPER_DB_PASSWORD KC_ADMIN_USER KC_ADMIN_PASSWORD LAB_ADMIN_USER LAB_ADMIN_PASSWORD SEAWEEDFS_ADMIN_ACCESS_KEY SEAWEEDFS_ADMIN_SECRET_KEY SEAWEEDFS_STS_SIGNING_KEY LAKEKEEPER_PG_ENCRYPTION_KEY OIDC_CLIENT_SECRET_TRINO OIDC_CLIENT_SECRET_LAKEKEEPER OIDC_CLIENT_SECRET_CONSOLE OIDC_CLIENT_SECRET_SYNC OIDC_CLIENT_SECRET_JUPYTERHUB JUPYTERHUB_CRYPT_KEY TRINO_INTERNAL_SECRET LAB_TEST_USER_PASSWORD OIDC_CLIENT_SECRET_AIRFLOW OIDC_CLIENT_SECRET_BATCH AIRFLOW_DB_PASSWORD AIRFLOW_FERNET_KEY AIRFLOW_JWT_SECRET OIDC_CLIENT_SECRET_SUPERSET SUPERSET_SECRET_KEY SUPERSET_DB_PASSWORD CONSOLE_COOKIE_SECRET"
 CONTRACT_ENV="COMPOSE_PROJECT_NAME LAB_DOMAIN LAB_HTTPS_PORT LAB_HTTP_PORT LAB_PROFILE LAB_STATE_DIR LAB_TZ"
 mode_of() { stat -c '%a' "$1"; }
 sha() { sha256sum "$1" | cut -d' ' -f1; }
@@ -104,8 +104,14 @@ for k in $CONTRACT_SECRETS; do
   if [ -z "$v" ]; then t_fail "$k present"; continue; fi
   if [ "$k" = SEAWEEDFS_STS_SIGNING_KEY ]; then
     assert_eq "$k is 32 random bytes (base64)" 32 "$(printf '%s' "$v" | base64 -d 2>/dev/null | wc -c)"
+  elif [ "$k" = AIRFLOW_FERNET_KEY ]; then
+    # Fernet format: URL-safe base64 of 32 bytes (padded with one '=').
+    assert_match "$k URL-safe base64" '^[A-Za-z0-9_-]{43}=$' "$v"
+    assert_eq "$k is 32 random bytes" 32 "$(printf '%s' "$v" | tr -- '-_' '+/' | base64 -d 2>/dev/null | wc -c)"
   else
     assert_match "$k URL-safe" '^[A-Za-z0-9._-]+$' "$v"
+    # oauth2-proxy uses it as an AES key: exactly 16, 24 or 32 bytes (we generate 32).
+    [ "$k" != CONSOLE_COOKIE_SECRET ] || assert_eq "$k is 32 chars" 32 "${#v}"
   fi
 done
 assert_match "DB password length" '^[0-9a-f]{48}$' "$(env_get "$s" POSTGRES_PASSWORD)"
@@ -196,7 +202,7 @@ assert_not "project change refused" "$T/install.sh" --non-interactive --no-start
 assert "domain change with --reconfigure" "$T/install.sh" --non-interactive --no-start --reconfigure --domain lab2.localhost
 assert_eq "domain changed" lab2.localhost "$(env_get "$T/.env" LAB_DOMAIN)"
 assert_not "unknown profile refused" "$T/install.sh" --non-interactive --no-start --profile bogus
-assert_not "unavailable profile refused" "$T/install.sh" --non-interactive --no-start --profile full
+assert_not "unavailable profile refused" "$T/install.sh" --non-interactive --no-start --profile server
 assert_eq "refused profile leaves .env" core "$(env_get "$T/.env" LAB_PROFILE)"
 assert_not "bad port refused" "$T/install.sh" --non-interactive --no-start --https-port 70000
 assert_not "unknown flag refused" "$T/install.sh" --frobnicate
@@ -299,10 +305,96 @@ assert_eq ".env LAB_PROFILE=core after switch" core "$(env_get "$TE/.env" LAB_PR
 "$TE/install.sh" --non-interactive --no-start --profile engineer >/dev/null 2>&1
 assert_eq "--no-start profile switch makes no compose call" "" "$(cat "$SHIM_LOG")"
 out=$(SHIM_MEM_BYTES=8589934592 "$TE/install.sh" --non-interactive --no-start 2>&1)
-assert_contains "engineer on 8 GB warns" "profile engineer (Spark) wants" "$out"
+assert_contains "engineer on 8 GB warns" "profile engineer (Spark, Airflow) wants" "$out"
+assert_contains "engineer on 8 GB: OOM hint" "may be OOM-killed; consider --profile core" "$out"
+out=$("$TE/install.sh" --non-interactive --no-start 2>&1)
+assert_not "engineer on 16 GB: no profile warning" grep -q "profile engineer" <<<"$out"
 out=$(SHIM_MEM_BYTES=8589934592 "$TE/install.sh" --non-interactive --no-start --profile core 2>&1)
 assert_not "core on 8 GB: no engineer warning" grep -q "profile engineer" <<<"$out"
 "$TE/install.sh" --non-interactive --no-start --profile engineer >/dev/null 2>&1
+
+echo "== full profile (fake docker)"
+t_begin full
+TF="$WORK/tree-full"; make_tree "$TF"
+: >"$SHIM_LOG"
+out=$("$TF/install.sh" --non-interactive --domain lab.localhost --project-name v3-p3-full \
+  --https-port 18643 --http-port 18280 --profile full 2>&1); rc=$?
+assert_eq "install --profile full exit 0" 0 "$rc"
+[ "$rc" = 0 ] || printf '%s\n' "$out"
+assert_eq ".env LAB_PROFILE=full" full "$(env_get "$TF/.env" LAB_PROFILE)"
+assert_eq "full: exact contract compose command" \
+  "COMPOSE_PROJECT_NAME=v3-p3-full docker compose --project-directory $TF --env-file $TF/versions.env --env-file $TF/.env --profile full up -d --wait --remove-orphans --build" \
+  "$(cat "$SHIM_LOG")"
+assert_contains "full urls: airflow" "https://airflow.lab.localhost:18643/" "$out"
+assert_contains "full urls: spark UI" "https://spark.lab.localhost:18643/" "$out"
+assert_contains "full urls: superset" "https://superset.lab.localhost:18643/" "$out"
+assert_contains "full on 16 GB: headroom warning" "profile full (Spark, Airflow, Superset) wants 24 GB" "$out"
+assert_not "full on 16 GB: no OOM warning" grep -q "may be OOM-killed" <<<"$out"
+out=$(SHIM_MEM_BYTES=12884901888 "$TF/install.sh" --non-interactive --no-start 2>&1)
+assert_contains "full on 12 GB: OOM warning" "Below 16 GB services may be OOM-killed; consider --profile engineer" "$out"
+out=$(SHIM_MEM_BYTES=25769803776 "$TF/install.sh" --non-interactive --no-start 2>&1)
+assert_not "full on 24 GB: no profile warning" grep -q "profile full" <<<"$out"
+out=$("$TE/lab" urls)
+assert_contains "engineer urls: airflow" "https://airflow.lab.localhost:18643/" "$out"
+assert_contains "engineer urls: spark UI" "https://spark.lab.localhost:18643/" "$out"
+assert_not "engineer urls: no superset" grep -q superset <<<"$out"
+out=$("$T2/lab" urls)
+assert_not "core urls: no airflow/spark/superset" grep -qE 'airflow|spark|superset' <<<"$out"
+: >"$SHIM_LOG"
+"$TF/install.sh" --non-interactive --profile engineer >/dev/null 2>&1
+assert_contains "full -> engineer: stops the lab first (Superset would survive)" \
+  "--profile engineer down --remove-orphans" "$(cat "$SHIM_LOG")"
+assert_not "full -> engineer: never -v" grep -q ' -v' "$SHIM_LOG"
+for fn in spark:engineer spark:full airflow:engineer airflow:full superset:full; do
+  assert "profile_includes ${fn#*:} ${fn%%:*}" profile_includes "${fn#*:}" "${fn%%:*}"
+done
+for fn in spark:core airflow:core superset:core superset:engineer; do
+  assert_not "profile_includes ${fn#*:} ${fn%%:*} is false" profile_includes "${fn#*:}" "${fn%%:*}"
+done
+
+echo "== GitHub login flags (ADR-016)"
+t_begin github
+TG="$WORK/tree-gh"; make_tree "$TG"
+GH_ID=Ov23liTESTCLIENTID01
+GH_SECRET=0123456789abcdef0123456789abcdef01234567
+out=$("$TG/install.sh" --non-interactive --domain lab.localhost --https-port 18743 --http-port 18380 \
+  --project-name v3-p3-gh 2>&1); rc=$?
+assert_eq "install without GitHub flags exit 0" 0 "$rc"
+assert_not "no GitHub keys generated by default" grep -q GITHUB "$TG/.secrets.env"
+assert_not "no GitHub hint when off" grep -q "GitHub login" <<<"$out"
+out=$("$TG/install.sh" --non-interactive --github-client-id "$GH_ID" --github-client-secret "$GH_SECRET" 2>&1); rc=$?
+assert_eq "install with GitHub flags exit 0" 0 "$rc"
+assert_eq "client id in .secrets.env" "$GH_ID" "$(env_get "$TG/.secrets.env" OIDC_CLIENT_ID_GITHUB)"
+assert_eq "client secret in .secrets.env" "$GH_SECRET" "$(env_get "$TG/.secrets.env" OIDC_CLIENT_SECRET_GITHUB)"
+assert_eq ".secrets.env still mode 600" 600 "$(mode_of "$TG/.secrets.env")"
+assert_not "client secret never printed" grep -qF "$GH_SECRET" <<<"$out"
+assert_not "client secret not in .env" grep -qF "$GH_SECRET" "$TG/.env"
+assert_contains "callback URL printed" "https://auth.lab.localhost:18743/realms/lakehouse/broker/github/endpoint" "$out"
+assert_contains "no-group hint printed" "A first GitHub login gets no group" "$out"
+hs=$(sha "$TG/.secrets.env")
+"$TG/install.sh" --non-interactive >/dev/null 2>&1
+assert_eq "re-run without flags keeps GitHub keys" "$hs" "$(sha "$TG/.secrets.env")"
+"$TG/install.sh" --non-interactive --github-client-secret "${GH_SECRET%?}8" >/dev/null 2>&1
+assert_eq "secret alone can be rotated" "${GH_SECRET%?}8" "$(env_get "$TG/.secrets.env" OIDC_CLIENT_SECRET_GITHUB)"
+assert_eq "rotation keeps the id" "$GH_ID" "$(env_get "$TG/.secrets.env" OIDC_CLIENT_ID_GITHUB)"
+assert_not "--no-github with an id refused" "$TG/install.sh" --non-interactive --no-start --no-github --github-client-id "$GH_ID"
+assert_not "bad client id refused" "$TG/install.sh" --non-interactive --no-start --github-client-id 'x;rm -rf /' --github-client-secret "$GH_SECRET"
+assert_not "short secret refused" "$TG/install.sh" --non-interactive --no-start --github-client-id "$GH_ID" --github-client-secret short
+out=$("$TG/install.sh" --non-interactive --no-github 2>&1); rc=$?
+assert_eq "--no-github exit 0" 0 "$rc"
+assert_not "--no-github removes both keys" grep -q GITHUB "$TG/.secrets.env"
+assert_contains "--no-github says so" "GitHub login turned off" "$out"
+assert_eq "--no-github keeps mode 600" 600 "$(mode_of "$TG/.secrets.env")"
+hs=$(sha "$TG/.secrets.env")
+assert_not "id alone (no stored secret) refused" "$TG/install.sh" --non-interactive --no-start --github-client-id "$GH_ID"
+assert_eq "refused half config wrote nothing" "$hs" "$(sha "$TG/.secrets.env")"
+f="$WORK/unset.env"; printf 'A=1\nB=2\n# B=comment\nB=3\n' >"$f"; chmod 600 "$f"
+env_unset "$f" B
+assert_eq "env_unset removes every assignment" "A=1
+# B=comment" "$(cat "$f")"
+assert_eq "env_unset keeps mode" 600 "$(mode_of "$f")"
+env_unset "$f" NOPE; assert_eq "env_unset absent key is a no-op" "A=1
+# B=comment" "$(cat "$f")"
 
 echo "== per-user workspace cleanup (fake docker inventory)"
 t_begin workspaces
@@ -399,6 +491,10 @@ assert_not "a new file changes it" test "$h4" = "$h5"
 assert_eq "missing dir -> none" "none" "$( V3_DIR=$T4; config_hash config/spark )"
 got=$( V3_DIR=$T4; LAB_ENV_FILE="$T4/.env"; : >"$LAB_ENV_FILE"; lab_settings; printf '%s' "$LAB_CONFIG_HASH_TRINO" )
 assert_eq "lab_settings exports LAB_CONFIG_HASH_TRINO" "$h5" "$got"
+for k in AIRFLOW SUPERSET CONSOLE; do
+  got=$( V3_DIR=$T4; LAB_ENV_FILE="$T4/.env"; lab_settings; v="LAB_CONFIG_HASH_$k"; printf '%s' "${!v}" )
+  assert_eq "lab_settings exports LAB_CONFIG_HASH_$k (no config dir -> none)" none "$got"
+done
 for pair in edge.yaml:CADDY engines.yaml:TRINO storage.yaml:SEAWEEDFS workspace.yaml:JUPYTERHUB spark.yaml:SPARK; do
   assert "compose/${pair%%:*} labels its service with LAB_CONFIG_HASH_${pair#*:}" \
     grep -qF "lab.config-hash: \${LAB_CONFIG_HASH_${pair#*:}:-}" "$SRC/compose/${pair%%:*}"

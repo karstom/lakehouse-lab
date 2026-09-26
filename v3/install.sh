@@ -36,6 +36,14 @@ Usage: ./install.sh [options]
   --seed-test-users       create the test users alice/eddie/anna/victor (dev and CI)
   --no-seed-test-users    turn test users off again
   --admin-user NAME       first lab admin's username (only used when secrets are first generated)
+  --github-client-id ID   turn on "Sign in with GitHub" (ADR-016) with this GitHub OAuth App;
+  --github-client-secret SECRET
+                          ...and its client secret. Both are kept in .secrets.env. Register
+                          the app's callback URL as
+                          https://auth.<domain>[:port]/realms/lakehouse/broker/github/endpoint
+                          (printed at the end). A first GitHub login gets NO group: an admin
+                          adds it to a group in Keycloak before it can reach anything.
+  --no-github             turn GitHub login off again (removes both from .secrets.env)
   --reconfigure           allow changing the domain or project name of an existing install
   --no-start              write configuration only; do not start the stack
   -h, --help              this help
@@ -48,6 +56,7 @@ NON_INTERACTIVE=0
 RECONFIGURE=0
 NO_START=0
 OPT_DOMAIN="" OPT_HTTPS="" OPT_HTTP="" OPT_PROJECT="" OPT_PROFILE="" OPT_SEED=""
+OPT_GH_ID="" OPT_GH_SECRET="" OPT_NO_GH=0
 need_arg() { [ $# -ge 2 ] && [ -n "$2" ] || die "$1 needs a value"; }
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -66,6 +75,11 @@ while [ $# -gt 0 ]; do
     --no-seed-test-users) OPT_SEED=false ;;
     --admin-user) need_arg "$@"; LAB_ADMIN_USER_OVERRIDE=$2; shift ;;
     --admin-user=*) LAB_ADMIN_USER_OVERRIDE=${1#*=} ;;
+    --github-client-id) need_arg "$@"; OPT_GH_ID=$2; shift ;;
+    --github-client-id=*) OPT_GH_ID=${1#*=} ;;
+    --github-client-secret) need_arg "$@"; OPT_GH_SECRET=$2; shift ;;
+    --github-client-secret=*) OPT_GH_SECRET=${1#*=} ;;
+    --no-github) OPT_NO_GH=1 ;;
     --reconfigure) RECONFIGURE=1 ;;
     --no-start) NO_START=1 ;;
     -h|--help) usage; exit 0 ;;
@@ -77,6 +91,22 @@ done
 export LAB_ADMIN_USER_OVERRIDE="${LAB_ADMIN_USER_OVERRIDE:-}"
 if [ -n "$LAB_ADMIN_USER_OVERRIDE" ] && ! [[ "$LAB_ADMIN_USER_OVERRIDE" =~ ^[a-z][a-z0-9._-]{1,30}$ ]]; then
   die "--admin-user: use 2-31 lowercase letters, digits, '.', '_' or '-', starting with a letter"
+fi
+if [ "$OPT_NO_GH" = 1 ] && { [ -n "$OPT_GH_ID" ] || [ -n "$OPT_GH_SECRET" ]; }; then
+  die "--no-github cannot be combined with --github-client-id/--github-client-secret"
+fi
+if [ -n "$OPT_GH_ID" ] && ! valid_github_client_id "$OPT_GH_ID"; then
+  die "--github-client-id: expected a GitHub OAuth App client ID (letters, digits, '.', '_' or '-'; 8-64 characters)"
+fi
+if [ -n "$OPT_GH_SECRET" ] && ! valid_github_client_secret "$OPT_GH_SECRET"; then
+  die "--github-client-secret: expected a GitHub OAuth App client secret (letters, digits, '_' or '-'; 20-128 characters)"
+fi
+if [ -n "$OPT_GH_ID$OPT_GH_SECRET" ]; then
+  # Checked before anything is written: the result must be both keys or neither.
+  gh_id=0 gh_secret=0
+  { [ -n "$OPT_GH_ID" ] || env_has "$LAB_SECRETS_FILE" OIDC_CLIENT_ID_GITHUB; } && gh_id=1
+  { [ -n "$OPT_GH_SECRET" ] || env_has "$LAB_SECRETS_FILE" OIDC_CLIENT_SECRET_GITHUB; } && gh_secret=1
+  [ "$gh_id" = "$gh_secret" ] || die "GitHub login needs both --github-client-id and --github-client-secret."
 fi
 
 # detect_tz -> host timezone name (IANA), UTC if unknown.
@@ -195,6 +225,7 @@ info "  project=$COMPOSE_PROJECT_NAME domain=$LAB_DOMAIN https=$LAB_HTTPS_PORT h
 
 hdr "Secrets"
 ensure_secrets "$LAB_SECRETS_FILE"
+apply_github_login "$LAB_SECRETS_FILE" "$OPT_GH_ID" "$OPT_GH_SECRET" "$OPT_NO_GH"
 
 hdr "Lab certificate authority"
 mkdir -p "$(state_dir_abs)"
@@ -251,6 +282,7 @@ else
   info "  (stored in $LAB_SECRETS_FILE; Keycloak's own admin is KC_ADMIN_USER in the same file)"
 fi
 [ "${LAB_SEED_TEST_USERS:-false}" != true ] || info "Test users alice/eddie/anna/victor: password LAB_TEST_USER_PASSWORD in $LAB_SECRETS_FILE"
+print_github_login "$LAB_SECRETS_FILE"
 info ""
 hdr "Trust the lab CA"
 print_trust_instructions "$(ca_dir)/root.crt"

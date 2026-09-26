@@ -51,6 +51,7 @@ RUN groupadd --gid 185 spark \
 
 COPY --chmod=0755 start-spark.sh /usr/local/bin/start-spark.sh
 COPY --chmod=0755 spark-health.py /usr/local/bin/spark-health.py
+COPY --chmod=0755 spark-bind-ip.py /usr/local/bin/spark-bind-ip.py
 
 USER spark
 WORKDIR /opt/spark/work

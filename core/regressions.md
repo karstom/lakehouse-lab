@@ -238,3 +238,118 @@
 **LastVerified:** 2026-09-26
 **Commit:** 6202fd0
 **LastUpdated:** 2026-09-26
+
+---
+
+## NODE: REG_V3_SMOKE_AIRFLOW_SPA_LOGIN
+**Type:** Regression
+**Priority:** MEDIUM
+**Label:** V3 smoke check 12: Airflow login from "/" returned before the SPA redirected to Keycloak
+**Summary:** The first integrated engineer smoke failed check 12 with every Airflow API call 401: the browser helper opened airflow./ and returned as soon as the page was on the airflow host outside a login path, but Airflow 3's "/" is a SPA that redirects to /auth/login client-side, so no login ever happened. Fixed in tests/smoke/phase3.py: Airflow.login() starts at /auth/login (a LOGINISH path), so open() waits for the Keycloak round trip and the callback. Lesson: for SPA apps, start browser logins at the server-side login route, never at "/".
+**Tags:** v3, smoke, airflow, login, spa, playwright
+**REGRESSED_N_TIMES:** 1
+**Edges:** _(none)_
+**Files:** `v3/tests/smoke/phase3.py`
+**Symbols:** `Airflow.login`, `UserSession.open`
+**Evidence:** LAB_SMOKE_ONLY=12 ./lab test on the upgraded engineer install -> [PASS] 12 (alice 200/201, victor 403/403, eddie 200, 4 DAGs success)
+**LastVerified:** 2026-09-26
+**Commit:** 3b5516e
+**LastUpdated:** 2026-09-26
+
+---
+
+## NODE: REG_V3_POSTGRES_HEALTHY_BEFORE_TCP
+**Type:** Regression
+**Priority:** MEDIUM
+**Label:** V3: first-init Postgres reports healthy on the unix socket before it accepts TCP
+**Summary:** On a fresh volume the postgres healthcheck passed while the server still refused TCP, so the superset-db one-shot failed. One-shots that talk to Postgres over the network (superset-db, airflow-db) must wait with `pg_isready -h postgres` first. Related: one-shots on the postgres image need a tmpfs at /var/lib/postgresql/data or each run leaves an anonymous volume (fixed for both airflow-db and superset-db at integration).
+**Tags:** v3, postgres, one-shot, healthcheck, anonymous-volume
+**REGRESSED_N_TIMES:** 1
+**Edges:** _(none)_
+**Files:** `v3/config/superset/init-db.sh`, `v3/config/airflow/init-db.sh`, `v3/compose/superset.yaml`, `v3/compose/airflow.yaml`
+**LastVerified:** 2026-09-26
+**Commit:** 3b5516e
+**LastUpdated:** 2026-09-26
+
+---
+
+## NODE: REG_V3_TRINO_SERVICE_TOKEN_NEEDS_OPENID_SCOPE
+**Type:** Regression
+**Priority:** MEDIUM
+**Label:** V3: Trino rejects service tokens without scope=openid (userinfo insufficient_scope)
+**Summary:** Trino reads the principal from Keycloak's userinfo endpoint; a client-credentials token fetched without scope=openid makes userinfo answer insufficient_scope and Trino returns 401 "Invalid credentials". Every service client (superset, lab-batch, trino samples) must request scope=openid (keycloak.client_credentials_token defaults to it).
+**Tags:** v3, trino, oidc, scope, service-account
+**REGRESSED_N_TIMES:** 1
+**Edges:** _(none)_
+**Files:** `v3/config/superset/lab_trino.py`, `v3/dags/jobs/labjob.py`, `v3/bootstrap/keycloak.py`
+**LastVerified:** 2026-09-26
+**Commit:** 3b5516e
+**LastUpdated:** 2026-09-26
+
+---
+
+## NODE: REG_V3_POSTGRES_RECREATE_BREAKS_DB_CLIENTS_ON_UPGRADE
+**Type:** Regression
+**Priority:** HIGH
+**Label:** V3 upgrade that recreates postgres left DB clients with dead pools; bootstrap failed (Lakekeeper 500)
+**Summary:** Raising POSTGRES_MEM made `install.sh` recreate postgres while keycloak, openfga, lakekeeper, Airflow and Superset kept running with dead connection pools. Bootstrap then got `GET /management/v1/info -> HTTP 500 DatabaseError` from Lakekeeper and `up --wait` failed; Airflow scheduler/dag-processor/triggerer crash-restarted after `up` had returned. Fix: every long-running postgres client declares `depends_on: postgres: {condition: service_healthy, restart: true}` (compose/identity.yaml, catalog.yaml, airflow.yaml, superset.yaml), so compose restarts them after recreating postgres and `--wait` waits for them. depends_on is not part of the compose config hash, so adding it recreates nothing.
+**Tags:** v3, upgrade, postgres, compose, depends_on, restart
+**REGRESSED_N_TIMES:** 1
+**Edges:**
+- RELATED_TO → REG_UPGRADE_VOLUME_DATA_LOSS: another upgrade-path failure class (in-place recreate of a shared dependency)
+**Files:** `v3/compose/identity.yaml`, `v3/compose/catalog.yaml`, `v3/compose/airflow.yaml`, `v3/compose/superset.yaml`
+**Evidence:** POSTGRES_MEM=800m ./install.sh on v3-p1 (full): postgres Recreated; keycloak, openfga, lakekeeper, airflow-*, superset Stopped/Started by compose; rc 0; bootstrap 'done'
+**LastVerified:** 2026-09-26
+**Commit:** 3b5516e
+**LastUpdated:** 2026-09-26
+
+---
+
+## NODE: REG_V3_TRINO_CATALOG_SESSION_DIES_ON_KEYCLOAK_RESTART
+**Type:** Regression
+**Priority:** HIGH
+**Label:** V3 Trino's Iceberg REST catalog auth session never recovers after Keycloak/Lakekeeper restart
+**Summary:** Iceberg REST auth sessions stop refreshing after a refresh fails while Keycloak is restarting, then use an expired/invalid token forever. Seen twice at integration after an upgrade restarted Keycloak/Lakekeeper (postgres recreate + depends_on restart): (1) Trino (not restarted) failed every catalog call with ICEBERG_CATALOG_ERROR 'Failed to list namespaces' (refresh looping on 404 undefined_endpoint), failing `samples` and `up --wait`; (2) the Spark Connect executors' signer session for the lab-batch credential signed with an expired token (Lakekeeper 'ExpiredSignature' on /signer), so lab_spark_batch failed at writer close even for a 30 s job. Fix: trino, spark-worker and spark-connect depend on keycloak, lakekeeper AND postgres with `restart: true` (compose/engines.yaml, compose/spark.yaml). compose's `restart: true` is NOT transitive (recreating postgres restarts only its direct dependents), so the direct postgres entry is required. Residual: an unplanned Keycloak outage (not via compose) still breaks these sessions until Trino/Spark restart.
+**Tags:** v3, trino, iceberg, rest-catalog, oauth2, keycloak, upgrade, restart
+**REGRESSED_N_TIMES:** 1
+**Edges:**
+- RELATED_TO → REG_V3_POSTGRES_RECREATE_BREAKS_DB_CLIENTS_ON_UPGRADE: surfaced by that fix restarting Keycloak/Lakekeeper
+**Files:** `v3/compose/engines.yaml`, `v3/compose/spark.yaml`, `v3/config/trino/catalog/lakehouse.properties`, `v3/dags/jobs/spark_batch.py`
+**LastVerified:** 2026-09-26
+**Commit:** 3b5516e
+**LastUpdated:** 2026-09-26
+
+---
+
+## NODE: REG_V3_IMAGES_MATRIX_PROFILE_DROPS_BUILD_CONTEXT
+**Type:** Regression
+**Priority:** MEDIUM
+**Label:** v3-images built the matrix from profile core; full-only superset lost its COPY --from=config context
+**Summary:** v3-images.yml ran compose-check.sh --json-out with the default profile core, so services in [full] (superset) were absent from the compose JSON and images_matrix.py emitted build_contexts '' for them; 'COPY --from=config' would then be resolved by buildx as an image and fail. Fixed: the workflow uses --profile full (every built service), and images_matrix.py now errors when a Dockerfile's COPY --from names neither a stage, a build context nor an image reference (unit tests in v3/tests/lint/test_images_matrix.py, including one over the real Dockerfiles).
+**Tags:** v3, ci, images, ghcr, compose-profile, buildx
+**REGRESSED_N_TIMES:** 1
+**Edges:**
+- WATCHLIST → WATCH_CI_WORKFLOWS: images workflow must derive build contexts from the profile containing every built service
+**Files:** `.github/workflows/v3-images.yml`, `v3/tools/images_matrix.py`, `v3/tests/lint/test_images_matrix.py`, `v3/images/superset/Dockerfile`
+**Symbols:** `unresolved_copy_from`, `build_matrix`, `compose_extra_contexts`
+**Evidence:** compose-check.sh --profile full --json-out c.json && images_matrix.py --compose-json c.json → superset build_contexts config=v3/config/superset; with the core JSON → ERROR COPY --from=config, rc 1
+**LastVerified:** 2026-09-26
+**Commit:** 3b5516e
+**LastUpdated:** 2026-09-26
+
+---
+
+## NODE: REG_V3_SEAWEEDFS_BINDS_ONLY_DETECTED_IP
+**Type:** Regression
+**Priority:** MEDIUM
+**Label:** V3 SeaweedFS listened only on its detected -ip; Spark executors on the `spark` network got Connection refused
+**Summary:** After moving the Spark cluster to the internal `spark` network and attaching seaweedfs to lab+spark, every Spark write failed (smoke 10, lab_spark_batch in 12): executors got 'Connect to seaweedfs:8333 [seaweedfs/172.21.x.x] failed: Connection refused'. `weed server` binds all its ports to -ip.bind, which defaults to -ip, i.e. the one address it auto-detects (the lab interface). Fix: `-ip.bind=0.0.0.0` in config/seaweedfs/entrypoint.sh; -ip is left as detected (it only names in-container components). Any service added to a second network must be checked for single-address binding.
+**Tags:** seaweedfs, network, bind, spark, v3
+**REGRESSED_N_TIMES:** 1
+**Edges:**
+- RELATES_TO → DEC_V3_SPARK_INTERNAL_NETWORK: exposed by adding seaweedfs to the spark network
+**Files:** `v3/config/seaweedfs/entrypoint.sh`, `v3/compose/storage.yaml`
+**Evidence:** docker exec seaweedfs cat /proc/net/tcp: listeners 00000000:208D (8333) etc. after fix (were 020013AC only); smoke 10 PASS
+**LastVerified:** 2026-09-26
+**Commit:** 3b5516e
+**LastUpdated:** 2026-09-26

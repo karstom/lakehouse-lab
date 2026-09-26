@@ -394,3 +394,127 @@
 **Files:** `docs/v3/DECISIONS.md`, `v3/images/workspace/lakehouse/clients.py`
 **Commit:** 1afab2f
 **LastUpdated:** 2026-09-26
+
+---
+
+## NODE: DEC_V3_AIRFLOW_UMA_MODEL_IN_BOOTSTRAP
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3: bootstrap builds Airflow's Keycloak UMA model declaratively (not the provider's create-all CLI)
+**Summary:** Airflow's Keycloak auth manager authorizes every call through a UMA decision on '<Resource>#<METHOD>' (audience airflow), so roles live in the airflow client's Authorization Services model. The provider CLI 'create-all' cannot run twice and needs the master admin password inside an Airflow container, so bootstrap/airflow_client.py builds the same model (provider 0.10.0 non-team layout) itself and repairs drift each run; resource server decisionStrategy AFFIRMATIVE, Keycloak's grant-all Default Policy/Permission removed. Groups: lab-admin Admin, engineer User+Op, analyst/viewer Viewer; Connections/Variables/Config are split into ReadSensitive (not Viewer). If the provider or Airflow adds resources or menu items, update RESOURCES/MENU_ITEMS (missing ones are denied, not granted).
+**Tags:** v3, airflow, keycloak, uma, authorization, oq-16
+**Edges:**
+- RELATES_TO → DEC_V3_KEYCLOAK_SSO_SUBDOMAINS: Airflow's native Keycloak integration
+- RELATES_TO → DEC_V3_LONG_SPARK_JOBS_VIA_AIRFLOW: only engineer/lab-admin may trigger batch DAGs
+**Files:** `v3/bootstrap/airflow_client.py`, `v3/tests/bootstrap/test_airflow_client.py`, `v3/compose/airflow.yaml`
+**Symbols:** `ensure_airflow_client`, `ensure_authz`, `PERMISSIONS`
+**Evidence:** v3-p3-airflow 2026-09-26: alice/eddie trigger+pause 200, pool create 201; anna/victor list 200, trigger/pause/connections/variables/pool 403; second bootstrap run 'users: unchanged'; unittest test_airflow_client 8 OK
+**LastVerified:** 2026-09-26
+**Commit:** 3b5516e
+**LastUpdated:** 2026-09-26
+
+---
+
+## NODE: DEC_V3_BATCH_SPARK_CREDENTIAL_NOT_TOKEN
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3: batch Spark sessions get the lab-batch client CREDENTIAL (Iceberg renews tokens), never a fixed token
+**Summary:** ADR-017 proof. lab_spark_batch opens a Spark Connect session with spark.sql.catalog.lakehouse.credential=lab-batch:<secret>, scope=openid, token-refresh-enabled=true, token-exchange-enabled=false; the Iceberg REST client and the executors' S3 remote signer then fetch/renew client-credentials tokens themselves. With lab-batch tokens cut to 120 s, a 338 s write committed (snapshot at +338 s); the same job with a fixed token failed at task close with NotAuthorizedException (no snapshot). Also: killing the Airflow task must interrupt the Spark job (SIGTERM -> spark.interruptAll), or it keeps holding the shared cluster's cores.
+**Tags:** v3, spark, airflow, iceberg, token, adr-017, batch
+**Edges:**
+- RELATES_TO → DEC_V3_LONG_SPARK_JOBS_VIA_AIRFLOW: implements and proves it
+- RELATES_TO → DEC_V3_SPARK_CONNECT_PER_SESSION_TOKEN: interactive sessions keep a fixed user token
+**Files:** `v3/dags/jobs/spark_batch.py`, `v3/dags/lab_batch/__init__.py`, `v3/bootstrap/batch_client.py`
+**Symbols:** `session`, `run_job`, `ensure_batch_client`, `ensure_lakekeeper`
+**Evidence:** v3-p3-airflow 2026-09-26: LAB_BATCH_TOKEN_LIFESPAN=120; lab_spark_batch min_runtime_s=330 -> success, 'job took 338s = 2.8 token lifetimes', adr017_proof$snapshots committed 03:54:31; --auth static-token control -> Spark job FAILED, NotAuthorizedException, 0 snapshots
+**LastVerified:** 2026-09-26
+**Commit:** 3b5516e
+**LastUpdated:** 2026-09-26
+
+---
+
+## NODE: DEC_V3_SUPERSET_TRINO_IMPERSONATION
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3: Superset queries Trino as the logged-in user via service-account-superset impersonation
+**Summary:** Superset authenticates to Trino as service-account-superset (client credentials, scope=openid) through DB_CONNECTION_MUTATOR (config/superset/lab_trino.py) and sets X-Trino-User to the Superset username for every engine pointing at the lab Trino, whatever an admin types into the URI. rules.json `impersonation` lets only that principal impersonate, never a service-account-* name; the service account itself has metadata-only rights. Trino impersonation rules cannot test the target's groups, so a no-group name gets through impersonation but then has no access (verified).
+**Tags:** v3, superset, trino, impersonation, identity
+**Edges:** _(none)_
+**Files:** `v3/config/superset/lab_trino.py`, `v3/config/trino/rules.json`, `v3/bootstrap/superset_client.py`
+**LastVerified:** 2026-09-26
+**Commit:** 3b5516e
+**LastUpdated:** 2026-09-26
+
+---
+
+## NODE: DEC_V3_FORWARD_AUTH_OAUTH2_PROXY
+**Type:** Decision
+**Priority:** MEDIUM
+**Label:** V3: one oauth2-proxy (client console) behind Caddy forward_auth for Console and Spark UI
+**Summary:** oauth2-proxy (pinned by digest) runs as Keycloak client `console` (repaired by bootstrap), cookie scoped to .LAB_DOMAIN with 1m refresh so group changes apply without a new login. Every 401 redirects to console./oauth2/start (the only registered callback); spark. uses /oauth2/auth?allowed_groups=engineer,lab-admin. Console tiles are cosmetic; each service enforces its own access. Spark UI needs spark.ui.reverseProxy=true plus Caddy stripping the Cookie header (large cookie -> 502) and rewriting http Location headers.
+**Tags:** v3, console, oauth2-proxy, forward-auth, spark-ui, caddy
+**Edges:** _(none)_
+**Files:** `v3/compose/console.yaml`, `v3/config/caddy/Caddyfile`, `v3/config/console/index.html`, `v3/config/spark/spark-defaults.conf`
+**LastVerified:** 2026-09-26
+**Commit:** 3b5516e
+**LastUpdated:** 2026-09-26
+
+---
+
+## NODE: DEC_V3_GITHUB_IDP_FIRST_BROKER_FLOW
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3 ADR-016: custom first-broker-login flow (no auto-link, no email verification); IdP secret drift via stored SHA-256
+**Summary:** bootstrap/github_idp.py always ensures flow lab-first-broker-login: review profile if missing, create user if unique with no group, else confirm link + REQUIRED re-authentication with the existing account's password. The github IdP exists only while OIDC_CLIENT_ID_GITHUB and OIDC_CLIENT_SECRET_GITHUB are both set (trustEmail off, no mappers); unset removes it and keeps its users. Keycloak masks IdP secrets on GET, so rotation is detected by a SHA-256 in the IdP config. Smoke check 16 proves it with a mock realm brokered as github-mock using the same flow.
+**Tags:** v3, keycloak, github, idp, first-broker-login, adr-016
+**Edges:** _(none)_
+**Files:** `v3/bootstrap/github_idp.py`, `v3/tests/smoke/phase3.py`, `v3/installer/secrets.sh`
+**LastVerified:** 2026-09-26
+**Commit:** 3b5516e
+**LastUpdated:** 2026-09-26
+
+---
+
+## NODE: DEC_V3_PHASE3_INTEGRATION_WIRING
+**Type:** Decision
+**Priority:** MEDIUM
+**Label:** V3 Phase 3 integration: profile full = services listing [engineer, full]; all Phase 3 clients ensured in every profile; identity-sync re-ensures analytics
+**Summary:** Compose has no profile inheritance, so Spark and Airflow services list `profiles: [engineer, full]` and the installer still passes a single --profile. Bootstrap ensures airflow (+UMA), lab-batch, superset, console and the ADR-016 flow in every profile so a profile switch needs nothing special. The shared `analytics` namespace and lab-batch's Lakekeeper grants are ensured by bootstrap and re-ensured quietly by identity-sync each tick. Postgres default limit raised to 768m (Airflow + Superset DBs, ~60 connections).
+**Tags:** v3, phase3, profiles, bootstrap, identity-sync, analytics
+**Edges:** _(none)_
+**Files:** `v3/compose.yaml`, `v3/compose/spark.yaml`, `v3/compose/airflow.yaml`, `v3/bootstrap/__main__.py`, `v3/bootstrap/batch_client.py`, `v3/compose/identity.yaml`
+**LastVerified:** 2026-09-26
+**Commit:** 3b5516e
+**LastUpdated:** 2026-09-26
+
+---
+
+## NODE: DEC_V3_ENGINEER_BUDGET_ON_MEASURED_USE
+**Type:** Decision
+**Priority:** MEDIUM
+**Label:** V3: engineer 16 GB budget is measured on use (peak ≤ 8 GiB), not the sum of default limits
+**Summary:** Phase 3 Airflow adds 3.5 GiB of ceilings, so engineer + one workspace has 17.19 GiB of default limits, over the Phase 2 '16 GB machine' budget. Lead decision (CONTRACT.md Phase 2 Budgets, amended): the engineer budget is measured on peak whole-lab use (≤ 8 GiB; measured 5.5 GiB on full with two workspaces and the 5 min Spark job); CI keeps env overrides so engineer + workspace ≤ 16 GB of limits (15.44 GiB). Defaults were not lowered (triggerer peaks at 357 MiB, so the CI 384m value leaves no headroom for users). core keeps ≤ 10 GB of limits.
+**Tags:** v3, memory, budget, airflow, ci
+**Edges:** _(none)_
+**Files:** `v3/CONTRACT.md`, `v3/PHASE3_RESULTS.md`, `v3/compose/airflow.yaml`, `.github/workflows/v3-ci.yml`
+**Evidence:** docker compose config (engineer) sum of mem_limit long-running = 15.69 GiB + WORKSPACE_MEM 1.5 GiB; tests/smoke/mem-sample.sh peak 5676 MiB on v3-p1 full
+**LastVerified:** 2026-09-26
+**Commit:** 3b5516e
+**LastUpdated:** 2026-09-26
+
+---
+
+## NODE: DEC_V3_SPARK_INTERNAL_NETWORK
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3: Spark cluster on internal `spark` network; Connect driver/UI bind to it; only gRPC 15002 on `lab`
+**Summary:** The Spark UI forward-auth (spark.<domain>, engineer/lab-admin) was bypassable because spark-master:8080, spark-worker:8081 and spark-connect:4040 sat on the flat `lab` network every workspace joins. Fix: internal network `spark`; master and worker only there; spark-connect on lab+spark with driver bindAddress and SPARK_LOCAL_IP (WebUI bind host) set by start-spark.sh to its spark IP (spark-bind-ip.py: route to spark-master), so only 15002 listens on lab. caddy, keycloak, lakekeeper, seaweedfs also join `spark` (executors use internal names). App UI stays visible through the master reverse proxy at spark.<domain>/proxy/<app-id>/. spark.ui.killEnabled=false. console-health probes spark-connect:15002 instead of the master. Smoke check 15 probes the three UIs from victor's workspace kernel (must not connect) with 15002 as positive control.
+**Tags:** spark, network, forward-auth, isolation, v3, security
+**Edges:**
+- RELATES_TO → DEC_V3_FORWARD_AUTH_OAUTH2_PROXY: closes the in-lab bypass of the Spark UI group check
+- RELATES_TO → INV_V3_DOCKER_PROXY_PROJECT_SCOPE: workspaces stay on <project>_lab only
+**Files:** `v3/compose.yaml`, `v3/compose/spark.yaml`, `v3/images/spark/start-spark.sh`, `v3/images/spark/spark-bind-ip.py`, `v3/config/spark/spark-defaults.conf`, `v3/tests/smoke/phase3.py`, `v3/tests/smoke/kernel_probe.py`, `v3/config/console/health/health.py`
+**Evidence:** From a lab container: spark-master/spark-worker no-name, spark-connect:4040 refused, spark IPs time out, spark-connect:15002 connects; Spark log 'Start Jetty 172.21.0.x:4040 for SparkUI'; smoke check 15 PASS
+**LastVerified:** 2026-09-26
+**Commit:** 3b5516e
+**LastUpdated:** 2026-09-26

@@ -88,6 +88,16 @@ URL-safe (INV_DB_PASSWORDS_URL_SAFE).
 | `TRINO_INTERNAL_SECRET` | Trino shared secret |
 | `OIDC_CLIENT_SECRET_JUPYTERHUB` | confidential `jupyterhub` OIDC client (Phase 2; created and repaired by bootstrap) |
 | `JUPYTERHUB_CRYPT_KEY` | JupyterHub auth-state encryption key (Phase 2; 32 bytes as 64 hex chars) |
+| `OIDC_CLIENT_SECRET_AIRFLOW` | confidential `airflow` OIDC client (Phase 3; created, repaired and given its UMA model by bootstrap) |
+| `OIDC_CLIENT_SECRET_BATCH` | `lab-batch` batch service identity, client credentials only (Phase 3, ADR-017); only `airflow-scheduler` and bootstrap hold it |
+| `AIRFLOW_DB_PASSWORD` | Airflow metadata DB role `airflow` (Phase 3; re-synced by the `airflow-db` one-shot) |
+| `AIRFLOW_FERNET_KEY` | Airflow connection/variable encryption (Phase 3; Fernet format = URL-safe base64 of 32 bytes) |
+| `AIRFLOW_JWT_SECRET` | Airflow API/execution-API JWT signing (Phase 3) |
+| `OIDC_CLIENT_SECRET_SUPERSET` | confidential `superset` OIDC client; also Superset's Trino service identity (Phase 3) |
+| `SUPERSET_SECRET_KEY` | Superset session/metadata encryption key (Phase 3) |
+| `SUPERSET_DB_PASSWORD` | Superset metadata DB role `superset` (Phase 3; re-synced by the `superset-db` one-shot) |
+| `CONSOLE_COOKIE_SECRET` | oauth2-proxy session cookie key, exactly 32 chars (Phase 3) |
+| `OIDC_CLIENT_ID_GITHUB`, `OIDC_CLIENT_SECRET_GITHUB` | **optional**, user-supplied, never generated: GitHub OAuth App (installer `--github-client-id/--github-client-secret`, both or neither; `--no-github` removes them). Absent = GitHub login off, and bootstrap removes the IdP (ADR-016, Phase 3) |
 
 Test users (`alice` lab-admin, `eddie` engineer, `anna` analyst, `victor` viewer) are created
 **only** when `LAB_SEED_TEST_USERS=true` (CI and dev). Their password is
@@ -100,7 +110,7 @@ through a mounted `ca-bundle`.
 
 ## Stack conventions (CORE)
 
-- **One network, `lab`.** Caddy carries every public hostname as a network alias, so the
+- **One network, `lab`** (Phase 3 adds the internal `spark` network, see "Networks" below). Caddy carries every public hostname as a network alias, so the
   issuer URL is the same inside containers and in browsers (S-3 pattern).
 - **Public hostnames:** `auth.` (Keycloak), `trino.`, `catalog.` (Lakekeeper UI/API),
   `console.` (placeholder), `storage.` (SeaweedFS admin, lab-admin only via forward-auth, or
@@ -252,6 +262,14 @@ template: the realm is imported on first start only, so existing installs would 
   - `core` + one active workspace fits **≤ 10 GB** of limits;
   - `engineer` + one workspace fits a **16 GB** machine and the GitHub runner (16 GB). Use
     lower CI limits if needed, via env overrides in the workflow, not by editing defaults.
+  - **Amended in Phase 3 (proposed by the repair round; confirmed by the lead 2026-09-26):** Airflow adds 3.5 GiB of ceilings, so the sum of
+    *default limits* for `engineer` + one workspace is 17.19 GiB, above 16 GB. The 16 GB
+    budget for `engineer` is now measured on **use**, not on the sum of limits: measured peak
+    use (whole lab, one instant) must stay ≤ 8 GiB, leaving half a 16 GB machine free; the
+    Phase 3 dev-host peak on `full` with two workspaces and the 5 min Spark job was 5.5–6.25 GiB (the independent verifier's sampling measured 6.25 GiB, the higher figure counts).
+    Limits are per-container ceilings that are never all reached at once. The CI runner
+    still gets overrides that keep `engineer` + one workspace ≤ 16 GB of limits (15.44 GiB).
+    `core` keeps its ≤ 10 GB-of-limits budget unchanged.
 
 ---
 
@@ -342,3 +360,34 @@ As before: only the integrator edits `bootstrap/__main__.py`, `compose.yaml`,
 `versions.env` and this contract. New pins go in `v3/.pins/<workstream>.env`. Public
 hostnames added in Phase 3: `airflow.`, `superset.`, `spark.` (`console.` becomes real).
 Memory target: `full` ≤ 24 GB of limits with one workspace.
+
+## Conventions added at Phase 3 integration
+
+- **Profiles:** compose has no profile inheritance, so every `engineer` service lists
+  `profiles: [engineer, full]`; `full`-only services list `[full]`. The installer passes one
+  `--profile`.
+- **Restart on dependency update:** every long-running Postgres client declares
+  `postgres: {condition: service_healthy, restart: true}`. Trino and the Spark services also
+  declare it for `keycloak` and `lakekeeper`, plus `postgres` directly (`restart: true` is not
+  transitive). Their Iceberg auth sessions do not recover from a Keycloak restart. This keeps
+  an upgrade that recreates one of them from leaving dead pools or sessions behind
+  (PHASE3_RESULTS, bugs 4-5).
+- **One-shots on the postgres image** mount `tmpfs: /var/lib/postgresql/data` (no anonymous
+  volumes).
+- **Networks (Spark UI isolation, Phase 3 follow-up):** `lab` is no longer the only network.
+  The internal network **`spark`** (`internal: true`, declared in `compose.yaml`) carries the
+  Spark cluster, and workspaces never join it (they stay on `lab` only; the Docker proxy
+  allowlist names `<project>_lab`).
+  - `spark-master` and `spark-worker` are **only** on `spark`.
+  - `spark-connect` is on `lab` (gRPC 15002 for workspaces and Airflow) and `spark`. Its
+    driver RPC, block manager and application UI (4040) bind to its `spark` address alone
+    (`images/spark/start-spark.sh` + `spark-bind-ip.py`: `spark.driver.bindAddress` and
+    `SPARK_LOCAL_IP`); only 15002 listens on every interface.
+  - Also on `spark`: what the executors call (`keycloak`, `lakekeeper`, `seaweedfs`, by
+    internal names; no public hostname is used there, so no aliases), and `caddy`, whose
+    `spark.` route (forward-auth, engineer/lab-admin) is the only way to any Spark UI.
+    A service on two networks must listen on both: SeaweedFS needs `-ip.bind=0.0.0.0`
+    (`config/seaweedfs/entrypoint.sh`), because weed otherwise binds only its detected `-ip`.
+  - `spark.ui.killEnabled=false` everywhere (the Connect driver is shared).
+  - A new service joins `spark` only if Spark calls it or it must proxy the Spark UI. Smoke
+    check 15 proves from a viewer's workspace that 8080, 8081 and 4040 do not connect.

@@ -1,0 +1,4 @@
+# Added to the upstream lean image. ${VARS} come from versions.env as build args.
+authlib==${AUTHLIB_VERSION}
+psycopg2-binary==${PSYCOPG2_BINARY_VERSION}
+trino[sqlalchemy]==${TRINO_PYTHON_VERSION}

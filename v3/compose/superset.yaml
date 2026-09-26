@@ -1,0 +1,80 @@
+# Profile `full`: Superset 6 (CONTRACT Phase 3; ADR-009). Public at superset.<LAB_DOMAIN>.
+#
+# * Login: Keycloak client `superset` (bootstrap/superset_client.py creates and repairs it).
+# * Queries run in Trino AS THE LOGGED-IN USER: Superset authenticates as its service account
+#   and Trino's impersonation rules let only that principal switch to the Superset user
+#   (config/superset/lab_trino.py, config/trino/rules.json).
+# * Metadata: database `superset` in the shared Postgres, created by the `superset-db` one-shot
+#   (existing labs never re-run config/postgres/init-dbs.sh).
+# * The image bakes config/superset (config, start script, bundled dashboard), so no config
+#   is bind-mounted into the long-running service and an upgrade (`up --build`) cannot leave
+#   stale config behind.
+
+services:
+  superset-db:
+    image: postgres:${POSTGRES_VERSION}
+    profiles: [full]
+    entrypoint: ["/opt/lab/superset/init-db.sh"]
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      SUPERSET_DB_PASSWORD: ${SUPERSET_DB_PASSWORD:?run install.sh (missing SUPERSET_DB_PASSWORD in .secrets.env)}
+    volumes:
+      # A directory mount (not a single file), so an upgraded script is seen on the next run.
+      - ./config/superset:/opt/lab/superset:ro
+    # The postgres image declares VOLUME /var/lib/postgresql/data; without a mount there, every
+    # run of this client-only container would leave an anonymous volume behind.
+    tmpfs:
+      - /var/lib/postgresql/data
+    networks: [lab]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+    mem_limit: ${SUPERSET_DB_INIT_MEM:-64m}
+    cpus: ${SUPERSET_DB_INIT_CPUS:-0.25}
+
+  superset:
+    build:
+      context: ./images/superset
+      additional_contexts:
+        config: ./config/superset
+      args:
+        SUPERSET_VERSION: ${SUPERSET_VERSION}
+        SUPERSET_IMAGE_DIGEST: ${SUPERSET_IMAGE_DIGEST:?}
+        AUTHLIB_VERSION: ${AUTHLIB_VERSION}
+        PSYCOPG2_BINARY_VERSION: ${PSYCOPG2_BINARY_VERSION}
+        TRINO_PYTHON_VERSION: ${TRINO_PYTHON_VERSION}
+    image: lakehouse-lab/v3-superset:${SUPERSET_VERSION}
+    profiles: [full]
+    environment:
+      LAB_AUTH_URL: ${LAB_AUTH_URL:?LAB_AUTH_URL is derived from LAB_DOMAIN/LAB_HTTPS_PORT by installer/lib.sh; start the lab with ./lab or ./install.sh}
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY:?run install.sh (missing SUPERSET_SECRET_KEY in .secrets.env)}
+      SUPERSET_DB_PASSWORD: ${SUPERSET_DB_PASSWORD:?}
+      OIDC_CLIENT_SECRET_SUPERSET: ${OIDC_CLIENT_SECRET_SUPERSET:?run install.sh (missing OIDC_CLIENT_SECRET_SUPERSET in .secrets.env)}
+      # Python requests/authlib (Keycloak discovery, Trino client) trust the lab CA this way.
+      REQUESTS_CA_BUNDLE: /trust/ca-bundle.crt
+      SSL_CERT_FILE: /trust/ca-bundle.crt
+      SERVER_WORKER_AMOUNT: ${SUPERSET_WORKERS:-2}
+      SERVER_THREADS_AMOUNT: ${SUPERSET_THREADS:-8}
+      GUNICORN_TIMEOUT: ${SUPERSET_TIMEOUT:-120}
+      TZ: ${LAB_TZ:-UTC}
+    volumes:
+      - trust:/trust:ro
+    networks: [lab]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:8088/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      # start.sh migrates, runs `superset init` and imports the bundle before serving.
+      start_period: 90s
+    depends_on:
+      superset-db: {condition: service_completed_successfully}
+      keycloak: {condition: service_healthy}
+      caddy: {condition: service_healthy}
+      bootstrap: {condition: service_completed_successfully}   # creates the `superset` client
+      trino: {condition: service_healthy}   # lab_init registers the connection's catalogs/schemas
+      postgres: {condition: service_healthy, restart: true}   # see compose/identity.yaml keycloak
+    restart: unless-stopped
+    # Measured: ~380 MiB idle with 2 workers after SQL Lab and the bundled dashboard.
+    mem_limit: ${SUPERSET_MEM:-1g}
+    cpus: ${SUPERSET_CPUS:-2}

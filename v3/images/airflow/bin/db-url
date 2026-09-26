@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Prints Airflow's metadata DB URL. Airflow reads it through
+# AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_CMD, so every Airflow process (including healthchecks and
+# `docker compose exec`) gets it, and no credential sits in a compose string. No trailing
+# newline: Airflow uses the output verbatim. The password is
+# hex from .secrets.env, URL-safe (INV_DB_PASSWORDS_URL_SAFE).
+set -euo pipefail
+printf 'postgresql+psycopg2://airflow:%s@postgres:5432/airflow' "${AIRFLOW_DB_PASSWORD:?}"

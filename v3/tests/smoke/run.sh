@@ -17,13 +17,33 @@
 #   9. victor's workspace is denied a Trino write
 #  10. profile engineer only (a [SKIP] line on core): Spark Connect, from alice's workspace,
 #      creates and reads an Iceberg table
-# Checks 2-5 and 7-10 run in the `smoke` container (profile test) on the lab network:
+#  12. engineer/full: Airflow roles (alice Admin, victor read-only, eddie edits) and the four
+#      lab_* DAGs succeed when alice triggers them
+#  13. engineer/full with --long (LAB_SMOKE_LONG=1): ADR-017, lab_spark_batch runs >= 300 s
+#      with lab-batch tokens cut to 120 s and commits after the first one expired
+#  14. full: Superset login, SQL Lab runs in Trino as alice, "Revenue by region" chart data
+#      has rows, victor cannot write
+#  15. Console tiles differ for alice and victor; Spark UI 200 for alice, 403 for victor
+#  16. external IdP (mock realm as alias github-mock): first login has no group and is
+#      refused; access follows an admin's group change; no linking by e-mail
+# Checks 2-5, 7-10 and 12-16 run in the `smoke` container (profile test) on the lab network:
 # smoke.py, with workspace.py driving the workspace and kernel_probe.py running inside it.
 #
-# Usage: tests/smoke/run.sh [--no-build]
+# Usage: tests/smoke/run.sh [--no-build] [--long]
 # Env:   LAB_SMOKE_OUT  where screenshots/results.json go (default: tests/smoke/out)
 #        LAB_SMOKE_ONLY debugging only: comma list of in-container checks to run (e.g. 8,9)
+#        LAB_SMOKE_LONG=1 same as --long (nightly CI)
 set -uo pipefail
+
+build=(--build)
+LAB_SMOKE_LONG=${LAB_SMOKE_LONG:-}
+for a in "$@"; do
+  case "$a" in
+    --no-build) build=() ;;
+    --long) LAB_SMOKE_LONG=1 ;;
+    *) echo "usage: tests/smoke/run.sh [--no-build] [--long]" >&2; exit 2 ;;
+  esac
+done
 
 V3=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 ENV_FILE="$V3/.env"
@@ -93,15 +113,13 @@ else
 fi
 
 # ---------------------------------------------------------------- 2-5. in the smoke container
-echo "== 2-5, 7-10. browser login, Trino, PyIceberg, viewer denial, group sync, workspaces (smoke container on the lab network)"
+echo "== 2-5, 7-10, 12-16. browser login, Trino, PyIceberg, viewer denial, group sync, workspaces, Phase 3 apps and IdP (smoke container on the lab network)"
 out=${LAB_SMOKE_OUT:-$V3/tests/smoke/out}
 mkdir -p "$out"
 rm -f "$out/summary.env" "$out/results.json"
-build=(--build)
-[ "${1:-}" = "--no-build" ] && build=()
-if LAB_SMOKE_OUT="$out" "${DC[@]}" --profile test run --rm "${build[@]}" \
+if LAB_SMOKE_OUT="$out" "${DC[@]}" --profile test run --rm ${build[@]+"${build[@]}"} \
      --user "$(id -u):$(id -g)" -e HOME=/tmp/smoke-home -e LAB_PROFILE="$PROFILE" \
-     -e LAB_SMOKE_ONLY="${LAB_SMOKE_ONLY:-}" smoke; then
+     -e LAB_SMOKE_ONLY="${LAB_SMOKE_ONLY:-}" -e LAB_SMOKE_LONG="$LAB_SMOKE_LONG" smoke; then
   :
 else
   FAILED+=("in-container checks (see [FAIL] lines above, $out/results.json)")

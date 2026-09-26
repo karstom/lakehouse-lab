@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Entrypoint of every Airflow container: derive the settings that depend on the public origin,
+# then hand over to the upstream entrypoint (which waits for the database and runs `airflow`).
+#
+# LAB_AUTH_URL is the single derived public origin (installer/lib.sh,
+# INV_V3_PUBLIC_ORIGIN_SINGLE_SOURCE): https://auth.<LAB_DOMAIN>[:<port>], the port omitted on
+# 443. Airflow's own URL and the Trino URL the DAGs use are built from it here, never stored.
+set -euo pipefail
+
+: "${LAB_AUTH_URL:?LAB_AUTH_URL is derived by installer/lib.sh; start the lab with ./lab or ./install.sh}"
+: "${LAB_DOMAIN:?}"
+auth=${LAB_AUTH_URL%/}
+prefix="https://auth.${LAB_DOMAIN}"
+case "$auth" in
+  "$prefix" | "$prefix":*) ;;
+  *) echo "lab-airflow: LAB_AUTH_URL '$auth' does not match LAB_DOMAIN '$LAB_DOMAIN'" >&2; exit 1 ;;
+esac
+port_suffix=${auth#"$prefix"}                      # "" on 443, ":<port>" otherwise
+
+export AIRFLOW__API__BASE_URL="https://airflow.${LAB_DOMAIN}${port_suffix}/"
+export AIRFLOW__KEYCLOAK_AUTH_MANAGER__SERVER_URL="$auth"
+# For the DAGs (dbt-trino, the Trino client): Trino through Caddy, verified with the lab CA.
+export LAB_TRINO_HOST="trino.${LAB_DOMAIN}"
+port=${port_suffix#:}
+export LAB_TRINO_PORT="${port:-443}"
+
+exec /entrypoint "$@"

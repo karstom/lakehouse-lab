@@ -1,4 +1,4 @@
-"""Smoke checks 8-10, the part that runs INSIDE a user's workspace (in a Jupyter kernel).
+"""Smoke checks 8-10 (and 15's network probe), the part that runs INSIDE a user's workspace (in a Jupyter kernel).
 
 smoke.py sends this file's source to a kernel in the user's own JupyterLab server (Jupyter
 REST API + kernel websocket, with the user's browser session), followed by one call:
@@ -329,6 +329,63 @@ def step_spark_write_denied(params, ns):
             "session": how, "token_source": src}
 
 
+# ---------------------------------------------------------------- internal Spark UIs (check 15)
+UNREACHABLE = ("no-name", "refused", "timeout", "unreachable")
+
+
+def reach(url, timeout=5.0):
+    """How far a plain TCP/HTTP attempt at `url` gets from here: "no-name" (DNS has no such
+    host on this container's networks), "refused", "timeout", "unreachable" (no route), or
+    "http <status>" / "connected" if something answered. Never follows redirects."""
+    import http.client
+    import socket
+    import urllib.parse
+    u = urllib.parse.urlsplit(url if "//" in url else f"tcp://{url}")
+    host, port = u.hostname, u.port or 80
+    try:
+        addr = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)[0][4]
+    except socket.gaierror:
+        return "no-name", None
+    try:
+        sock = socket.create_connection(addr, timeout=timeout)
+    except ConnectionRefusedError:
+        return "refused", addr[0]
+    except (TimeoutError, socket.timeout):
+        return "timeout", addr[0]
+    except OSError as e:  # EHOSTUNREACH / ENETUNREACH
+        return ("unreachable" if e.errno in (101, 113) else f"oserror {e.errno}"), addr[0]
+    if u.scheme != "http":
+        sock.close()
+        return "connected", addr[0]
+    conn = http.client.HTTPConnection(host, port, timeout=timeout)
+    conn.sock = sock
+    try:
+        conn.request("GET", u.path or "/")
+        return f"http {conn.getresponse().status}", addr[0]
+    except (OSError, http.client.HTTPException) as e:
+        return f"connected ({type(e).__name__})", addr[0]
+    finally:
+        conn.close()
+
+
+def step_internal_ports(params, ns):
+    """The Spark UIs are not reachable from a workspace on `lab` (CONTRACT Phase 3, Networks):
+    every params["unreachable"] URL must fail to connect (no name, refused, timeout, no route),
+    never answer HTTP. params["reachable"] are controls that MUST connect (Spark Connect's
+    gRPC port), so a workspace without any network cannot pass vacuously."""
+    out = {"unreachable": {}, "reachable": {}}
+    for url in params.get("unreachable", []):
+        outcome, ip = reach(url, params.get("reach_timeout", 5.0))
+        out["unreachable"][url] = {"outcome": outcome, "ip": ip}
+    for url in params.get("reachable", []):
+        outcome, ip = reach(url, params.get("reach_timeout", 5.0))
+        out["reachable"][url] = {"outcome": outcome, "ip": ip}
+    out["ok"] = (bool(out["unreachable"])
+                 and all(v["outcome"] in UNREACHABLE for v in out["unreachable"].values())
+                 and all(v["outcome"] == "connected" for v in out["reachable"].values()))
+    return out
+
+
 STEPS = {
     "trino_samples": step_trino_samples,
     "trino_write_denied": step_trino_write_denied,
@@ -336,6 +393,7 @@ STEPS = {
     "dbt_build": step_dbt_build,
     "spark_iceberg": step_spark_iceberg,
     "spark_write_denied": step_spark_write_denied,
+    "internal_ports": step_internal_ports,
 }
 
 

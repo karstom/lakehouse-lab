@@ -71,6 +71,59 @@ class Matrix(unittest.TestCase):
         self.assertTrue(lines[0].startswith("matrix={"))
         self.assertEqual(lines[1], "count=1")
 
+    def _superset(self) -> Path:
+        d = self.v3 / "images" / "superset"
+        d.mkdir(parents=True)
+        (d / "Dockerfile").write_text(
+            "FROM apache/superset:6 AS base\n"
+            "COPY --from=base /app /app\n"
+            "COPY --from=ghcr.io/x/y:1 /bin/z /bin/z\n"
+            "COPY --from=config superset_config.py /app/pythonpath/\n")
+        return d
+
+    def test_copy_from_unknown_context_is_error(self):
+        self._superset()
+        rc, _, err = self.run_main()
+        self.assertEqual(rc, 1)
+        self.assertIn("COPY --from=config", err)
+        self.assertNotIn("--from=base", err)
+
+    def test_copy_from_missing_when_service_not_in_profile(self):
+        # compose JSON from a profile without superset (the v3-images.yml bug): no context.
+        self._superset()
+        cj = self.repo / "c.json"
+        cj.write_text(json.dumps({"services": {"bootstrap": {"build": {
+            "context": str(self.v3), "dockerfile": "images/bootstrap/Dockerfile"}}}}))
+        rc, _, err = self.run_main("--compose-json", str(cj))
+        self.assertEqual(rc, 1)
+        self.assertIn("superset", err)
+
+    def test_copy_from_resolved_by_compose_context(self):
+        d = self._superset()
+        (self.v3 / "config" / "superset").mkdir(parents=True)
+        cj = self.repo / "c.json"
+        cj.write_text(json.dumps({"services": {"superset": {"build": {
+            "context": str(d), "additional_contexts": {"config": "../../config/superset"}}}}}))
+        rc, out, err = self.run_main("--compose-json", str(cj))
+        self.assertEqual(rc, 0, err)
+        e = {x["name"]: x for x in json.loads(out)["include"]}["superset"]
+        self.assertEqual(e["build_contexts"], "config=v3/config/superset")
+
+    def test_real_tree_full_profile_json(self):
+        """Every real Dockerfile resolves its COPY --from with contexts from profile full."""
+        real_v3 = Path(__file__).resolve().parents[2]
+        data = {"services": {
+            "superset": {"build": {"context": str(real_v3 / "images" / "superset"),
+                                   "additional_contexts": {"config": "../../config/superset"}}},
+            "workspace-image": {"build": {"context": str(real_v3 / "images" / "workspace"),
+                                          "additional_contexts": {"starter": "../../starter"}}}}}
+        cj = self.repo / "full.json"
+        cj.write_text(json.dumps(data))
+        extra = im.compose_extra_contexts(cj)
+        for df in sorted((real_v3 / "images").glob("*/Dockerfile")):
+            self.assertEqual(im.unresolved_copy_from(df, set(extra.get(df.resolve(), {}))), [],
+                             df)
+
 
 if __name__ == "__main__":
     unittest.main()

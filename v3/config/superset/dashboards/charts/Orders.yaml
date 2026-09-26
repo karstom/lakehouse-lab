@@ -1,0 +1,24 @@
+slice_name: Orders
+description: null
+certified_by: null
+certification_details: null
+viz_type: big_number_total
+params:
+  metric:
+    expressionType: SQL
+    sqlExpression: COUNT(*)
+    label: Orders
+  y_axis_format: SMART_NUMBER
+  adhoc_filters: []
+  viz_type: big_number_total
+  datasource: 0__table
+query_context: '{"datasource": {"id": 0, "type": "table"}, "force": false, "form_data": {"adhoc_filters": [], "datasource":
+  "0__table", "metric": {"expressionType": "SQL", "label": "Orders", "sqlExpression": "COUNT(*)"}, "viz_type": "big_number_total",
+  "y_axis_format": "SMART_NUMBER"}, "queries": [{"annotation_layers": [], "applied_time_extras": {}, "columns": [], "custom_form_data":
+  {}, "custom_params": {}, "extras": {"having": "", "where": ""}, "filters": [], "metrics": [{"expressionType": "SQL", "label":
+  "Orders", "sqlExpression": "COUNT(*)"}], "order_desc": true, "orderby": [], "row_limit": 1000, "series_limit": 0, "url_params":
+  {}}], "result_format": "json", "result_type": "full"}'
+cache_timeout: null
+uuid: 0aa6ec76-3328-4c0f-ada2-5b6bb78d1ed9
+version: 1.0.0
+dataset_uuid: 514ce18d-ba75-4453-b97a-a838a8248c79

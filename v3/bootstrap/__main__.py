@@ -8,7 +8,8 @@ import os
 import sys
 import time
 
-from . import jupyterhub_client, keycloak, lakekeeper, seaweedfs, trino_groups, web
+from . import (airflow_client, batch_client, github_idp, jupyterhub_client, keycloak, lakekeeper,
+               seaweedfs, superset_client, trino_groups, web)
 
 
 def env(name, default=None, required=True):
@@ -37,14 +38,19 @@ def sync_once(quiet):
     Uses only the read-only lab-sync account and the Lakekeeper operator client (OQ-20)."""
     kc = keycloak.Admin.with_client(keycloak.SYNC_CLIENT, env("OIDC_CLIENT_SECRET_SYNC"))
     members = sync_trino_groups(kc, kc.group_ids(), quiet)
-    if env("LAB_CATALOG_AUTHZ", "openfga", required=False) == "openfga":
+    authz = env("LAB_CATALOG_AUTHZ", "openfga", required=False)
+    lk = lakekeeper.Client(keycloak.client_credentials_token(
+        "lakekeeper", env("OIDC_CLIENT_SECRET_LAKEKEEPER")))
+    wh = lk.find_warehouse()
+    if wh is None:
+        raise RuntimeError("warehouse not found; has bootstrap completed?")
+    if authz == "openfga":
         from . import lakekeeper_authz
-        lk = lakekeeper.Client(keycloak.client_credentials_token(
-            "lakekeeper", env("OIDC_CLIENT_SECRET_LAKEKEEPER")))
-        wh = lk.find_warehouse()
-        if wh is None:
-            raise RuntimeError("warehouse not found; has bootstrap completed?")
         lakekeeper_authz.sync(lk, kc, wh, members, quiet=quiet)
+    # Phase 3: the shared `analytics` namespace and lab-batch's grants on it (CONTRACT Phase 3,
+    # ADR-017). Re-ensured on every tick, so a dropped namespace is back, with its grants,
+    # within one interval instead of at the next install.
+    batch_client.ensure_lakekeeper(lk, kc, wh, authz, quiet=quiet)
 
 
 HEARTBEAT = "/tmp/identity-sync.ok"
@@ -97,6 +103,23 @@ def main():
     # Phase 2: JupyterHub's confidential client (never only in the realm template).
     changed |= jupyterhub_client.ensure_jupyterhub_client(
         kc, env("OIDC_CLIENT_SECRET_JUPYTERHUB"), env("LAB_DOMAIN"), env("LAB_HTTPS_PORT"))
+    # Phase 3. Every client is ensured in every profile (harmless while its service is not
+    # running), so a profile switch never needs a special bootstrap run.
+    #  * airflow + its UMA model (OQ-16); password grant only for seeded tests, like trino.
+    changed |= airflow_client.ensure_airflow_client(
+        kc, env("OIDC_CLIENT_SECRET_AIRFLOW"), env("LAB_DOMAIN"), env("LAB_HTTPS_PORT"), gids,
+        direct_grants=seed)
+    #  * lab-batch, the batch service identity (client credentials only, ADR-017).
+    changed |= batch_client.ensure_batch_client(kc, env("OIDC_CLIENT_SECRET_BATCH"))
+    #  * superset (FAB OAuth) and console (oauth2-proxy forward-auth).
+    changed |= superset_client.ensure_superset_client(
+        kc, env("OIDC_CLIENT_SECRET_SUPERSET"), env("LAB_DOMAIN"), env("LAB_HTTPS_PORT"))
+    changed |= superset_client.ensure_console_client(
+        kc, env("OIDC_CLIENT_SECRET_CONSOLE"), env("LAB_DOMAIN"), env("LAB_HTTPS_PORT"))
+    #  * ADR-016: the first-broker-login flow always; the github IdP only when configured.
+    changed |= github_idp.ensure_github_idp(
+        kc, env("OIDC_CLIENT_ID_GITHUB", required=False),
+        env("OIDC_CLIENT_SECRET_GITHUB", required=False))
     print(f"[keycloak] users: {'updated' if changed else 'unchanged'} "
           f"(test users {'on' if seed else 'off'})")
 
@@ -125,6 +148,9 @@ def main():
         from . import lakekeeper_authz
         step("lakekeeper: permissions from Keycloak groups (OpenFGA, OQ-5)")
         lakekeeper_authz.sync(lk, kc, wh, members)
+
+    step("lakekeeper: namespace analytics + lab-batch grants (ADR-017)")
+    batch_client.ensure_lakekeeper(lk, kc, wh, authz)
 
     print(f"[bootstrap] done in {time.time() - t0:.1f}s", flush=True)
 

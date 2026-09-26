@@ -56,6 +56,9 @@ services:
       retries: 40
     depends_on:
       openfga-migrate: {condition: service_completed_successfully}
+      # Restarted by compose whenever postgres is recreated (e.g. an upgrade changes its image or
+      # limit), so no DB client keeps a dead connection pool and `up --wait` waits for it again.
+      postgres: {condition: service_healthy, restart: true}
     restart: unless-stopped
     mem_limit: ${OPENFGA_MEM:-256m}
     cpus: ${OPENFGA_CPUS:-1}
@@ -81,7 +84,9 @@ services:
     environment: *lakekeeper-env
     volumes:
       - trust:/trust:ro
-    networks: [lab]
+    # `spark`: Spark executors on the worker call the catalog and the S3 signer here
+    # (CONTRACT Phase 3, Networks).
+    networks: [lab, spark]
     healthcheck:
       test: ["CMD", "/home/nonroot/lakekeeper", "healthcheck", "-s"]
       interval: 5s
@@ -91,6 +96,9 @@ services:
       lakekeeper-migrate: {condition: service_completed_successfully}
       keycloak: {condition: service_healthy}
       caddy: {condition: service_healthy}
+      # Restarted by compose whenever postgres is recreated (e.g. an upgrade changes its image or
+      # limit), so no DB client keeps a dead connection pool and `up --wait` waits for it again.
+      postgres: {condition: service_healthy, restart: true}
     restart: unless-stopped
     mem_limit: ${LAKEKEEPER_MEM:-512m}
     cpus: ${LAKEKEEPER_CPUS:-1}

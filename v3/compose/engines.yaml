@@ -35,6 +35,15 @@ services:
     depends_on:
       bootstrap: {condition: service_completed_successfully}
       caddy: {condition: service_healthy}
+      # Trino's Iceberg REST catalog session (client `trino`, refreshed against Keycloak) does
+      # not recover when Keycloak or Lakekeeper restarts under it: every catalog call then
+      # fails with ICEBERG_CATALOG_ERROR. So compose restarts Trino whenever it updates one of
+      # them. `restart: true` is not transitive: when an upgrade recreates postgres, compose
+      # restarts postgres's direct dependents (keycloak, lakekeeper, ...) but not Trino, hence
+      # the direct postgres entry although Trino never talks to Postgres.
+      keycloak: {condition: service_healthy, restart: true}
+      lakekeeper: {condition: service_healthy, restart: true}
+      postgres: {condition: service_healthy, restart: true}
     restart: unless-stopped
     mem_limit: ${TRINO_MEM:-3g}
     cpus: ${TRINO_CPUS:-2}

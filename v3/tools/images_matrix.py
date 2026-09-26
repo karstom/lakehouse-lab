@@ -4,10 +4,10 @@
 Used by .github/workflows/v3-images.yml, and runnable locally to see exactly what CI
 would build:
 
-  v3/tools/images_matrix.py                      # JSON matrix on stdout
-  v3/tools/images_matrix.py --github-output      # also write matrix=/count= to $GITHUB_OUTPUT
-  v3/tools/images_matrix.py --compose-json c.json  # take build contexts from
-                                                 # 'docker compose config --format json'
+  v3/tools/compose-check.sh --profile full --json-out c.json
+  v3/tools/images_matrix.py --compose-json c.json  # JSON matrix on stdout, build contexts
+                                                 # from 'docker compose config --format json'
+  v3/tools/images_matrix.py ... --github-output  # also write matrix=/count= to $GITHUB_OUTPUT
 
 Each entry: name, dockerfile and context (repo-relative), image
 (<registry>/lakehouse-<name>), and build_args (newline-separated KEY=VALUE for every ARG
@@ -15,7 +15,9 @@ the Dockerfile declares that versions.env or v3/.pins/*.env defines), and build_
 (newline-separated NAME=PATH, repo-relative) from the compose service's
 `build.additional_contexts`, for `COPY --from=<name>` (e.g. the workspace's starter). A declared
 *_VERSION / *_TAG / *_DIGEST ARG that versions.env does not define is an error, so an
-image can never silently build with an empty pin.
+image can never silently build with an empty pin. Likewise a `COPY --from=<name>` that
+names neither a stage nor a build context is an error (the compose JSON must come from a
+profile that includes every built service: `full`).
 """
 
 from __future__ import annotations
@@ -33,6 +35,8 @@ from versionsenv import V3_DIR, VERSIONS_FILE, load_versions  # noqa: E402
 REPO_DIR = V3_DIR.parent
 ARG_RE = re.compile(r"^\s*ARG\s+([A-Za-z_][A-Za-z0-9_]*)(=.*)?\s*$", re.I)
 PIN_NAME = re.compile(r"(?:VERSION|_TAG|_DIGEST)$")
+FROM_AS_RE = re.compile(r"^\s*FROM\s+.*\s+AS\s+([A-Za-z0-9_.-]+)\s*$", re.I)
+COPY_FROM_RE = re.compile(r"^\s*(?:COPY|ADD)\b.*?--from=(\S+)", re.I)
 
 
 def dockerfile_args(path: Path) -> list[tuple[str, bool]]:
@@ -43,6 +47,32 @@ def dockerfile_args(path: Path) -> list[tuple[str, bool]]:
         if m and m.group(1) not in seen:
             seen[m.group(1)] = m.group(2) is not None
     return list(seen.items())
+
+
+def unresolved_copy_from(path: Path, contexts: set[str]) -> list[str]:
+    """Names in 'COPY --from=<name>' that are neither a build stage, a named build context
+    nor an image reference (contains ':', '/' or '@'), nor a stage index.
+
+    buildx would try to pull such a name as an image and fail, e.g. superset's
+    'COPY --from=config' when the compose JSON came from a profile without superset.
+    """
+    stages: set[str] = set()
+    bad: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        m = FROM_AS_RE.match(line)
+        if m:
+            stages.add(m.group(1).lower())
+            continue
+        m = COPY_FROM_RE.match(line)
+        if not m:
+            continue
+        name = m.group(1)
+        if (name.lower() in stages or name in contexts or name.isdigit()
+                or any(c in name for c in ":/@$")):
+            continue
+        if name not in bad:
+            bad.append(name)
+    return bad
 
 
 def compose_contexts(compose_json: Path) -> dict[Path, Path]:
@@ -96,6 +126,13 @@ def build_matrix(v3_dir: Path, versions: dict[str, str], registry: str,
                 missing.append(arg)
         if missing:
             errors.append(f"{df.relative_to(repo)}: ARG {', '.join(missing)} not defined in versions.env")
+        extra = (extra_contexts or {}).get(df.resolve(), {})
+        unresolved = unresolved_copy_from(df, set(extra))
+        if unresolved:
+            errors.append(
+                f"{df.relative_to(repo)}: COPY --from={', '.join(unresolved)} is neither a stage "
+                "nor a build context (pass --compose-json from a profile that includes the "
+                "service, e.g. compose-check.sh --profile full --json-out)")
         entries.append({
             "name": name,
             "dockerfile": df.resolve().relative_to(repo).as_posix(),
@@ -104,7 +141,7 @@ def build_matrix(v3_dir: Path, versions: dict[str, str], registry: str,
             "build_args": "\n".join(args),
             "build_contexts": "\n".join(
                 f"{k}={os.path.relpath(v, repo).replace(os.sep, '/')}"
-                for k, v in sorted((extra_contexts or {}).get(df.resolve(), {}).items())),
+                for k, v in sorted(extra.items())),
         })
     return entries, errors
 

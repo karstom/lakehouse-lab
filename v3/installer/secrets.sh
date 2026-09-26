@@ -2,8 +2,9 @@
 # .secrets.env generation (CONTRACT.md runtime contract).
 # - CSPRNG only: openssl rand, or /dev/urandom. Never $RANDOM (ISSUE_WEAK_CREDENTIAL_RNG).
 # - Every generated value is URL-safe ([A-Za-z0-9] or hex), so it can sit in a JDBC/DSN
-#   URL unescaped (INV_DB_PASSWORDS_URL_SAFE). The STS signing key is base64 by format
-#   and is never used in a URL.
+#   URL unescaped (INV_DB_PASSWORDS_URL_SAFE). The STS signing key (base64) and Airflow's
+#   Fernet key (URL-safe base64) are base64 by format and are never used in a URL.
+# - CONSOLE_COOKIE_SECRET must be exactly 32 characters (oauth2-proxy uses it as an AES key).
 # - Existing values are never changed: re-running only fills in missing keys, because
 #   databases and Keycloak keep the password they were first initialised with.
 
@@ -60,6 +61,15 @@ OIDC_CLIENT_SECRET_JUPYTERHUB alnum32
 JUPYTERHUB_CRYPT_KEY hex32
 TRINO_INTERNAL_SECRET hex32
 LAB_TEST_USER_PASSWORD alnum16
+OIDC_CLIENT_SECRET_AIRFLOW alnum32
+OIDC_CLIENT_SECRET_BATCH alnum32
+AIRFLOW_DB_PASSWORD hex24
+AIRFLOW_FERNET_KEY fernet
+AIRFLOW_JWT_SECRET hex32
+OIDC_CLIENT_SECRET_SUPERSET alnum32
+SUPERSET_SECRET_KEY alnum40
+SUPERSET_DB_PASSWORD hex24
+CONSOLE_COOKIE_SECRET alnum32
 EOF
 }
 
@@ -73,6 +83,8 @@ gen_value() {
     alnum32)   rand_alnum 32 ;;
     alnum40)   rand_alnum 40 ;;
     b64_32)    rand_b64 32 ;;
+    # Airflow's Fernet key: 32 random bytes as URL-safe base64 (the Fernet key format).
+    fernet)    rand_b64 32 | tr '+/' '-_' ;;
     accesskey) printf 'LAB%s\n' "$(rand_alnum 17 | tr '[:lower:]' '[:upper:]')" ;;
     # Usernames, not secrets. Overridable with --admin-user (LAB_ADMIN_USER).
     kcadmin)   printf '%s\n' "kcadmin" ;;
@@ -114,4 +126,48 @@ ensure_secrets() {
   else
     ok "Kept existing secrets in $file"
   fi
+}
+
+# ---------------------------------------------------------------- GitHub login (ADR-016)
+# Optional and user-supplied, so NOT in secret_spec: absent means "GitHub login off", and
+# bootstrap then removes the Keycloak identity provider. Both keys or neither.
+GITHUB_ID_KEY=OIDC_CLIENT_ID_GITHUB
+GITHUB_SECRET_KEY=OIDC_CLIENT_SECRET_GITHUB
+
+valid_github_client_id() { [[ "$1" =~ ^[A-Za-z0-9._-]{8,64}$ ]]; }
+valid_github_client_secret() { [[ "$1" =~ ^[A-Za-z0-9_-]{20,128}$ ]]; }
+
+# apply_github_login FILE ID SECRET NO_GITHUB -> write/remove the two keys. A flag given alone
+# changes only its key (e.g. a rotated secret); the result must be both or neither.
+apply_github_login() {
+  local file=$1 id=$2 secret=$3 off=$4 have_id have_secret
+  if [ "$off" = 1 ]; then
+    if env_has "$file" "$GITHUB_ID_KEY" || env_has "$file" "$GITHUB_SECRET_KEY"; then
+      env_unset "$file" "$GITHUB_ID_KEY"
+      env_unset "$file" "$GITHUB_SECRET_KEY"
+      ok "GitHub login turned off (bootstrap removes the identity provider; GitHub users are kept)"
+    fi
+    return 0
+  fi
+  have_id=0 have_secret=0
+  { [ -n "$id" ] || env_has "$file" "$GITHUB_ID_KEY"; } && have_id=1
+  { [ -n "$secret" ] || env_has "$file" "$GITHUB_SECRET_KEY"; } && have_secret=1
+  if [ "$have_id" != "$have_secret" ]; then
+    die "GitHub login needs both --github-client-id and --github-client-secret (or --no-github to turn it off)."
+  fi
+  [ -z "$id" ] || env_set "$file" "$GITHUB_ID_KEY" "$id"
+  [ -z "$secret" ] || env_set "$file" "$GITHUB_SECRET_KEY" "$secret"
+  if [ -n "$id$secret" ]; then
+    ok "GitHub login configured (client ID ${id:-unchanged}; secret kept in $file)"
+  fi
+  chmod 600 "$file"
+}
+
+# print_github_login FILE -> where to register the GitHub OAuth App's callback, when on.
+print_github_login() {
+  env_has "$1" "$GITHUB_ID_KEY" || return 0
+  info "GitHub login: on. In the GitHub OAuth App, set the Authorization callback URL to"
+  info "  $(service_url auth)/realms/lakehouse/broker/github/endpoint"
+  info "  A first GitHub login gets no group; add the user to a group in Keycloak"
+  info "  ($(service_url auth)/admin/master/console/#/lakehouse/users). Access follows within ~30 s."
 }

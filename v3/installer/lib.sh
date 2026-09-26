@@ -15,12 +15,22 @@ LAB_VERSIONS_FILE="${V3_DIR}/versions.env"
 LAB_COMPOSE_FILE="${V3_DIR}/compose.yaml"
 
 # Profiles from docs/v3/ARCHITECTURE.md section 8. Only these are selectable today.
-# `engineer` (Phase 2) = everything in core plus Spark master, worker and Spark Connect.
+# `engineer` = core + Spark master, worker and Spark Connect (Phase 2) + Airflow and the
+# Spark UI (Phase 3). `full` = engineer + Superset (Phase 3).
 LAB_KNOWN_PROFILES="core engineer full server"
-LAB_AVAILABLE_PROFILES="core engineer"
+LAB_AVAILABLE_PROFILES="core engineer full"
 
-# Public subdomains Caddy serves (CONTRACT.md, stack conventions; jupyter. since Phase 2).
+# Public subdomains Caddy serves (CONTRACT.md, stack conventions; jupyter. since Phase 2;
+# airflow. and spark. with engineer/full, superset. with full since Phase 3).
 LAB_PUBLIC_SERVICES="console auth trino catalog jupyter"
+
+# profile_includes PROFILE FEATURE -> 0 if PROFILE runs FEATURE (spark, airflow, superset).
+profile_includes() {
+  case "$2:$1" in
+    spark:engineer|spark:full|airflow:engineer|airflow:full|superset:full) return 0 ;;
+  esac
+  return 1
+}
 
 # Per-user workspace objects (CONTRACT.md Phase 2, "Docker access"). JupyterHub's
 # DockerSpawner creates one container and one home volume per user, outside compose, and
@@ -95,6 +105,23 @@ env_set() {
   fi
 }
 
+# env_unset FILE KEY -> remove every assignment of KEY (mode kept). No-op if absent.
+env_unset() {
+  local file=$1 key=$2 tmp
+  [ -f "$file" ] || return 0
+  env_has "$file" "$key" || grep -q "^${key}=" "$file" || return 0
+  tmp="${file}.tmp.$$"
+  (umask 077; : >"$tmp")
+  K="$key" awk '
+    BEGIN { k = ENVIRON["K"] }
+    { i = index($0, "=") }
+    i > 0 && $0 !~ /^[[:space:]]*#/ && substr($0, 1, i - 1) == k { next }
+    { print }
+  ' "$file" >"$tmp"
+  chmod --reference="$file" "$tmp" 2>/dev/null || true
+  mv -f "$tmp" "$file"
+}
+
 # load_env FILE -> export every KEY=value from FILE into the environment
 # without evaluating it as shell (values may contain any characters but newline).
 load_env() {
@@ -159,8 +186,13 @@ lab_config_hashes() {
   LAB_CONFIG_HASH_SEAWEEDFS=$(config_hash config/seaweedfs)
   LAB_CONFIG_HASH_JUPYTERHUB=$(config_hash config/jupyterhub)
   LAB_CONFIG_HASH_SPARK=$(config_hash config/spark)
+  # Phase 3 services (label their compose services the same way to get upgrade recreation).
+  LAB_CONFIG_HASH_AIRFLOW=$(config_hash config/airflow)
+  LAB_CONFIG_HASH_SUPERSET=$(config_hash config/superset)
+  LAB_CONFIG_HASH_CONSOLE=$(config_hash config/console)
   export LAB_CONFIG_HASH_CADDY LAB_CONFIG_HASH_TRINO LAB_CONFIG_HASH_SEAWEEDFS \
-    LAB_CONFIG_HASH_JUPYTERHUB LAB_CONFIG_HASH_SPARK
+    LAB_CONFIG_HASH_JUPYTERHUB LAB_CONFIG_HASH_SPARK LAB_CONFIG_HASH_AIRFLOW \
+    LAB_CONFIG_HASH_SUPERSET LAB_CONFIG_HASH_CONSOLE
 }
 
 # state_dir_abs -> LAB_STATE_DIR resolved like compose does (relative to the project dir).
@@ -296,6 +328,15 @@ print_urls() {
   printf '  %-9s %s\n' "Trino" "$(service_url trino)/ui/"
   printf '  %-9s %s\n' "Catalog" "$(service_url catalog)/ui/"
   printf '  %-9s %s\n' "Jupyter" "$(service_url jupyter)/"
+  if profile_includes "$LAB_PROFILE" airflow; then
+    printf '  %-9s %s\n' "Airflow" "$(service_url airflow)/"
+  fi
+  if profile_includes "$LAB_PROFILE" spark; then
+    printf '  %-9s %s\n' "Spark UI" "$(service_url spark)/  (engineer and lab-admin only)"
+  fi
+  if profile_includes "$LAB_PROFILE" superset; then
+    printf '  %-9s %s\n' "Superset" "$(service_url superset)/"
+  fi
   for svc in $LAB_PUBLIC_SERVICES; do
     case "$svc" in console|auth|trino|catalog|jupyter) ;; *) printf '  %-9s %s\n' "$svc" "$(service_url "$svc")/";; esac
   done

@@ -4,10 +4,13 @@
 #      LAB_SEED_TEST_USERS=true, the test users and the password grant on the trino client.
 #   2. Trino: writes the file group provider from Keycloak group membership (OQ-17).
 #   3. SeaweedFS: creates the warehouse bucket.
-#   1b. Keycloak clients created after the realm import: lab-sync (identity-sync) and
-#      jupyterhub (Phase 2); with LAB_SEED_TEST_USERS=false it deletes seeded test users.
+#   1b. Keycloak clients created after the realm import: lab-sync (identity-sync),
+#      jupyterhub (Phase 2), airflow (+ its UMA model), lab-batch, superset, console and the
+#      first-broker-login flow / optional GitHub IdP (Phase 3); with LAB_SEED_TEST_USERS=false
+#      it deletes seeded test users.
 #   4. Lakekeeper: bootstraps the server, creates the warehouse (STS vending + remote signing)
-#      and, with LAB_CATALOG_AUTHZ=openfga, grants catalog permissions from Keycloak groups.
+#      and, with LAB_CATALOG_AUTHZ=openfga, grants catalog permissions from Keycloak groups;
+#      namespace `analytics` and lab-batch's grants on it (Phase 3, ADR-017).
 # Trino starts only after it succeeded. `samples` (below) runs after Trino is healthy.
 
 services:
@@ -35,6 +38,16 @@ services:
       OIDC_CLIENT_SECRET_LAKEKEEPER: ${OIDC_CLIENT_SECRET_LAKEKEEPER:?}
       OIDC_CLIENT_SECRET_SYNC: ${OIDC_CLIENT_SECRET_SYNC:?}
       OIDC_CLIENT_SECRET_JUPYTERHUB: ${OIDC_CLIENT_SECRET_JUPYTERHUB:?}
+      # Phase 3 clients (created/repaired in every profile, so switching profile needs no rerun).
+      OIDC_CLIENT_SECRET_AIRFLOW: ${OIDC_CLIENT_SECRET_AIRFLOW:?}
+      OIDC_CLIENT_SECRET_BATCH: ${OIDC_CLIENT_SECRET_BATCH:?}
+      OIDC_CLIENT_SECRET_SUPERSET: ${OIDC_CLIENT_SECRET_SUPERSET:?}
+      OIDC_CLIENT_SECRET_CONSOLE: ${OIDC_CLIENT_SECRET_CONSOLE:?}
+      # Access-token lifespan of lab-batch in seconds (bootstrap/batch_client.py, ADR-017).
+      LAB_BATCH_TOKEN_LIFESPAN: ${LAB_BATCH_TOKEN_LIFESPAN:-300}
+      # Optional GitHub login (ADR-016): both set = IdP `github` on; neither = IdP removed.
+      OIDC_CLIENT_ID_GITHUB: ${OIDC_CLIENT_ID_GITHUB:-}
+      OIDC_CLIENT_SECRET_GITHUB: ${OIDC_CLIENT_SECRET_GITHUB:-}
       SSL_CERT_FILE: /trust/ca-bundle.crt
       TZ: ${LAB_TZ:-UTC}
     volumes:

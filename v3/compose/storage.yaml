@@ -19,7 +19,8 @@ services:
     volumes:
       - ./config/seaweedfs:/opt/lab/seaweedfs:ro
       - seaweedfs-data:/data
-    networks: [lab]
+    # `spark`: Spark executors on the worker read and write S3 here (CONTRACT Phase 3, Networks).
+    networks: [lab, spark]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8333/healthz"]
       interval: 3s

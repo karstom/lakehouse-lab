@@ -1,5 +1,6 @@
 """Lakehouse Lab V3 smoke test, in-container part (CONTRACT.md "Test contract", checks 2-5
-and 7; Phase 2 checks 8-10, the workspace, driven by workspace.py + kernel_probe.py).
+and 7; Phase 2 checks 8-10, the workspace, driven by workspace.py + kernel_probe.py; Phase 3
+checks 12-16, Airflow, Superset, Console, Spark UI and the external IdP, in phase3.py).
 
 Runs on the `lab` network and talks to the public URLs https://<svc>.<LAB_DOMAIN>:<port>
 through Caddy, trusting only the lab CA. Checks 1 and 6 need the Docker host and live in
@@ -412,6 +413,9 @@ def main():
             for name in (C8, C9, C10):
                 if name not in RESULTS:
                     check(name, False, f"not run: {type(e).__name__}: {e}"[:500])
+    # Phase 3 (12-16), each gated by profile with a [SKIP] line; 13 also by LAB_SMOKE_LONG.
+    import phase3
+    phase3.run_all(sys.modules[__name__], want)
     failed = [k for k, v in RESULTS.items() if v["pass"] is False]
     skipped = [k for k, v in RESULTS.items() if v.get("skipped")]
     passed = [k for k, v in RESULTS.items() if v["pass"] is True]

@@ -155,3 +155,19 @@
 **Symbols:** `step_spark_write_denied`, `spark`
 **Commit:** 6202fd0
 **LastUpdated:** 2026-09-26
+
+---
+
+## NODE: WATCH_V3_AIRFLOW_ENTRYPOINT_ENV
+**Type:** Watchlist
+**Priority:** MEDIUM
+**Label:** V3 Airflow: settings derived in the entrypoint are absent from healthchecks/docker exec; _CMD output is used verbatim
+**Summary:** images/airflow/bin/lab-airflow derives AIRFLOW__API__BASE_URL, the Keycloak server URL and LAB_TRINO_HOST/PORT from LAB_AUTH_URL and exports them for the Airflow process tree only; healthchecks and 'docker exec' do not see them. Anything every process needs (the metadata DB URL) goes through AIRFLOW__DATABASE__SQL_ALCHEMY_CONN_CMD (bin/db-url) instead. That command must print no trailing newline: Airflow used 'airflow\n' as the database name and airflow-init failed ('database "airflow\n" does not exist'). Relates to REG_AIRFLOW_DB_INIT (V2's DB URL problems).
+**Tags:** v3, airflow, postgres, entrypoint, healthcheck
+**Edges:**
+- RELATES_TO → REG_AIRFLOW_DB_INIT: DB URL assembly for Airflow
+- RELATES_TO → INV_V3_PUBLIC_ORIGIN_SINGLE_SOURCE: Airflow URLs derived from LAB_AUTH_URL
+**Files:** `v3/images/airflow/bin/lab-airflow`, `v3/images/airflow/bin/db-url`, `v3/compose/airflow.yaml`
+**LastVerified:** 2026-09-26
+**Commit:** 3b5516e
+**LastUpdated:** 2026-09-26

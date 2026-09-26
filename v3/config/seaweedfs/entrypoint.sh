@@ -47,7 +47,13 @@ chown -R seaweed:seaweed "$OUT"
 # The admin key only needs to reach weed through the rendered files.
 unset SEAWEEDFS_ADMIN_ACCESS_KEY SEAWEEDFS_ADMIN_SECRET_KEY SEAWEEDFS_STS_SIGNING_KEY
 
+# -ip.bind=0.0.0.0: listen on every network the container joins (`lab` and the internal
+# `spark` network, where Spark executors write through S3; CONTRACT Phase 3, Networks). By
+# default weed binds only the one address it detects for -ip (the first interface), which
+# refused the executors' connections on `spark`. -ip stays the detected address: it only
+# names the in-container master/volume/filer to each other.
 exec /entrypoint.sh server \
+  -ip.bind=0.0.0.0 \
   -volume.max=0 \
   -master.volumeSizeLimitMB=256 \
   -filer \

@@ -13,6 +13,7 @@ on:
     paths:
       - "v3/images/**"
       - "v3/starter/**"
+      - "v3/config/superset/**"
       - "v3/versions.env"
       - "v3/compose.yaml"
       - "v3/compose/**"
@@ -23,6 +24,7 @@ on:
     paths:
       - "v3/images/**"
       - "v3/starter/**"
+      - "v3/config/superset/**"
       - "v3/versions.env"
       - "v3/compose.yaml"
       - "v3/compose/**"
@@ -82,9 +84,11 @@ jobs:
           echo "tag=$tag" >>"$GITHUB_OUTPUT"
 
       - name: Build contexts from compose (when compose.yaml exists)
+        # Profile full lists every built service (superset is full-only); a smaller profile
+        # drops its additional_contexts and the COPY --from=config build fails.
         run: |
           if [ -f v3/compose.yaml ]; then
-            v3/tools/compose-check.sh --json-out "$RUNNER_TEMP/compose.json"
+            v3/tools/compose-check.sh --profile full --json-out "$RUNNER_TEMP/compose.json"
           fi
 
       - name: Matrix from v3/images/*/Dockerfile

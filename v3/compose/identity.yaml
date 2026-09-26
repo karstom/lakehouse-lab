@@ -18,7 +18,9 @@ services:
       timeout: 3s
       retries: 40
     restart: unless-stopped
-    mem_limit: ${POSTGRES_MEM:-512m}
+    # Phase 3 put Airflow and Superset on this server too: measured ~340 MiB of backend memory
+    # (anon) with ~60 connections at idle on `full`, so 512m left too little headroom.
+    mem_limit: ${POSTGRES_MEM:-768m}
     cpus: ${POSTGRES_CPUS:-1}
 
   keycloak:
@@ -49,7 +51,8 @@ services:
     volumes:
       - ./config/keycloak/realm-lakehouse.json:/opt/keycloak/data/import/realm-lakehouse.json:ro
       - ./config/healthcheck:/opt/lab/healthcheck:ro
-    networks: [lab]
+    # `spark`: Spark executors on the worker fetch tokens here (CONTRACT Phase 3, Networks).
+    networks: [lab, spark]
     healthcheck:
       test: ["CMD", "/opt/lab/healthcheck/http-ok.sh", "9000", "/health/ready"]
       interval: 5s
@@ -57,7 +60,9 @@ services:
       retries: 60
       start_period: 30s
     depends_on:
-      postgres: {condition: service_healthy}
+      # Restarted by compose whenever postgres is recreated (e.g. an upgrade changes its image or
+      # limit), so no DB client keeps a dead connection pool and `up --wait` waits for it again.
+      postgres: {condition: service_healthy, restart: true}
     restart: unless-stopped
     mem_limit: ${KEYCLOAK_MEM:-1280m}
     cpus: ${KEYCLOAK_CPUS:-2}

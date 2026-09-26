@@ -1,0 +1,21 @@
+# dbt profile for the Airflow DAG lab_dbt_build (CONTRACT Phase 3 "analytics" schema).
+# The starter project (starter/dbt_lakehouse, profile `lakehouse`) runs with target `analytics`
+# into lakehouse.analytics, AS THE BATCH SERVICE IDENTITY `lab-batch`: dbt-trino sends a
+# client-credentials access token (method: jwt) that the DAG fetches right before dbt starts
+# (DBT_ENV_SECRET_* values are scrubbed from dbt's logs). The Trino principal is the token's
+# preferred_username, service-account-lab-batch. Never put a token or secret here.
+lakehouse:
+  target: analytics
+  outputs:
+    analytics:
+      type: trino
+      method: jwt
+      jwt_token: "{{ env_var('DBT_ENV_SECRET_LAB_TOKEN') }}"
+      user: "{{ env_var('LAB_BATCH_PRINCIPAL') }}"
+      host: "{{ env_var('LAB_TRINO_HOST') }}"
+      port: "{{ env_var('LAB_TRINO_PORT') | as_number }}"
+      http_scheme: https
+      cert: "{{ env_var('SSL_CERT_FILE') }}"
+      database: lakehouse
+      schema: analytics
+      threads: 4

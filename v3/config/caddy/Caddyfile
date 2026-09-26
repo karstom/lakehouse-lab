@@ -56,9 +56,73 @@ jupyter.{$LAB_DOMAIN}:{$LAB_HTTPS_PORT} {
 	reverse_proxy jupyterhub:8000
 }
 
-# Phase 1: static placeholder (ADR-010). No login needed; it only links to the other services.
+# Forward-auth (CONTRACT Phase 3): oauth2-proxy as the Keycloak client `console`.
+# Usage: import lab_forward_auth <oauth2-proxy auth URI>, e.g. /oauth2/auth or
+# /oauth2/auth?allowed_groups=engineer,lab-admin. oauth2-proxy answers 202 (signed in and
+# allowed: the request goes on, with the X-Auth-Request-* identity headers set from its
+# answer; Caddy drops client-sent copies), 401 (not signed in: sign in through console.,
+# whose cookie covers every lab subdomain, then come back) or 403 (not in an allowed group:
+# passed to the browser as is).
+(lab_forward_auth) {
+	forward_auth oauth2-proxy:4180 {
+		uri {args[0]}
+		copy_headers X-Auth-Request-User X-Auth-Request-Preferred-Username X-Auth-Request-Email X-Auth-Request-Groups
+		@signin status 401
+		handle_response @signin {
+			redir * https://console.{$LAB_DOMAIN}:{$LAB_HTTPS_PORT}/oauth2/start?rd={scheme}://{hostport}{uri} 302
+		}
+	}
+}
+
+# Lab Console v1 (ADR-010): a static page behind the forward-auth. It asks oauth2-proxy who
+# the user is (/oauth2/userinfo) and console-health for /health.json, and shows only the
+# tiles the user's groups can reach.
 console.{$LAB_DOMAIN}:{$LAB_HTTPS_PORT} {
 	import proxy_common
-	root * /srv/console
-	file_server
+	# oauth2-proxy's own endpoints: sign-in, callback, sign-out, userinfo.
+	handle /oauth2/* {
+		reverse_proxy oauth2-proxy:4180
+	}
+	handle {
+		import lab_forward_auth /oauth2/auth
+		handle /health.json {
+			reverse_proxy console-health:8080
+		}
+		handle {
+			header Cache-Control "no-cache"
+			root * /srv/console
+			# health/ holds console-health's code (mounted there too), not page content.
+			file_server {
+				hide /srv/console/health
+			}
+		}
+	}
+}
+
+# Spark master UI (profile engineer): engineer and lab-admin only; viewer and analyst get 403.
+# Without the engineer profile there is no upstream and Caddy answers 502. Caddy reaches the
+# master over the internal `spark` network; this route is the ONLY way to any Spark UI (master,
+# worker and application UIs are proxied under it; none listens on `lab`, CONTRACT Phase 3).
+spark.{$LAB_DOMAIN}:{$LAB_HTTPS_PORT} {
+	import proxy_common
+	import lab_forward_auth /oauth2/auth?allowed_groups=engineer,lab-admin
+	reverse_proxy spark-master:8080 {
+		# The Spark UI needs no cookies. The lab's session cookie (several KB) would otherwise
+		# be relayed by the master's worker/app proxy and break it (HTTP 502).
+		header_up -Cookie
+		# Spark's redirects use http:// (it does not know it is behind TLS).
+		header_down Location "^http://" "https://"
+	}
+}
+
+# Airflow (profile engineer). Its own Keycloak login (auth manager); no forward-auth.
+airflow.{$LAB_DOMAIN}:{$LAB_HTTPS_PORT} {
+	import proxy_common
+	reverse_proxy airflow-api:8080
+}
+
+# Superset (profile full). Its own Keycloak login (FAB OAuth); no forward-auth.
+superset.{$LAB_DOMAIN}:{$LAB_HTTPS_PORT} {
+	import proxy_common
+	reverse_proxy superset:8088
 }

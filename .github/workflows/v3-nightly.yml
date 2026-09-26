@@ -1,0 +1,113 @@
+# V3 nightly: the `full` profile end to end (CONTRACT Phase 3 exit 5), which the PR matrix
+# (v3-ci.yml: core, engineer) leaves out to keep PR runtime reasonable. One job:
+#   install --profile full -> smoke with LAB_SMOKE_LONG=1 (all checks, incl. the chain
+#   ingest -> dbt -> "Revenue by region" dashboard (12, 14) and the ADR-017 long run (13))
+#   -> idempotent re-install -> lab reset leaves nothing behind.
+# It also MEASURES memory (tests/smoke/mem-sample.sh: host used + this lab's containers,
+# every 10 s) and writes the peaks to the job summary, to answer "does full fit a 16 GB
+# runner?" with numbers. Dispatch it for another profile or without the long check to compare.
+# Scheduled runs use the workflow file on the default branch; until v3 is merged there,
+# run it by hand: gh workflow run v3-nightly.yml --ref v3
+name: v3-nightly
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: Profile to install and test
+        type: choice
+        options: [full, engineer, core]
+        default: full
+      long:
+        description: Run the slow ADR-017 check (13)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v3-nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      LAB_PROFILE_UNDER_TEST: ${{ inputs.profile || 'full' }}
+      LAB_SMOKE_LONG: ${{ (github.event_name == 'schedule' || inputs.long) && '1' || '0' }}
+      # CI-sized limits, as in v3-ci.yml (shell variables win over compose defaults because
+      # .env does not set them). Limits are ceilings; the measured use is in the summary.
+      WORKSPACE_MEM: 1536M
+      WORKSPACE_CPUS: "1.5"
+      SMOKE_MEM: 1536m
+      SPARK_WORKER_MEMORY: 1g
+      SPARK_WORKER_MEM: 2g
+      SPARK_EXECUTOR_MEMORY: 768m
+      SPARK_CONNECT_DRIVER_MEMORY: 768m
+      SPARK_CONNECT_MEM: 1280m
+      # Airflow (engineer/full). Measured idle: api ~0.3, scheduler ~0.35-0.53 (during a Spark
+      # job), dag-processor ~0.17, triggerer ~0.3 GiB.
+      AIRFLOW_API_MEM: 768m
+      AIRFLOW_SCHEDULER_MEM: 1g
+      AIRFLOW_DAG_PROCESSOR_MEM: 384m
+      AIRFLOW_TRIGGERER_MEM: 384m
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The hosted runner's preinstalled SDKs take disk the full profile's images need
+      # (workspace, Spark, Airflow, Superset, Playwright). CI runner only, never a lab host.
+      - name: Free disk space on the runner
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Start memory sampling
+        run: v3/tests/smoke/mem-sample.sh start "$RUNNER_TEMP/mem"
+
+      - name: Install (${{ env.LAB_PROFILE_UNDER_TEST }} profile, test users)
+        run: v3/install.sh --non-interactive --seed-test-users --domain lab.localhost --profile "$LAB_PROFILE_UNDER_TEST"
+
+      - name: Smoke test (LAB_SMOKE_LONG=${{ env.LAB_SMOKE_LONG }})
+        run: v3/lab test
+
+      - name: Memory peaks
+        if: ${{ always() }}
+        env:
+          LAB_PROFILE: ${{ env.LAB_PROFILE_UNDER_TEST }}
+        run: v3/tests/smoke/mem-sample.sh stop "$RUNNER_TEMP/mem"
+
+      - name: Re-install on the running stack (idempotent upgrade path)
+        run: v3/install.sh --non-interactive && v3/lab status
+
+      - name: lab reset removes this project's containers and volumes, per-user homes included
+        run: v3/tests/smoke/check-reset.sh
+
+      - name: Upload memory samples
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: v3-nightly-memory-${{ env.LAB_PROFILE_UNDER_TEST }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/mem
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Collect diagnostics
+        if: ${{ failure() }}
+        run: v3/tools/ci-collect-logs.sh "$RUNNER_TEMP/v3-diagnostics"
+
+      - name: Upload diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: v3-nightly-diagnostics-${{ env.LAB_PROFILE_UNDER_TEST }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/v3-diagnostics
+          retention-days: 7
+          if-no-files-found: warn

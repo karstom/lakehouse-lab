@@ -1,7 +1,14 @@
-# Profile `engineer`: Spark (ADR-003) = one master, one worker and one shared Spark Connect
-# server (OQ-2). All three run the lakehouse-lab/v3-spark image (images/spark) and read
-# config/spark/spark-defaults.conf. Nothing is published on the host and there is no Caddy
-# route: Spark Connect (15002) and the Spark UIs are reachable on the `lab` network only.
+# Profiles `engineer` and `full`: Spark (ADR-003) = one master, one worker and one shared Spark
+# Connect server (OQ-2). All three run the lakehouse-lab/v3-spark image (images/spark) and read
+# config/spark/spark-defaults.conf. Nothing is published on the host.
+#
+# Networks (CONTRACT Phase 3): the master and the worker are ONLY on the internal `spark`
+# network, which workspaces never join. spark-connect is on `lab` for its gRPC port 15002
+# (workspaces, Airflow) and on `spark` for the cluster; start-spark.sh binds its driver RPC,
+# block manager and application UI (4040) to its `spark` address only. So no Spark UI is
+# reachable from `lab`: the master UI (with the worker and application UIs proxied under it,
+# spark.ui.reverseProxy) is public only at spark.<LAB_DOMAIN> behind the oauth2-proxy
+# forward-auth, engineer and lab-admin only (config/caddy/Caddyfile). Smoke check 15 proves it.
 #
 # Storage: Lakekeeper remote signing, no S3 keys (ADR-006). Identity (OQ-15): no catalog
 # credential lives in Spark; each Spark Connect session carries its user's own Keycloak
@@ -30,7 +37,7 @@ x-spark-image: &spark-image
 services:
   spark-master:
     <<: *spark-image
-    profiles: [engineer]
+    profiles: [engineer, full]
     command: ["master"]
     environment:
       SPARK_MASTER_HOST: spark-master
@@ -39,7 +46,7 @@ services:
       TZ: ${LAB_TZ:-UTC}
     volumes:
       - ./config/spark/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
-    networks: [lab]
+    networks: [spark]
     init: true
     healthcheck:
       # Healthy once the worker has registered, so Spark Connect starts on a usable cluster.
@@ -54,7 +61,7 @@ services:
 
   spark-worker:
     <<: *spark-image
-    profiles: [engineer]
+    profiles: [engineer, full]
     command: ["worker"]
     environment:
       SPARK_MASTER_HOST: spark-master
@@ -68,10 +75,17 @@ services:
       TZ: ${LAB_TZ:-UTC}
     volumes:
       - ./config/spark/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
-    networks: [lab]
+    networks: [spark]
     init: true
     depends_on:
       spark-master: {condition: service_started}
+      # Iceberg's auth sessions in the driver and executors (lab-batch credential, ADR-017)
+      # stop refreshing after one refresh fails while Keycloak is down, and then sign with an
+      # expired token (Lakekeeper: ExpiredSignature). So compose restarts Spark whenever it
+      # updates Keycloak, Lakekeeper or Postgres (restart: true is not transitive, see trino).
+      keycloak: {condition: service_healthy, restart: true}
+      lakekeeper: {condition: service_healthy, restart: true}
+      postgres: {condition: service_healthy, restart: true}
     healthcheck:
       test: ["CMD", "spark-health.py", "http://localhost:8081/json/"]
       interval: 5s
@@ -84,21 +98,30 @@ services:
 
   spark-connect:
     <<: *spark-image
-    profiles: [engineer]
+    profiles: [engineer, full]
     command: ["connect"]
     environment:
       SPARK_MASTER_HOST: spark-master
       SPARK_LOCAL_HOSTNAME: spark-connect
+      # start-spark.sh binds the driver (RPC, block manager, UI 4040) to the local address that
+      # routes to this host, i.e. the `spark` network (the master is on no other network).
+      SPARK_BIND_PEER: spark-master
       SPARK_CONNECT_DRIVER_MEMORY: ${SPARK_CONNECT_DRIVER_MEMORY:-1g}
       SPARK_EXECUTOR_MEMORY: ${SPARK_EXECUTOR_MEMORY:-1g}
       TZ: ${LAB_TZ:-UTC}
     volumes:
       - ./config/spark/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
-    networks: [lab]
+    networks: [lab, spark]
     init: true
     depends_on:
       spark-master: {condition: service_healthy}
-      lakekeeper: {condition: service_healthy}
+      # Iceberg's auth sessions in the driver and executors (lab-batch credential, ADR-017)
+      # stop refreshing after one refresh fails while Keycloak is down, and then sign with an
+      # expired token (Lakekeeper: ExpiredSignature). So compose restarts Spark whenever it
+      # updates Keycloak, Lakekeeper or Postgres (restart: true is not transitive, see trino).
+      keycloak: {condition: service_healthy, restart: true}
+      lakekeeper: {condition: service_healthy, restart: true}
+      postgres: {condition: service_healthy, restart: true}
     healthcheck:
       test: ["CMD", "spark-health.py", "tcp", "localhost", "15002"]
       interval: 5s

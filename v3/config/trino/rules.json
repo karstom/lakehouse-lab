@@ -11,6 +11,21 @@
       "allow": "read-only"
     },
     {
+      "user": "service-account-superset",
+      "catalog": "lakehouse",
+      "allow": "read-only"
+    },
+    {
+      "user": "service-account-lab-batch",
+      "catalog": "lakehouse",
+      "allow": "all"
+    },
+    {
+      "user": "service-account-lab-batch",
+      "catalog": "system",
+      "allow": "read-only"
+    },
+    {
       "group": "lab-admin|engineer",
       "catalog": ".*",
       "allow": "all"
@@ -35,6 +50,20 @@
     },
     {
       "user": "service-account-trino",
+      "owner": false
+    },
+    {
+      "user": "service-account-superset",
+      "owner": false
+    },
+    {
+      "user": "service-account-lab-batch",
+      "catalog": "lakehouse",
+      "schema": "analytics",
+      "owner": true
+    },
+    {
+      "user": "service-account-lab-batch",
       "owner": false
     },
     {
@@ -68,6 +97,43 @@
       "privileges": []
     },
     {
+      "user": "service-account-superset",
+      "privileges": []
+    },
+    {
+      "user": "service-account-lab-batch",
+      "catalog": "lakehouse",
+      "schema": "analytics",
+      "privileges": [
+        "SELECT",
+        "INSERT",
+        "DELETE",
+        "UPDATE",
+        "OWNERSHIP",
+        "GRANT_SELECT"
+      ]
+    },
+    {
+      "user": "service-account-lab-batch",
+      "catalog": "lakehouse",
+      "schema": "samples",
+      "privileges": [
+        "SELECT",
+        "GRANT_SELECT"
+      ]
+    },
+    {
+      "user": "service-account-lab-batch",
+      "catalog": "system",
+      "privileges": [
+        "SELECT"
+      ]
+    },
+    {
+      "user": "service-account-lab-batch",
+      "privileges": []
+    },
+    {
       "group": "lab-admin|engineer",
       "privileges": [
         "SELECT",
@@ -93,6 +159,18 @@
       ]
     },
     {
+      "user": "service-account-superset",
+      "allow": [
+        "execute"
+      ]
+    },
+    {
+      "user": "service-account-lab-batch",
+      "allow": [
+        "execute"
+      ]
+    },
+    {
       "group": "lab-admin",
       "allow": [
         "execute",
@@ -109,13 +187,33 @@
   ],
   "system_session_properties": [
     {
+      "user": "service-account-lab-batch",
+      "allow": true
+    },
+    {
       "group": "lab-admin|engineer|analyst|viewer",
       "allow": true
     }
   ],
   "catalog_session_properties": [
     {
+      "user": "service-account-lab-batch",
+      "allow": true
+    },
+    {
       "group": "lab-admin|engineer|analyst|viewer",
+      "allow": true
+    }
+  ],
+  "impersonation": [
+    {
+      "original_user": "service-account-superset",
+      "new_user": "service-account-.*",
+      "allow": false
+    },
+    {
+      "original_user": "service-account-superset",
+      "new_user": "[A-Za-z0-9][A-Za-z0-9._@-]*",
       "allow": true
     }
   ]

@@ -186,5 +186,44 @@ class ProbeHelpers(unittest.TestCase):
         self.assertEqual(kernel_probe.jwt_claims("not-a-jwt"), {})
 
 
+class InternalPortsProbe(unittest.TestCase):
+    """Check 15's network probe: only connection failures count as "unreachable"."""
+
+    def _closed_port(self):
+        import socket
+        with socket.socket() as sk:
+            sk.bind(("127.0.0.1", 0))
+            return sk.getsockname()[1]   # closed again when the block ends
+
+    def test_reach_outcomes(self):
+        import http.server
+        import threading
+        self.assertEqual(kernel_probe.reach("http://no-such-host.invalid:8080/")[0], "no-name")
+        self.assertEqual(kernel_probe.reach(f"http://127.0.0.1:{self._closed_port()}/")[0], "refused")
+        srv = http.server.HTTPServer(("127.0.0.1", 0), http.server.SimpleHTTPRequestHandler)
+        srv.RequestHandlerClass.log_message = lambda *a: None
+        t = threading.Thread(target=srv.serve_forever, daemon=True)
+        t.start()
+        try:
+            port = srv.server_address[1]
+            self.assertEqual(kernel_probe.reach(f"http://127.0.0.1:{port}/")[0], "http 200")
+            self.assertEqual(kernel_probe.reach(f"tcp://127.0.0.1:{port}")[0], "connected")
+        finally:
+            srv.shutdown()
+            srv.server_close()
+
+    def test_step_requires_failures_and_a_working_control(self):
+        outcomes = {}
+        with mock.patch.object(kernel_probe, "reach", lambda url, timeout=5.0: (outcomes[url], None)):
+            params = {"unreachable": ["a", "b"], "reachable": ["c"]}
+            outcomes.update(a="no-name", b="refused", c="connected")
+            self.assertTrue(kernel_probe.step_internal_ports(params, None)["ok"])
+            outcomes.update(b="http 200")          # a UI answered: fail
+            self.assertFalse(kernel_probe.step_internal_ports(params, None)["ok"])
+            outcomes.update(b="timeout", c="refused")   # control down: the probe proves nothing
+            self.assertFalse(kernel_probe.step_internal_ports(params, None)["ok"])
+            self.assertFalse(kernel_probe.step_internal_ports({"unreachable": []}, None)["ok"])
+
+
 if __name__ == "__main__":
     unittest.main()
