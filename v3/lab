@@ -20,13 +20,15 @@ usage() {
 Usage: ./lab <command> [args]
 
   up                  start the lab (docker compose up -d --wait --remove-orphans) and print its URLs
-  down                stop the lab; data volumes are kept
+  down                stop the lab and users' workspace containers; data volumes and
+                      users' home volumes are kept
   status              show services and their health (exit 1 if any is unhealthy)
   urls                print the lab's URLs
   sync                apply Keycloak group changes now (identity-sync also does it every 30s)
   logs [svc...]       show service logs (follows on a terminal; --no-follow to stop)
   reset [--all] [--yes]
-                      delete this lab's containers AND data volumes, keeping settings,
+                      delete this lab's containers AND data volumes (including users'
+                      workspace home volumes), keeping settings,
                       secrets and the lab CA. --all also deletes LAB_STATE_DIR (the CA:
                       every browser must re-trust the new one). Asks for confirmation.
   test [args]         run the end-to-end smoke test (tests/smoke/run.sh)
@@ -66,7 +68,12 @@ cmd_down() {
     esac
   done
   require_install
-  lab_compose down --remove-orphans
+  local rc=0
+  # Workspaces first: they are not compose services, and a running one keeps the `lab`
+  # network in use, so 'compose down' would leave it behind.
+  lab_stop_workspaces || rc=1
+  lab_compose down --remove-orphans || rc=1
+  return "$rc"
 }
 
 # cmd_status -> table, then exit 1 if a long-running service is not healthy/running
@@ -145,7 +152,8 @@ cmd_reset() {
   done
   require_install
   info "This deletes every container and data volume of compose project '$COMPOSE_PROJECT_NAME'"
-  info "(tables, users' data, Keycloak and catalog databases). Settings and secrets are kept."
+  info "(tables, users' workspace home volumes, Keycloak and catalog databases)."
+  info "Settings and secrets are kept."
   if [ "$all" = 1 ]; then
     info "--all: also deletes $(state_dir_abs), including the lab CA. Every browser must re-trust the new CA."
   else
@@ -157,7 +165,10 @@ cmd_reset() {
     [ "$ans" = "$COMPOSE_PROJECT_NAME" ] || die "not confirmed; nothing changed."
   fi
   # Scoped to this project only: -p comes from .env via lab_compose, never a wildcard.
-  lab_compose down -v --remove-orphans
+  # Per-user workspace containers and home volumes are selected by this project's labels.
+  lab_stop_workspaces || die "could not remove the workspace containers; nothing else was deleted."
+  lab_compose down -v --remove-orphans || die "'docker compose down -v' failed."
+  lab_remove_home_volumes || die "some per-user home volumes were not deleted (see above)."
   if [ "$all" = 1 ]; then
     safe_rm_state "$(state_dir_abs)"
     ok "Removed $(state_dir_abs)"

@@ -4,9 +4,11 @@
 #      LAB_SEED_TEST_USERS=true, the test users and the password grant on the trino client.
 #   2. Trino: writes the file group provider from Keycloak group membership (OQ-17).
 #   3. SeaweedFS: creates the warehouse bucket.
+#   1b. Keycloak clients created after the realm import: lab-sync (identity-sync) and
+#      jupyterhub (Phase 2); with LAB_SEED_TEST_USERS=false it deletes seeded test users.
 #   4. Lakekeeper: bootstraps the server, creates the warehouse (STS vending + remote signing)
 #      and, with LAB_CATALOG_AUTHZ=openfga, grants catalog permissions from Keycloak groups.
-# Trino starts only after it succeeded.
+# Trino starts only after it succeeded. `samples` (below) runs after Trino is healthy.
 
 services:
   bootstrap:
@@ -32,6 +34,7 @@ services:
       SEAWEEDFS_ADMIN_SECRET_KEY: ${SEAWEEDFS_ADMIN_SECRET_KEY:?}
       OIDC_CLIENT_SECRET_LAKEKEEPER: ${OIDC_CLIENT_SECRET_LAKEKEEPER:?}
       OIDC_CLIENT_SECRET_SYNC: ${OIDC_CLIENT_SECRET_SYNC:?}
+      OIDC_CLIENT_SECRET_JUPYTERHUB: ${OIDC_CLIENT_SECRET_JUPYTERHUB:?}
       SSL_CERT_FILE: /trust/ca-bundle.crt
       TZ: ${LAB_TZ:-UTC}
     volumes:
@@ -76,3 +79,24 @@ services:
     restart: unless-stopped
     mem_limit: ${IDENTITY_SYNC_MEM:-128m}
     cpus: ${IDENTITY_SYNC_CPUS:-0.25}
+
+  # One-shot, idempotent: lakehouse.samples.* from Trino's built-in tpch connector (tiny) via
+  # CREATE TABLE AS, as the `trino` client's service account (bootstrap/samples.py). It needs
+  # Trino, which starts only after bootstrap, so it cannot be a bootstrap step. JupyterHub
+  # depends on it, so a failure here fails `up --wait`.
+  samples:
+    image: lakehouse-lab/v3-bootstrap:${PYTHON_IMAGE_TAG}
+    command: ["python3", "-m", "bootstrap.samples"]
+    environment:
+      LAB_AUTH_URL: ${LAB_AUTH_URL:?LAB_AUTH_URL is derived from LAB_DOMAIN/LAB_HTTPS_PORT by installer/lib.sh; start the lab with ./lab or ./install.sh}
+      OIDC_CLIENT_SECRET_TRINO: ${OIDC_CLIENT_SECRET_TRINO:?}
+      SSL_CERT_FILE: /trust/ca-bundle.crt
+      TZ: ${LAB_TZ:-UTC}
+    volumes:
+      - trust:/trust:ro
+    networks: [lab]
+    depends_on:
+      trino: {condition: service_healthy}
+    restart: "no"
+    mem_limit: ${SAMPLES_MEM:-128m}
+    cpus: ${SAMPLES_CPUS:-0.5}

@@ -219,3 +219,22 @@
 **Evidence:** dev host: install.sh re-run over existing v3-p1 → bootstrap 'created client lab-sync', identity-sync healthy, lab test 7/7
 **Commit:** 39b2dce
 **LastUpdated:** 2026-09-25
+
+---
+
+## NODE: REG_V3_STALE_BIND_MOUNT_CONFIG_ON_UPGRADE
+**Type:** Regression
+**Priority:** HIGH
+**Label:** V3 upgrade kept services running old bind-mounted config (Trino rules.json, catalogs)
+**Summary:** Upgrading Phase 1 to Phase 2 in place (install.sh re-run) failed: the new `samples` one-shot got PERMISSION_DENIED because Trino still ran the old rules.json and had no tpch catalog. Compose does not track bind-mounted file contents, and a single-file bind mount keeps the old inode after rsync/git replaces the file, so Trino/Caddy/JupyterHub/SeaweedFS/Spark were never restarted. Fix: installer/lib.sh lab_config_hashes derives LAB_CONFIG_HASH_<SVC> (cksum over config/<svc>) on every start (never stored), and each such service carries label lab.config-hash=${LAB_CONFIG_HASH_<SVC>:-}, so `up` recreates exactly the services whose config changed. Sibling of REG_V3_STALE_LOCAL_IMAGES_ON_UPGRADE (same class: upgrade leaves stale artifacts).
+**Tags:** v3, upgrade, compose, bind-mount, config, trino
+**REGRESSED_N_TIMES:** 1
+**Edges:**
+- RELATED_TO → REG_V3_STALE_LOCAL_IMAGES_ON_UPGRADE: same class (upgrade leaves stale local artifacts)
+- RELATED_TO → WATCH_INSTALL_UPGRADE_PATH: upgrade path
+**Files:** `v3/installer/lib.sh`, `v3/compose/edge.yaml`, `v3/compose/engines.yaml`, `v3/compose/storage.yaml`, `v3/compose/workspace.yaml`, `v3/compose/spark.yaml`, `v3/tests/installer/test_unit.sh`
+**Symbols:** `lab_config_hashes`, `config_hash`, `lab_settings`
+**Evidence:** Dev host upgrade of v3-p1: before fix samples exit 1 'Access Denied: Cannot execute query [SHOW SCHEMAS FROM lakehouse]'; after fix install.sh recreated caddy, trino, seaweedfs, jupyterhub, docker-proxy and samples created 5 tables; next re-run: identical container IDs. bash v3/tests/installer/run.sh -> 209 passed (config-hash section).
+**LastVerified:** 2026-09-26
+**Commit:** 6202fd0
+**LastUpdated:** 2026-09-26

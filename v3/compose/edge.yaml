@@ -4,6 +4,9 @@
 services:
   caddy:
     image: caddy:${CADDY_VERSION}
+    labels:
+      # Recreated by `up` when its bind-mounted config changes (installer/lib.sh lab_config_hashes).
+      lab.config-hash: ${LAB_CONFIG_HASH_CADDY:-}
     environment:
       LAB_DOMAIN: ${LAB_DOMAIN:-lab.localhost}
       LAB_HTTPS_PORT: ${LAB_HTTPS_PORT:-443}
@@ -27,6 +30,7 @@ services:
           - trino.${LAB_DOMAIN:-lab.localhost}
           - catalog.${LAB_DOMAIN:-lab.localhost}
           - console.${LAB_DOMAIN:-lab.localhost}
+          - jupyter.${LAB_DOMAIN:-lab.localhost}
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
       interval: 5s

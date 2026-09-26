@@ -114,3 +114,17 @@
 **Evidence:** bash v3/tests/installer/run.sh → section 'issuer origin' passes (443 → https://auth.lab.localhost, 18443 → :18443; no hand-built origin in consumers)
 **Commit:** 13770d3
 **LastUpdated:** 2026-09-25
+
+---
+
+## NODE: INV_V3_DOCKER_PROXY_PROJECT_SCOPE
+**Type:** Invariant
+**Priority:** HIGH
+**Label:** V3: JupyterHub reaches Docker only via the proxy, scoped to this project
+**Summary:** Only the docker-socket-proxy mounts the Docker socket. Its HAProxy allowlist permits only create, start, stop and delete of `<project>-ws-*` containers by name, using only `<project>-home-*` and `<project>_trust` volumes and the `<project>_lab` network (no Mounts, VolumesFrom, extra endpoints, host paths, privileged mode or host namespaces), and only volume creation named `<project>-home-*`. The host also runs other workloads, including production, so any spawner change must keep smoke check 11 at 14/14. HAProxy expands `${LAB_PROJECT}` only inside double-quoted rules.
+**Tags:** v3, docker, security, jupyterhub
+**Edges:** _(none)_
+**Files:** `v3/config/jupyterhub/docker-proxy.cfg`, `v3/config/jupyterhub/jupyterhub_config.py`, `v3/compose/workspace.yaml`, `v3/tests/smoke/proxy_probe.py`
+**Evidence:** lab test check 11 → {"cases": 14, "unexpected": []}
+**Commit:** 6202fd0
+**LastUpdated:** 2026-09-26

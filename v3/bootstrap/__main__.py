@@ -8,7 +8,7 @@ import os
 import sys
 import time
 
-from . import keycloak, lakekeeper, seaweedfs, trino_groups, web
+from . import jupyterhub_client, keycloak, lakekeeper, seaweedfs, trino_groups, web
 
 
 def env(name, default=None, required=True):
@@ -87,8 +87,16 @@ def main():
         pw = env("LAB_TEST_USER_PASSWORD")
         for username, first, last, group in keycloak.TEST_USERS:
             changed |= kc.ensure_user(username, pw, first, last, group, gids)
+    else:
+        # Seeding turned off later: delete the seeded test users (only accounts carrying the
+        # seeding marker; never the first admin). Before the Trino/Lakekeeper syncs below, so
+        # both drop them on this same run.
+        changed |= keycloak.remove_test_users(kc, protected=(env("LAB_ADMIN_USER"),))
     changed |= kc.set_direct_grants("trino", seed)
     changed |= kc.ensure_sync_client(env("OIDC_CLIENT_SECRET_SYNC"))
+    # Phase 2: JupyterHub's confidential client (never only in the realm template).
+    changed |= jupyterhub_client.ensure_jupyterhub_client(
+        kc, env("OIDC_CLIENT_SECRET_JUPYTERHUB"), env("LAB_DOMAIN"), env("LAB_HTTPS_PORT"))
     print(f"[keycloak] users: {'updated' if changed else 'unchanged'} "
           f"(test users {'on' if seed else 'off'})")
 

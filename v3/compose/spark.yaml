@@ -1,0 +1,110 @@
+# Profile `engineer`: Spark (ADR-003) = one master, one worker and one shared Spark Connect
+# server (OQ-2). All three run the lakehouse-lab/v3-spark image (images/spark) and read
+# config/spark/spark-defaults.conf. Nothing is published on the host and there is no Caddy
+# route: Spark Connect (15002) and the Spark UIs are reachable on the `lab` network only.
+#
+# Storage: Lakekeeper remote signing, no S3 keys (ADR-006). Identity (OQ-15): no catalog
+# credential lives in Spark; each Spark Connect session carries its user's own Keycloak
+# token, so Lakekeeper authorizes the real user.
+
+x-spark-image: &spark-image
+  build:
+    context: ./images/spark
+    args:
+      SPARK_IMAGE_TAG: ${SPARK_IMAGE_TAG}
+      SPARK_IMAGE_DIGEST: ${SPARK_IMAGE_DIGEST:?}
+      PYTHON_IMAGE_TAG: ${PYTHON_IMAGE_TAG}
+      PYTHON_IMAGE_DIGEST: ${PYTHON_IMAGE_DIGEST}
+      SPARK_VERSION: ${SPARK_VERSION}
+      SCALA_BINARY_VERSION: ${SCALA_BINARY_VERSION}
+      ICEBERG_VERSION: ${ICEBERG_VERSION}
+      ICEBERG_SPARK_RUNTIME_DIGEST: ${ICEBERG_SPARK_RUNTIME_DIGEST:?}
+      ICEBERG_AWS_BUNDLE_DIGEST: ${ICEBERG_AWS_BUNDLE_DIGEST:?}
+      PYARROW_VERSION: ${PYARROW_VERSION}
+      PANDAS_VERSION: ${PANDAS_VERSION:?}
+  image: lakehouse-lab/v3-spark:${SPARK_VERSION}-iceberg${ICEBERG_VERSION}
+  labels:
+    # Recreated by `up` when config/spark changes (installer/lib.sh lab_config_hashes).
+    lab.config-hash: ${LAB_CONFIG_HASH_SPARK:-}
+
+services:
+  spark-master:
+    <<: *spark-image
+    profiles: [engineer]
+    command: ["master"]
+    environment:
+      SPARK_MASTER_HOST: spark-master
+      SPARK_DAEMON_MEMORY: ${SPARK_MASTER_HEAP:-256m}
+      SPARK_DAEMON_JAVA_OPTS: -XX:+DisableAttachMechanism
+      TZ: ${LAB_TZ:-UTC}
+    volumes:
+      - ./config/spark/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+    networks: [lab]
+    init: true
+    healthcheck:
+      # Healthy once the worker has registered, so Spark Connect starts on a usable cluster.
+      test: ["CMD", "spark-health.py", "http://localhost:8080/json/"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 10s
+    restart: unless-stopped
+    mem_limit: ${SPARK_MASTER_MEM:-512m}
+    cpus: ${SPARK_MASTER_CPUS:-0.5}
+
+  spark-worker:
+    <<: *spark-image
+    profiles: [engineer]
+    command: ["worker"]
+    environment:
+      SPARK_MASTER_HOST: spark-master
+      SPARK_LOCAL_HOSTNAME: spark-worker
+      # Memory and cores the worker offers to executors; the container limit covers them
+      # plus the worker daemon and the Python UDF workers.
+      SPARK_WORKER_MEMORY: ${SPARK_WORKER_MEMORY:-1536m}
+      SPARK_WORKER_CORES: ${SPARK_WORKER_CORES:-2}
+      SPARK_DAEMON_MEMORY: ${SPARK_WORKER_HEAP:-256m}
+      SPARK_DAEMON_JAVA_OPTS: -XX:+DisableAttachMechanism
+      TZ: ${LAB_TZ:-UTC}
+    volumes:
+      - ./config/spark/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+    networks: [lab]
+    init: true
+    depends_on:
+      spark-master: {condition: service_started}
+    healthcheck:
+      test: ["CMD", "spark-health.py", "http://localhost:8081/json/"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 10s
+    restart: unless-stopped
+    mem_limit: ${SPARK_WORKER_MEM:-2560m}
+    cpus: ${SPARK_WORKER_CPUS:-2}
+
+  spark-connect:
+    <<: *spark-image
+    profiles: [engineer]
+    command: ["connect"]
+    environment:
+      SPARK_MASTER_HOST: spark-master
+      SPARK_LOCAL_HOSTNAME: spark-connect
+      SPARK_CONNECT_DRIVER_MEMORY: ${SPARK_CONNECT_DRIVER_MEMORY:-1g}
+      SPARK_EXECUTOR_MEMORY: ${SPARK_EXECUTOR_MEMORY:-1g}
+      TZ: ${LAB_TZ:-UTC}
+    volumes:
+      - ./config/spark/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
+    networks: [lab]
+    init: true
+    depends_on:
+      spark-master: {condition: service_healthy}
+      lakekeeper: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "spark-health.py", "tcp", "localhost", "15002"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+    restart: unless-stopped
+    mem_limit: ${SPARK_CONNECT_MEM:-1536m}
+    cpus: ${SPARK_CONNECT_CPUS:-1}

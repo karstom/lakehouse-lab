@@ -13,6 +13,9 @@ REALM = "lakehouse"
 LAB_GROUPS = ("lab-admin", "engineer", "analyst", "viewer")
 
 # Test users (LAB_SEED_TEST_USERS=true only; CI and dev). Password: LAB_TEST_USER_PASSWORD.
+# ensure_user gives every seeded user the e-mail <username>@TEST_EMAIL_DOMAIN (".invalid"
+# is reserved and can never be a real mailbox); remove_test_users relies on that marker.
+TEST_EMAIL_DOMAIN = "lab.invalid"
 TEST_USERS = (
     ("alice", "Alice", "Admin", "lab-admin"),
     ("eddie", "Eddie", "Engineer", "engineer"),
@@ -87,7 +90,7 @@ class Admin:
             self.call("POST", "/users", {
                 "username": username, "enabled": True,
                 "firstName": first, "lastName": last,
-                "email": f"{username}@lab.invalid", "emailVerified": True,
+                "email": f"{username}@{TEST_EMAIL_DOMAIN}", "emailVerified": True,
                 "requiredActions": [],
                 "credentials": [{"type": "password", "value": password, "temporary": False}],
             })
@@ -101,6 +104,9 @@ class Admin:
             changed = True
             print(f"[keycloak] added {username} to group {group}")
         return changed
+
+    def delete_user(self, user_id):
+        self.call("DELETE", f"/users/{user_id}")
 
     # ------------------------------------------------------------------ clients
     def client(self, client_id):
@@ -169,3 +175,37 @@ def client_credentials_token(client_id, secret, scope="openid"):
         "grant_type": "client_credentials", "client_id": client_id,
         "client_secret": secret, "scope": scope})
     return tok["access_token"]
+
+
+def remove_test_users(kc, protected=()):
+    """LAB_SEED_TEST_USERS=false: delete the seeded test users (alice, eddie, anna, victor) if
+    they exist. Returns True if anything was deleted; a second run changes nothing.
+
+    Only a user that matches ALL of these is deleted, so real people are never touched:
+      * its username is one of TEST_USERS (exact match);
+      * it is not in `protected` (pass LAB_ADMIN_USER: the first admin may have any name);
+      * it carries the seeding marker, the e-mail <username>@lab.invalid. A real account
+        that happens to be called "alice" has a real e-mail (or none) and is kept.
+    Their group memberships go with them; the Trino group file and Lakekeeper roles follow
+    on the same bootstrap run (they are rebuilt from Keycloak afterwards) and identity-sync.
+    Their workspace home volumes are not deleted here (that is `lab reset`).
+    """
+    keep = {p for p in protected if p}
+    changed = False
+    for username, *_ in TEST_USERS:
+        if username in keep:
+            print(f"[keycloak] test user {username}: kept (it is a protected account)")
+            continue
+        user = kc.find_user(username)
+        if user is None:
+            continue
+        full = kc.get(f"/users/{user['id']}")  # the brief representation may omit email
+        email = (full.get("email") or "").lower()
+        if full.get("username") != username or email != f"{username}@{TEST_EMAIL_DOMAIN}":
+            print(f"[keycloak] user {username}: kept (not a seeded test user: e-mail is not "
+                  f"{username}@{TEST_EMAIL_DOMAIN})")
+            continue
+        kc.delete_user(user["id"])
+        print(f"[keycloak] deleted test user {username} (LAB_SEED_TEST_USERS=false)")
+        changed = True
+    return changed

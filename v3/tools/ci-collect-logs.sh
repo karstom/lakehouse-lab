@@ -12,15 +12,17 @@ run() { # run NAME CMD... -> $out/NAME (stdout+stderr), never fails
   { echo "\$ $*"; "$@"; } >"$out/$name" 2>&1 || true
 }
 
-project=lakehouse
+project=lakehouse profile=core
 if [ -f "$V3_DIR/.env" ]; then
   cp "$V3_DIR/.env" "$out/dot-env.txt"
   p=$(sed -n 's/^COMPOSE_PROJECT_NAME=//p' "$V3_DIR/.env" | tail -n1)
   [ -n "$p" ] && project=$p
+  p=$(sed -n 's/^LAB_PROFILE=//p' "$V3_DIR/.env" | tail -n1)
+  [ -n "$p" ] && profile=$p
 fi
 dc=(docker compose -p "$project" --project-directory "$V3_DIR" --env-file "$V3_DIR/versions.env")
 [ -f "$V3_DIR/.env" ] && dc+=(--env-file "$V3_DIR/.env")
-dc+=(--profile core)
+dc+=(--profile "$profile")
 
 run docker-info.txt docker info
 run disk.txt df -h
@@ -33,6 +35,15 @@ for svc in $("${dc[@]}" ps -a --services 2>/dev/null); do
   cid=$("${dc[@]}" ps -a -q "$svc" 2>/dev/null | head -n1)
   [ -n "$cid" ] && run "inspect-$svc.json" docker inspect --format '{{json .State}}' "$cid"
 done
+# Per-user workspaces (created by JupyterHub, not compose services): this project's only,
+# selected by the exact labels, never by name.
+if [[ "$project" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
+  for cid in $(docker ps -aq --filter "label=com.docker.compose.project=$project" \
+                 --filter label=lab.role=workspace 2>/dev/null); do
+    run "logs-workspace-$cid.txt" docker logs --timestamps "$cid"
+    run "inspect-workspace-$cid.json" docker inspect --format '{{json .State}}' "$cid"
+  done
+fi
 # Smoke-test and installer outputs (v3/**/out/ is git-ignored scratch).
 while IFS= read -r -d '' d; do
   rel=${d#"$V3_DIR"/}

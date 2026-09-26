@@ -11,7 +11,9 @@ would build:
 
 Each entry: name, dockerfile and context (repo-relative), image
 (<registry>/lakehouse-<name>), and build_args (newline-separated KEY=VALUE for every ARG
-the Dockerfile declares that versions.env or v3/.pins/*.env defines). A declared
+the Dockerfile declares that versions.env or v3/.pins/*.env defines), and build_contexts
+(newline-separated NAME=PATH, repo-relative) from the compose service's
+`build.additional_contexts`, for `COPY --from=<name>` (e.g. the workspace's starter). A declared
 *_VERSION / *_TAG / *_DIGEST ARG that versions.env does not define is an error, so an
 image can never silently build with an empty pin.
 """
@@ -58,8 +60,28 @@ def compose_contexts(compose_json: Path) -> dict[Path, Path]:
     return out
 
 
+def compose_extra_contexts(compose_json: Path) -> dict[Path, dict[str, Path]]:
+    """Dockerfile path -> {name: path} of the service's build.additional_contexts."""
+    data = json.loads(compose_json.read_text(encoding="utf-8"))
+    out: dict[Path, dict[str, Path]] = {}
+    for svc in (data.get("services") or {}).values():
+        build = svc.get("build")
+        if not isinstance(build, dict) or not build.get("context"):
+            continue
+        extra = build.get("additional_contexts") or {}
+        if not extra:
+            continue
+        ctx = Path(build["context"])
+        df = Path(build.get("dockerfile") or "Dockerfile")
+        df = df if df.is_absolute() else ctx / df
+        out[df.resolve()] = {k: (ctx / v).resolve() for k, v in extra.items()}
+    return out
+
+
 def build_matrix(v3_dir: Path, versions: dict[str, str], registry: str,
-                 contexts: dict[Path, Path] | None = None) -> tuple[list[dict], list[str]]:
+                 contexts: dict[Path, Path] | None = None,
+                 extra_contexts: dict[Path, dict[str, Path]] | None = None,
+                 ) -> tuple[list[dict], list[str]]:
     entries: list[dict] = []
     errors: list[str] = []
     repo = v3_dir.parent.resolve()
@@ -80,6 +102,9 @@ def build_matrix(v3_dir: Path, versions: dict[str, str], registry: str,
             "context": os.path.relpath(ctx, repo).replace(os.sep, "/"),
             "image": f"{registry.rstrip('/')}/lakehouse-{name}".lower(),
             "build_args": "\n".join(args),
+            "build_contexts": "\n".join(
+                f"{k}={os.path.relpath(v, repo).replace(os.sep, '/')}"
+                for k, v in sorted((extra_contexts or {}).get(df.resolve(), {}).items())),
         })
     return entries, errors
 
@@ -95,7 +120,8 @@ def main(argv: list[str] | None = None) -> int:
 
     versions = load_versions(args.versions or (args.v3_dir / VERSIONS_FILE.name))
     contexts = compose_contexts(args.compose_json) if args.compose_json else None
-    entries, errors = build_matrix(args.v3_dir, versions, args.registry, contexts)
+    extra = compose_extra_contexts(args.compose_json) if args.compose_json else None
+    entries, errors = build_matrix(args.v3_dir, versions, args.registry, contexts, extra)
     for e in errors:
         print(f"ERROR {e}", file=sys.stderr)
     if errors:

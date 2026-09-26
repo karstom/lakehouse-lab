@@ -1,5 +1,5 @@
-# V3 CI: lint (versions, compatibility, shell, compose, workflows), then a real install
-# plus the end-to-end smoke test (ADR-015). Every step calls a script in v3/tools/ or the
+# V3 CI: lint (versions, compatibility, shell, compose, workflows, unit tests), then a real
+# install plus the end-to-end smoke test (ADR-015) for each profile (core, engineer). Every step calls a script in v3/tools/ or the
 # v3 CLI, so the same checks run locally:
 #   python3 v3/tools/check_versions.py && python3 v3/tools/check_compat.py
 #   v3/tools/shellcheck.sh && v3/tools/compose-check.sh && v3/tools/actionlint.sh
@@ -42,6 +42,13 @@ jobs:
         if: ${{ !cancelled() }}
         run: bash v3/tests/installer/test_unit.sh
 
+      - name: Bootstrap unit tests (test-user removal, fake Keycloak)
+        if: ${{ !cancelled() }}
+        run: python3 -m unittest discover -s v3/tests/bootstrap -v
+
+      - name: Smoke test unit tests (workspace probe, no lab)
+        if: ${{ !cancelled() }}
+        run: python3 -m unittest discover -s v3/tests/smoke -p 'test_*.py' -v
 
       - name: Version literals outside versions.env (ADR-012)
         if: ${{ !cancelled() }}
@@ -59,24 +66,55 @@ jobs:
         if: ${{ !cancelled() }}
         run: v3/tools/compose-check.sh
 
+      - name: docker compose config (profile engineer)
+        if: ${{ !cancelled() }}
+        run: v3/tools/compose-check.sh --profile engineer
+
       - name: actionlint (v3 workflows)
         if: ${{ !cancelled() }}
         run: v3/tools/actionlint.sh
 
+  # Real install + smoke test (checks 1-10) once per profile. Both jobs run in parallel on
+  # separate runners. Check 10 (Spark Connect) runs on engineer and prints [SKIP] on core.
   e2e:
     needs: lint
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [core, engineer]
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      # CI-sized limits (CONTRACT Phase 2 "Hostnames and resources"): the runner has 16 GB
+      # and 4 CPUs. The compose defaults stay as they are; these shell variables win over
+      # the defaults at interpolation time because .env does not set them. Services with a
+      # fixed JVM heap (Trino, Keycloak) keep their defaults. The Spark ones only apply to
+      # the engineer profile.
+      WORKSPACE_MEM: 1536M
+      WORKSPACE_CPUS: "1.5"
+      SMOKE_MEM: 1536m
+      SPARK_WORKER_MEMORY: 1g
+      SPARK_WORKER_MEM: 2g
+      SPARK_EXECUTOR_MEMORY: 768m
+      SPARK_CONNECT_DRIVER_MEMORY: 768m
+      SPARK_CONNECT_MEM: 1280m
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Install (core profile, test users)
-        run: v3/install.sh --non-interactive --seed-test-users --domain lab.localhost
+      - name: Install (${{ matrix.profile }} profile, test users)
+        run: v3/install.sh --non-interactive --seed-test-users --domain lab.localhost --profile "${{ matrix.profile }}"
 
       - name: Smoke test
         run: v3/lab test
+
+      - name: Re-install on the running stack (idempotent upgrade path)
+        run: v3/install.sh --non-interactive && v3/lab status
+
+      - name: lab reset removes this project's containers and volumes, per-user homes included
+        run: v3/tests/smoke/check-reset.sh
 
       - name: Collect diagnostics
         if: ${{ failure() }}
@@ -86,7 +124,7 @@ jobs:
         if: ${{ failure() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: v3-e2e-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          name: v3-e2e-diagnostics-${{ matrix.profile }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/v3-diagnostics
           retention-days: 7
           if-no-files-found: warn

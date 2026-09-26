@@ -9,6 +9,7 @@ LAB_MIN_DOCKER="24.0.0"
 LAB_MIN_COMPOSE="2.20.0"   # compose.yaml uses top-level include:, added in 2.20
 LAB_RAM_RECOMMENDED_GB=16  # core fits a 16 GB machine (CONTRACT.md: <= 10 GB of limits)
 LAB_RAM_MIN_GB=8
+LAB_RAM_MIN_GB_ENGINEER=12 # engineer adds Spark master, worker and Spark Connect (fits 16 GB)
 LAB_DISK_MIN_GB=20
 
 # is_wsl [PROC_VERSION_FILE] -> 0 when running under WSL (1 or 2).
@@ -66,13 +67,18 @@ check_tools() {
 }
 
 # Memory as Docker sees it (the Docker Desktop / WSL2 VM, not the Windows host).
-check_memory() {
-  local bytes gb
+docker_mem_gb() {
+  local bytes
   bytes=$(docker info --format '{{.MemTotal}}' 2>/dev/null || true)
   if ! [[ "$bytes" =~ ^[0-9]+$ ]] || [ "$bytes" -eq 0 ]; then
     bytes=$(awk '/^MemTotal:/ {print $2 * 1024}' /proc/meminfo 2>/dev/null || echo 0)
   fi
-  gb=$(( (bytes + 536870912) / 1073741824 ))
+  printf '%s\n' $(( (bytes + 536870912) / 1073741824 ))
+}
+
+check_memory() {
+  local gb
+  gb=$(docker_mem_gb)
   if [ "$gb" -lt "$LAB_RAM_MIN_GB" ]; then
     warn "Docker has ${gb} GB of RAM. The core profile wants ${LAB_RAM_RECOMMENDED_GB} GB; below ${LAB_RAM_MIN_GB} GB services may be OOM-killed."
     is_wsl && wsl_memory_hint
@@ -82,6 +88,18 @@ check_memory() {
   else
     ok "Memory: ${gb} GB available to Docker"
   fi
+}
+
+# check_profile_memory PROFILE -> warn when the chosen profile needs more than core.
+check_profile_memory() {
+  local gb
+  [ "$1" = engineer ] || return 0
+  gb=$(docker_mem_gb)
+  if [ "$gb" -lt "$LAB_RAM_MIN_GB_ENGINEER" ]; then
+    warn "profile engineer (Spark) wants ${LAB_RAM_RECOMMENDED_GB} GB of RAM; Docker has ${gb} GB. Below ${LAB_RAM_MIN_GB_ENGINEER} GB Spark may be OOM-killed; consider --profile core."
+    is_wsl && wsl_memory_hint
+  fi
+  return 0
 }
 
 wsl_memory_hint() {

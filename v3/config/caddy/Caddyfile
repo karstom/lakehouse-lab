@@ -50,6 +50,12 @@ catalog.{$LAB_DOMAIN}:{$LAB_HTTPS_PORT} {
 	reverse_proxy lakekeeper:8181
 }
 
+# JupyterHub (Phase 2). Workspaces are reached through the hub's proxy; websockets pass through.
+jupyter.{$LAB_DOMAIN}:{$LAB_HTTPS_PORT} {
+	import proxy_common
+	reverse_proxy jupyterhub:8000
+}
+
 # Phase 1: static placeholder (ADR-010). No login needed; it only links to the other services.
 console.{$LAB_DOMAIN}:{$LAB_HTTPS_PORT} {
 	import proxy_common

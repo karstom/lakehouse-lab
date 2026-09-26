@@ -314,3 +314,69 @@
 **Evidence:** lab test check 7: victor granted after 32.8s, revoked after 29.0s via Keycloak admin API only
 **Commit:** 39b2dce
 **LastUpdated:** 2026-09-25
+
+---
+
+## NODE: DEC_V3_WORKSPACE_CLEANUP_BY_LABEL
+**Type:** Decision
+**Priority:** MEDIUM
+**Label:** V3: lab down/reset select per-user workspaces only by exact project + lab.role labels, workspaces first
+**Summary:** JupyterHub creates workspace containers and home volumes outside compose. `lab down` stops/removes this project's workspace containers and `lab reset` also deletes the home volumes. Both select objects only with the exact label filters com.docker.compose.project=<project> AND lab.role=workspace (installer/lib.sh lab_workspace_ids), never a name pattern, so the JupyterHub name template stays the only copy of the names. Workspaces go first: compose ignores containers without a com.docker.compose.service label (not orphans, not in ps), and a running one keeps the `lab` network in use, so `compose down` exits 0 but leaves the network behind. A profile switch in install.sh stops the lab first because `up --remove-orphans` keeps containers of services that only the old profile enabled (e.g. Spark after engineer -> core).
+**Tags:** v3, workspace, jupyterhub, volumes, reset, docker-safety, profile
+**Edges:**
+- RELATES_TO → INV_VOLUME_NAMES_SINGLE_SOURCE: home volume names live only in the JupyterHub template; the lab selects by label
+- RELATES_TO → DEC_REMOVE_ORPHANED_CONTAINERS_DURING_UPGRADES_5BC0: --remove-orphans does not remove other-profile services nor label-only workspace containers
+**Files:** `v3/installer/lib.sh`, `v3/lab`, `v3/install.sh`, `v3/tests/installer/test_unit.sh`, `v3/tests/installer/test_e2e.sh`, `v3/tests/smoke/check-reset.sh`
+**Symbols:** `lab_workspace_ids`, `lab_stop_workspaces`, `lab_remove_home_volumes`, `cmd_down`, `cmd_reset`
+**Evidence:** bash v3/tests/installer/test_unit.sh (fake-docker inventory with look-alike projects) -> 198 passed; bash v3/tests/installer/test_e2e.sh (real docker, compose 5.1.4) -> 42 passed; local Phase-2 stack: check-reset.sh deleted 2 JupyterHub-created home volumes, nothing of other projects changed
+**LastVerified:** 2026-09-25
+**Commit:** 6202fd0
+**LastUpdated:** 2026-09-25
+**Author:** tests-ci-workstream
+
+---
+
+## NODE: DEC_V3_SPARK_CONNECT_PER_SESSION_TOKEN
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3 OQ-15: Spark Connect uses a per-session user catalog token (no Spark service identity)
+**Summary:** Each Spark Connect client sets spark.sql.catalog.lakehouse.token to the user's own Keycloak token on its own session; spark-defaults holds no catalog credential, so Lakekeeper/OpenFGA authorize the real user (alice writes, victor/anna denied, no-token session 401; audit log shows only user principals). Adopted under the contract's decision rule; no engineer-only restriction. The token is fixed per session (Iceberg refresh needs an RFC 8693 exchange Keycloak rejects, so token-refresh-enabled=false): lakehouse.spark() therefore always create()s a NEW session with a token having >= 30 min left, and the jupyterhub client's access tokens live 1 h. Invariant: never put a catalog credential in config/spark/spark-defaults.conf. Watch: the Spark image's Python minor must equal the workspace's (both from PYTHON_IMAGE_TAG).
+**Tags:** v3, spark, spark-connect, identity, oq-15, lakekeeper, token
+**Edges:** _(none)_
+**Files:** `v3/config/spark/spark-defaults.conf`, `v3/images/workspace/lakehouse/clients.py`, `v3/images/spark/Dockerfile`, `v3/bootstrap/jupyterhub_client.py`
+**Symbols:** `spark`, `ensure_jupyterhub_client`
+**Evidence:** Smoke check 10 (engineer) PASS on upgraded v3-p1 and clean-room v3-p2: alice creates/reads lakehouse.smoke.spark_probe via lakehouse.spark(). SPARK+DATA: victor INSERT -> ForbiddenException can_write_data; no-token -> NotAuthorizedException.
+**LastVerified:** 2026-09-26
+**Commit:** 6202fd0
+**LastUpdated:** 2026-09-26
+
+---
+
+## NODE: DEC_V3_WORKSPACE_TOKEN_VIA_HUB_AUTH_STATE
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3 workspace tokens come from JupyterHub auth state (lab_token), refreshed by the hub
+**Summary:** lab_token() (and the lab-token CLI) in the workspace image is the one place clients get the user's Keycloak token: it reads the hub's auth state via GET /hub/api/users/<name> with the server's own API token (/hub/api/user never includes auth_state). A hub refresh_user_hook refreshes when less than LAB_TOKEN_MIN_TTL (2700 s) is left; the `jupyterhub` Keycloak client (ensured by bootstrap, never only in the realm template) issues 1 h access tokens with trino+lakekeeper audiences. Role `user` needs admin:auth_state!user, else non-admin server tokens get no auth state. offline_access was rejected (30-day refresh tokens). Keycloak returns redirectUris/webOrigins as unordered sets, so drift checks compare them sorted.
+**Tags:** v3, jupyterhub, token, identity, keycloak, workspace
+**Edges:** _(none)_
+**Files:** `v3/images/workspace/lakehouse/token.py`, `v3/config/jupyterhub/jupyterhub_config.py`, `v3/bootstrap/jupyterhub_client.py`, `v3/tests/bootstrap/test_jupyterhub_client.py`
+**Symbols:** `lab_token`, `ensure_jupyterhub_client`
+**Evidence:** Smoke check 8/9 PASS (token_source python:lakehouse.lab_token, azp jupyterhub). bootstrap re-run: 'users: unchanged' after the sorted-compare fix (was 'jupyterhub: updated webOrigins' every run).
+**LastVerified:** 2026-09-26
+**Commit:** 6202fd0
+**LastUpdated:** 2026-09-26
+
+---
+
+## NODE: DEC_V3_DOCKER_PROXY_NAME_ALLOWLIST
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3 DockerSpawner reaches Docker only via a name-prefix HAProxy allowlist (docker-socket-proxy)
+**Summary:** The dev/prod host shares one Docker daemon, so JupyterHub never mounts the socket. A pinned tecnativa/docker-socket-proxy on the internal hub-docker network runs a custom HAProxy allowlist (config/jupyterhub/docker-proxy.cfg): container calls only by name and only for <project>-ws-*; no listing, pull, exec or volume/network delete; creation refused with host binds, privileged, cap_add, devices or host namespaces. DockerSpawner is subclassed to address containers by name, because Docker also accepts full IDs and unique ID prefixes, which are enumerable and would reach any container. Anti-pattern: never allow container IDs through a Docker socket proxy on a shared daemon.
+**Tags:** v3, docker, security, jupyterhub, dockerspawner, socket-proxy
+**Edges:** _(none)_
+**Files:** `v3/config/jupyterhub/docker-proxy.cfg`, `v3/config/jupyterhub/jupyterhub_config.py`, `v3/compose/workspace.yaml`
+**Evidence:** WORKSPACE proxy probe: 19 disallowed calls -> HTTP 403 (listing, pull, exec, create outside prefix / with host bind / privileged, inspect of non-workspace container by name, full ID or ID prefix). Integration: before/after docker ps -a / volume ls / network ls of non-v3 objects identical on the dev host.
+**LastVerified:** 2026-09-26
+**Commit:** 6202fd0
+**LastUpdated:** 2026-09-26

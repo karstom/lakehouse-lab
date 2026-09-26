@@ -141,3 +141,17 @@
 **Files:** `scripts/generate-credentials.sh`
 **Symbols:** `generate_passphrase`, `generate_strong_password`, `generate_db_safe_password`
 **LastUpdated:** 2026-09-25
+
+---
+
+## NODE: WATCH_V3_SPARK_CONNECT_INTERMITTENT_HANG
+**Type:** Watchlist
+**Priority:** MEDIUM
+**Label:** V3: Spark Connect client hung once after a Forbidden refusal (not reproduced)
+**Summary:** On one full smoke run, victor's workspace probe hung for 300 s after Lakekeeper and Spark had refused his table create (ForbiddenException logged within about 1 s; the client then went silent with no further RPCs). It did not recur in an isolated run, two more full runs, or a standalone client (refusal plus stop() in 2 s). If learners' notebooks can freeze this way it matters, so the smoke probe now dumps all thread stacks to ~/.smoke-stack.txt before the harness times out, and the harness attaches the dump to the evidence. On recurrence, read that dump first.
+**Tags:** v3, spark-connect, flaky, workspace
+**Edges:** _(none)_
+**Files:** `v3/tests/smoke/kernel_probe.py`, `v3/tests/smoke/workspace.py`, `v3/images/workspace/lakehouse/clients.py`
+**Symbols:** `step_spark_write_denied`, `spark`
+**Commit:** 6202fd0
+**LastUpdated:** 2026-09-26

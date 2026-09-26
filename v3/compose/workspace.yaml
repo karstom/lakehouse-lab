@@ -1,0 +1,117 @@
+# Workspace (CONTRACT Phase 2; ADR-007): JupyterHub + DockerSpawner behind a docker-socket-proxy,
+# and the lakehouse-workspace image it spawns (one container per user, not a compose service).
+#
+# Docker access: only `docker-proxy` mounts the Docker socket. It sits on `hub-docker`, an
+# internal network that only JupyterHub joins, and allows exactly the Docker API calls
+# DockerSpawner makes (config/jupyterhub/docker-proxy.cfg). The workspaces JupyterHub starts
+# join only the `lab` network and carry the project label + lab.role=workspace.
+
+x-workspace-image: &workspace-image lakehouse-lab/v3-workspace:${JUPYTERHUB_VERSION}
+
+services:
+  # One-shot: builds the workspace image with `up --build` (install.sh) and checks it starts.
+  # The image is otherwise only used by containers JupyterHub creates.
+  workspace-image:
+    build:
+      context: ./images/workspace
+      additional_contexts:
+        starter: ./starter
+      args:
+        PYTHON_IMAGE_TAG: ${PYTHON_IMAGE_TAG}
+        PYTHON_IMAGE_DIGEST: ${PYTHON_IMAGE_DIGEST}
+        JUPYTERHUB_VERSION: ${JUPYTERHUB_VERSION}
+        JUPYTERLAB_VERSION: ${JUPYTERLAB_VERSION}
+        JUPYSQL_VERSION: ${JUPYSQL_VERSION}
+        JUPYTERLAB_GIT_VERSION: ${JUPYTERLAB_GIT_VERSION}
+        JUPYTER_SERVER_PROXY_VERSION: ${JUPYTER_SERVER_PROXY_VERSION}
+        JUPYTER_AI_VERSION: ${JUPYTER_AI_VERSION}
+        PYSPARK_VERSION: ${PYSPARK_VERSION}
+        DUCKDB_VERSION: ${DUCKDB_VERSION}
+        PYICEBERG_VERSION: ${PYICEBERG_VERSION}
+        TRINO_PYTHON_VERSION: ${TRINO_PYTHON_VERSION}
+        DBT_CORE_VERSION: ${DBT_CORE_VERSION}
+        DBT_TRINO_VERSION: ${DBT_TRINO_VERSION}
+        CODE_SERVER_VERSION: ${CODE_SERVER_VERSION}
+    image: *workspace-image
+    command: ["python", "-c", "import lakehouse"]
+    network_mode: none
+    restart: "no"
+    mem_limit: ${WORKSPACE_IMAGE_MEM:-64m}
+    cpus: ${WORKSPACE_IMAGE_CPUS:-0.5}
+
+  docker-proxy:
+    image: tecnativa/docker-socket-proxy:${DOCKER_SOCKET_PROXY_IMAGE_TAG}@${DOCKER_SOCKET_PROXY_IMAGE_DIGEST}
+    labels:
+      # Recreated by `up` when its bind-mounted config changes (installer/lib.sh lab_config_hashes).
+      lab.config-hash: ${LAB_CONFIG_HASH_JUPYTERHUB:-}
+    environment:
+      DISABLE_IPV6: "1"
+      LOG_LEVEL: ${DOCKER_PROXY_LOG_LEVEL:-notice}
+      LAB_WS_CONTAINER_PREFIX: ${COMPOSE_PROJECT_NAME:?run install.sh (missing .env)}-ws-
+      LAB_PROJECT: ${COMPOSE_PROJECT_NAME:?run install.sh (missing .env)}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config/jupyterhub/docker-proxy.cfg:/usr/local/etc/haproxy/haproxy.cfg.template:ro
+    networks: [hub-docker]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2375/_ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+    mem_limit: ${DOCKER_PROXY_MEM:-64m}
+    cpus: ${DOCKER_PROXY_CPUS:-0.25}
+
+  jupyterhub:
+    build:
+      context: ./images/jupyterhub
+      args:
+        JUPYTERHUB_VERSION: ${JUPYTERHUB_VERSION}
+        JUPYTERHUB_IMAGE_DIGEST: ${JUPYTERHUB_IMAGE_DIGEST}
+        OAUTHENTICATOR_VERSION: ${OAUTHENTICATOR_VERSION}
+        DOCKERSPAWNER_VERSION: ${DOCKERSPAWNER_VERSION}
+    image: lakehouse-lab/v3-jupyterhub:${JUPYTERHUB_VERSION}
+    labels:
+      # Recreated by `up` when its bind-mounted config changes (installer/lib.sh lab_config_hashes).
+      lab.config-hash: ${LAB_CONFIG_HASH_JUPYTERHUB:-}
+    command: ["jupyterhub", "-f", "/etc/jupyterhub/jupyterhub_config.py"]
+    environment:
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME:?run install.sh (missing .env)}
+      LAB_DOMAIN: ${LAB_DOMAIN:-lab.localhost}
+      LAB_AUTH_URL: ${LAB_AUTH_URL:?LAB_AUTH_URL is derived from LAB_DOMAIN/LAB_HTTPS_PORT by installer/lib.sh; start the lab with ./lab or ./install.sh}
+      OIDC_CLIENT_SECRET_JUPYTERHUB: ${OIDC_CLIENT_SECRET_JUPYTERHUB:?}
+      JUPYTERHUB_CRYPT_KEY: ${JUPYTERHUB_CRYPT_KEY:?}
+      DOCKER_HOST: tcp://docker-proxy:2375
+      LAB_WORKSPACE_IMAGE: *workspace-image
+      # Per-workspace limits. Measured peak with JupyterLab + Trino + DuckDB + PyIceberg +
+      # the starter's dbt build: ~450 MiB; the default leaves room for code-server.
+      WORKSPACE_MEM: ${WORKSPACE_MEM:-1536m}
+      WORKSPACE_CPUS: ${WORKSPACE_CPUS:-2}
+      LAB_TOKEN_MIN_TTL: ${LAB_TOKEN_MIN_TTL:-2700}
+      LAB_SPARK_REMOTE: ${LAB_SPARK_REMOTE:-sc://spark-connect:15002}
+      TZ: ${LAB_TZ:-UTC}
+    volumes:
+      - ./config/jupyterhub/jupyterhub_config.py:/etc/jupyterhub/jupyterhub_config.py:ro
+      - jupyterhub-data:/srv/jupyterhub/data
+      - trust:/trust:ro
+    networks: [lab, hub-docker]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/hub/health', timeout=4)"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    depends_on:
+      docker-proxy: {condition: service_healthy}
+      workspace-image: {condition: service_completed_successfully}
+      keycloak: {condition: service_healthy}
+      caddy: {condition: service_healthy}
+      bootstrap: {condition: service_completed_successfully}    # creates the `jupyterhub` client
+      samples: {condition: service_completed_successfully}      # the starter's dbt sources
+    # Time to stop every running workspace on `down` (cleanup_servers).
+    stop_grace_period: 60s
+    restart: unless-stopped
+    mem_limit: ${JUPYTERHUB_MEM:-384m}
+    cpus: ${JUPYTERHUB_CPUS:-1}
+
+# The `hub-docker` network and the `jupyterhub-data` volume are declared in compose.yaml.

@@ -1,17 +1,20 @@
 # Lakehouse Lab V3: top-level compose file (CONTRACT.md). Always started as
 #
 #   docker compose --project-directory v3 --env-file v3/versions.env --env-file v3/.env \
-#     --profile core up -d --wait
+#     --profile "$LAB_PROFILE" up -d --wait --remove-orphans
 #
 # Versions come only from versions.env (ADR-012). Non-secret settings come from .env.
 # Secrets come from .secrets.env, which each fragment reads through `include.env_file`, so a
 # service sees only the secrets its fragment names in `environment:` (never the whole file).
 #
 # The core services carry no `profiles:` key, so every profile (core and later ones) includes
-# them; `smoke` is the only profiled service (profile `test`).
+# them. Profiled services: `smoke` (profile `test`) and Spark (profile `engineer`).
 #
 # Resources declared here, once (INV_VOLUME_NAMES_SINGLE_SOURCE): the `lab` network and every
 # named volume. Compose prefixes them with COMPOSE_PROJECT_NAME. No `external: true`.
+# The one exception to "volumes only in compose" (CONTRACT Phase 2): per-user home volumes
+# ${COMPOSE_PROJECT_NAME}-home-<user>, created by JupyterHub (config/jupyterhub) with the
+# project and lab.role=workspace labels; `lab reset` deletes them by those labels.
 # The lab CA is NOT a volume: it lives in ${LAB_STATE_DIR}/ca, which `down -v` never touches.
 
 include:
@@ -33,12 +36,22 @@ include:
   - path: compose/engines.yaml
     project_directory: .
     env_file: [.secrets.env]
+  - path: compose/workspace.yaml     # JupyterHub, docker-socket-proxy, workspace image (Phase 2)
+    project_directory: .
+    env_file: [.secrets.env]
+  - path: compose/spark.yaml         # profile engineer: Spark master, worker, Spark Connect
+    project_directory: .
+    env_file: [.secrets.env]
   - path: compose/test.yaml
     project_directory: .
     env_file: [.secrets.env]
 
 networks:
   lab: {}
+  # Only docker-proxy and jupyterhub (compose/workspace.yaml). No egress, not reachable from
+  # `lab` or the workspaces.
+  hub-docker:
+    internal: true
 
 volumes:
   caddy-data: {}       # Caddy's intermediates and leaf certificates (re-issued from the root in state/ca)
@@ -47,3 +60,4 @@ volumes:
   postgres-data: {}    # keycloak, lakekeeper and openfga databases
   seaweedfs-data: {}   # object data (the warehouse bucket)
   trino-groups: {}     # Trino file group provider, generated from Keycloak by bootstrap (OQ-17)
+  jupyterhub-data: {}  # hub database (users, servers, encrypted auth state) + cookie secret

@@ -15,8 +15,24 @@ WORK=$(mktemp -d "${TMPDIR:-/tmp}/lab-inst-e2e.XXXXXX")
 T="$WORK/v3"
 make_tree "$T"
 
+# Per-user workspace stand-ins (what JupyterHub's DockerSpawner creates): a container and a
+# home volume labelled com.docker.compose.project=<project> + lab.role=workspace, outside
+# compose. DECOY is a second v3-* project of this test whose objects must survive.
+DECOY=v3-p1-inst-decoy
+IMG="caddy:$(awk -F= '$1 == "CADDY_VERSION" {print $2}' "$T/versions.env")"
+ws_run() {  # ws_run USER PROJECT [NETWORK]
+  docker volume create --label "com.docker.compose.project=$2" --label lab.role=workspace "$2-home-$1" >/dev/null
+  docker run -d --name "$2-ws-$1" --label "com.docker.compose.project=$2" --label lab.role=workspace \
+    ${3:+--network "$3"} -v "$2-home-$1:/home/lab" "$IMG" sleep 600 >/dev/null
+}
+decoy_cleanup() {
+  docker rm -f "$DECOY-ws-bob" >/dev/null 2>&1 || true
+  docker volume rm "$DECOY-home-bob" >/dev/null 2>&1 || true
+}
+
 cleanup() {
   if [ -f "$T/.env" ]; then "$T/lab" reset --all --yes >/dev/null 2>&1 || true; fi
+  decoy_cleanup
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -61,9 +77,15 @@ assert_eq "data kept" keep-me "$(docker exec "$(cid edge)" cat /data/marker 2>/d
 
 echo "== lab down / up / logs / urls / test / ca"
 t_begin lab
+ws_run alice "$PROJECT" "${PROJECT}_default"
+ws_run bob "$DECOY"
+assert_eq "workspace stand-in running" running "$(docker inspect -f '{{.State.Status}}' "$PROJECT-ws-alice" 2>/dev/null)"
 assert "lab down" "$T/lab" down
-assert_eq "containers gone after down" "" "$(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT")"
+assert_eq "containers gone after down (incl. workspace)" "" "$(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT")"
+assert_not "network removed (no workspace kept it in use)" docker network inspect "${PROJECT}_default"
 assert "volume kept after down" vol_exists
+assert "home volume kept after down" docker volume inspect "$PROJECT-home-alice"
+assert_eq "other project's workspace untouched by down" running "$(docker inspect -f '{{.State.Status}}' "$DECOY-ws-bob" 2>/dev/null)"
 assert_not "lab status fails when down" "$T/lab" status
 assert "lab up" "$T/lab" up
 assert_eq "data survived down/up" keep-me "$(docker exec "$(cid edge)" cat /data/marker 2>/dev/null)"
@@ -74,7 +96,11 @@ assert "lab test runs the smoke script" "$T/lab" test
 
 echo "== lab reset"
 t_begin reset
+ws_run alice "$PROJECT" "${PROJECT}_default"
 assert "lab reset --yes" "$T/lab" reset --yes
+assert_not "home volume deleted by reset" docker volume inspect "$PROJECT-home-alice"
+assert_eq "other project's workspace untouched by reset" running "$(docker inspect -f '{{.State.Status}}' "$DECOY-ws-bob" 2>/dev/null)"
+assert "other project's home volume untouched by reset" docker volume inspect "$DECOY-home-bob"
 assert_eq "containers gone" "" "$(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT")"
 assert_not "data volume deleted" vol_exists
 assert_eq "CA kept by reset" "$hc" "$(sha256sum "$T/state/ca/root.crt" "$T/state/ca/root.key")"
@@ -88,6 +114,7 @@ assert "lab reset --all again" "$T/lab" reset --all --yes
 
 echo "== isolation"
 t_begin isolation
+decoy_cleanup
 after=$(others)
 assert_eq "no other project's containers/volumes changed" "$before" "$after"
 

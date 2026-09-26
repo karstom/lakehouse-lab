@@ -15,11 +15,19 @@ LAB_VERSIONS_FILE="${V3_DIR}/versions.env"
 LAB_COMPOSE_FILE="${V3_DIR}/compose.yaml"
 
 # Profiles from docs/v3/ARCHITECTURE.md section 8. Only these are selectable today.
+# `engineer` (Phase 2) = everything in core plus Spark master, worker and Spark Connect.
 LAB_KNOWN_PROFILES="core engineer full server"
-LAB_AVAILABLE_PROFILES="core"
+LAB_AVAILABLE_PROFILES="core engineer"
 
-# Public subdomains Caddy serves in Phase 1 (CONTRACT.md, stack conventions).
-LAB_PUBLIC_SERVICES="console auth trino catalog"
+# Public subdomains Caddy serves (CONTRACT.md, stack conventions; jupyter. since Phase 2).
+LAB_PUBLIC_SERVICES="console auth trino catalog jupyter"
+
+# Per-user workspace objects (CONTRACT.md Phase 2, "Docker access"). JupyterHub's
+# DockerSpawner creates one container and one home volume per user, outside compose, and
+# labels both com.docker.compose.project=<project> + lab.role=workspace. The lab selects
+# them ONLY by these exact labels (never by a name pattern), so it can never reach another
+# project's objects, and the name template stays in one place (the JupyterHub config).
+LAB_WORKSPACE_ROLE_LABEL="lab.role=workspace"
 
 # Defaults from the runtime contract.
 LAB_DEFAULT_PROJECT="lakehouse"
@@ -125,6 +133,34 @@ lab_settings() {
   # stored in .env.
   LAB_AUTH_URL="$(service_url auth)"
   export LAB_AUTH_URL
+  lab_config_hashes
+}
+
+# ---------------------------------------------------------------- bind-mounted config
+# Services read their config from bind mounts under config/. Compose does not notice when
+# those files change, and a single-file bind mount even keeps showing the OLD file after
+# an upgrade replaced it (new inode). So an upgrade (install.sh re-run) would leave Trino,
+# Caddy, JupyterHub, ... running their old config (REG_V3_STALE_BIND_MOUNT_CONFIG_ON_UPGRADE).
+# Each such service carries the label lab.config-hash=${LAB_CONFIG_HASH_<SVC>}: when a file
+# changes, the label changes and `up` recreates exactly the services whose config changed.
+# Derived here on every start and never stored (like LAB_AUTH_URL).
+#   config_hash PATH... -> checksum over the files under PATH (relative to v3/), stable order.
+config_hash() {
+  local p
+  local -a paths=()
+  for p in "$@"; do [ -e "$V3_DIR/$p" ] && paths+=("$p"); done
+  [ ${#paths[@]} -gt 0 ] || { echo none; return 0; }
+  (cd "$V3_DIR" && find "${paths[@]}" -type f ! -name '*.pyc' ! -path '*/__pycache__/*' -print0 |
+     LC_ALL=C sort -z | xargs -0 cksum | cksum | cut -d' ' -f1) || echo unknown
+}
+lab_config_hashes() {
+  LAB_CONFIG_HASH_CADDY=$(config_hash config/caddy)
+  LAB_CONFIG_HASH_TRINO=$(config_hash config/trino)
+  LAB_CONFIG_HASH_SEAWEEDFS=$(config_hash config/seaweedfs)
+  LAB_CONFIG_HASH_JUPYTERHUB=$(config_hash config/jupyterhub)
+  LAB_CONFIG_HASH_SPARK=$(config_hash config/spark)
+  export LAB_CONFIG_HASH_CADDY LAB_CONFIG_HASH_TRINO LAB_CONFIG_HASH_SEAWEEDFS \
+    LAB_CONFIG_HASH_JUPYTERHUB LAB_CONFIG_HASH_SPARK
 }
 
 # state_dir_abs -> LAB_STATE_DIR resolved like compose does (relative to the project dir).
@@ -153,6 +189,59 @@ lab_compose() {
     return 0
   fi
   COMPOSE_PROJECT_NAME="$COMPOSE_PROJECT_NAME" "${cmd[@]}"
+}
+
+# ---------------------------------------------------------------- per-user workspaces
+# lab_workspace_ids KIND -> ids/names of THIS project's workspace containers (KIND=container)
+# or home volumes (KIND=volume), one per line. Both label filters must match (docker ANDs
+# them), and label filters are exact matches, so no other project can be selected.
+lab_workspace_ids() {
+  local kind=$1
+  valid_project_name "${COMPOSE_PROJECT_NAME:-}" || die "refusing to select workspaces: invalid COMPOSE_PROJECT_NAME '${COMPOSE_PROJECT_NAME:-}'"
+  local -a ws_filters=(--filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}"
+                        --filter "label=${LAB_WORKSPACE_ROLE_LABEL}")
+  case "$kind" in
+    container) docker ps -a -q "${ws_filters[@]}" ;;
+    volume)    docker volume ls -q "${ws_filters[@]}" ;;
+    *) die "lab_workspace_ids: unknown kind '$kind'" ;;
+  esac
+}
+
+# lab_stop_workspaces -> stop and remove this project's spawned workspace containers.
+# Home volumes are kept (they hold users' files); the next login spawns a fresh container.
+# Runs BEFORE 'compose down': a running workspace keeps the `lab` network in use, and
+# compose ignores these containers (they carry no com.docker.compose.service label).
+lab_stop_workspaces() {
+  local ids left
+  ids=$(lab_workspace_ids container) || { err "could not list workspace containers"; return 1; }
+  [ -n "$ids" ] || return 0
+  local -a arr
+  mapfile -t arr <<<"$ids"
+  info "Stopping ${#arr[@]} workspace container(s) of project $COMPOSE_PROJECT_NAME"
+  docker stop -t 10 "${arr[@]}" >/dev/null 2>&1 || true
+  # A spawner with remove=True deletes them itself on stop; 'rm -f' covers the rest.
+  docker rm -f "${arr[@]}" >/dev/null 2>&1 || true
+  left=$(lab_workspace_ids container) || left="?"
+  if [ -n "$left" ]; then
+    err "workspace container(s) still present: $(tr '\n' ' ' <<<"$left")"
+    return 1
+  fi
+}
+
+# lab_remove_home_volumes -> delete this project's per-user home volumes (lab reset only).
+lab_remove_home_volumes() {
+  local ids left
+  ids=$(lab_workspace_ids volume) || { err "could not list workspace volumes"; return 1; }
+  [ -n "$ids" ] || return 0
+  local -a arr
+  mapfile -t arr <<<"$ids"
+  docker volume rm "${arr[@]}" >/dev/null || true
+  left=$(lab_workspace_ids volume) || left="?"
+  if [ -n "$left" ]; then
+    err "home volume(s) could not be deleted: $(tr '\n' ' ' <<<"$left")"
+    return 1
+  fi
+  ok "Deleted ${#arr[@]} per-user home volume(s)"
 }
 
 # ---------------------------------------------------------------- misc
@@ -206,8 +295,9 @@ print_urls() {
   printf '  %-9s %s\n' "Keycloak" "$(service_url auth)/  (admin console: $(service_url auth)/admin/)"
   printf '  %-9s %s\n' "Trino" "$(service_url trino)/ui/"
   printf '  %-9s %s\n' "Catalog" "$(service_url catalog)/ui/"
+  printf '  %-9s %s\n' "Jupyter" "$(service_url jupyter)/"
   for svc in $LAB_PUBLIC_SERVICES; do
-    case "$svc" in console|auth|trino|catalog) ;; *) printf '  %-9s %s\n' "$svc" "$(service_url "$svc")/";; esac
+    case "$svc" in console|auth|trino|catalog|jupyter) ;; *) printf '  %-9s %s\n' "$svc" "$(service_url "$svc")/";; esac
   done
   if is_localhost_domain "$LAB_DOMAIN"; then
     local p=""

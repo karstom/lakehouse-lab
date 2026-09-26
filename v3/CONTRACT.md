@@ -50,7 +50,7 @@ started as:
 
 ```
 docker compose --project-directory v3 --env-file v3/versions.env --env-file v3/.env \
-  --profile core up -d --wait --remove-orphans
+  --profile "$LAB_PROFILE" up -d --wait --remove-orphans      # core (Phase 1) or engineer (Phase 2)
 ```
 
 `./lab` and `./install.sh` also export **`LAB_AUTH_URL`**, the public Keycloak origin derived
@@ -86,6 +86,8 @@ URL-safe (INV_DB_PASSWORDS_URL_SAFE).
 | `OIDC_CLIENT_SECRET_TRINO`, `OIDC_CLIENT_SECRET_LAKEKEEPER`, `OIDC_CLIENT_SECRET_CONSOLE` | confidential OIDC clients |
 | `OIDC_CLIENT_SECRET_SYNC` | read-only `lab-sync` service account used by `identity-sync` (created by bootstrap) |
 | `TRINO_INTERNAL_SECRET` | Trino shared secret |
+| `OIDC_CLIENT_SECRET_JUPYTERHUB` | confidential `jupyterhub` OIDC client (Phase 2; created and repaired by bootstrap) |
+| `JUPYTERHUB_CRYPT_KEY` | JupyterHub auth-state encryption key (Phase 2; 32 bytes as 64 hex chars) |
 
 Test users (`alice` lab-admin, `eddie` engineer, `anna` analyst, `victor` viewer) are created
 **only** when `LAB_SEED_TEST_USERS=true` (CI and dev). Their password is

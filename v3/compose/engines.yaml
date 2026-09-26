@@ -6,6 +6,9 @@
 services:
   trino:
     image: trinodb/trino:${TRINO_VERSION}
+    labels:
+      # Recreated by `up` when its bind-mounted config changes (installer/lib.sh lab_config_hashes).
+      lab.config-hash: ${LAB_CONFIG_HASH_TRINO:-}
     environment:
       LAB_DOMAIN: ${LAB_DOMAIN:-lab.localhost}
       LAB_HTTPS_PORT: ${LAB_HTTPS_PORT:-443}

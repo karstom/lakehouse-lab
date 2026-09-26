@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+"""lab-token CLI: see lakehouse/cli.py."""
+import sys
+
+from lakehouse.cli import main
+
+sys.exit(main())

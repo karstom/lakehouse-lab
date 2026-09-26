@@ -1,0 +1,23 @@
+version: 2
+
+models:
+  - name: dim_customers
+    description: Customers with their nation and region.
+    columns:
+      - name: customer_id
+        tests: [unique, not_null]
+  - name: fct_orders
+    description: Orders with line-item totals (net revenue = price x (1 - discount)).
+    columns:
+      - name: order_id
+        tests: [unique, not_null]
+      - name: customer_id
+        tests:
+          - relationships:
+              to: ref('dim_customers')
+              field: customer_id
+  - name: revenue_by_region
+    description: Net revenue per region and order year.
+    columns:
+      - name: region_name
+        tests: [not_null]

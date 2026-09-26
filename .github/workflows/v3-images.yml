@@ -12,6 +12,7 @@ on:
     tags: ["v3.*"] # path filters are not evaluated for tag pushes
     paths:
       - "v3/images/**"
+      - "v3/starter/**"
       - "v3/versions.env"
       - "v3/compose.yaml"
       - "v3/compose/**"
@@ -21,6 +22,7 @@ on:
   pull_request:
     paths:
       - "v3/images/**"
+      - "v3/starter/**"
       - "v3/versions.env"
       - "v3/compose.yaml"
       - "v3/compose/**"
@@ -124,6 +126,9 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           build-args: ${{ matrix.build_args }}
+          # Named contexts from compose's build.additional_contexts (e.g. starter=v3/starter
+          # for the workspace image's COPY --from=starter).
+          build-contexts: ${{ matrix.build_contexts }}
           platforms: linux/amd64
           push: ${{ env.PUSH == 'true' }}
           tags: |

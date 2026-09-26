@@ -1,0 +1,20 @@
+# Connection profile, kept in the project so it works as-is in every workspace.
+# dbt-trino connects to Trino AS YOU with your own Keycloak token (method: jwt). The `dbt`
+# command in the workspace puts a fresh token into DBT_ENV_SECRET_LAB_TOKEN (dbt scrubs
+# DBT_ENV_SECRET_* values from its logs); never paste a token or password here.
+# Models are written to your own schema, lakehouse.dbt_<your user name>.
+lakehouse:
+  target: dev
+  outputs:
+    dev:
+      type: trino
+      method: jwt
+      jwt_token: "{{ env_var('DBT_ENV_SECRET_LAB_TOKEN') }}"
+      user: "{{ env_var('JUPYTERHUB_USER') }}"
+      host: "{{ env_var('LAB_TRINO_HOST') }}"
+      port: "{{ env_var('LAB_TRINO_PORT') | as_number }}"
+      http_scheme: https
+      cert: "{{ env_var('SSL_CERT_FILE') }}"
+      database: lakehouse
+      schema: "dbt_{{ env_var('JUPYTERHUB_USER') }}"
+      threads: 4

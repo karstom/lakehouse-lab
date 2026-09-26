@@ -166,6 +166,7 @@ else
 fi
 case " $LAB_KNOWN_PROFILES " in *" $profile "*) ;; *) die "unknown profile '$profile' (known: $LAB_KNOWN_PROFILES)";; esac
 profile_available "$profile" || die "profile '$profile' is not available yet (available: $LAB_AVAILABLE_PROFILES)"
+check_profile_memory "$profile"
 
 state_dir=$(pick "" "$cur_state" "$LAB_DEFAULT_STATE_DIR")
 tz=$(pick "" "$cur_tz" "$(detect_tz)")
@@ -214,6 +215,15 @@ fi
 if [ ! -f "$LAB_COMPOSE_FILE" ]; then
   warn "$LAB_COMPOSE_FILE not found; configuration is written but nothing was started."
   exit 0
+fi
+
+if [ -n "$cur_profile" ] && [ "$cur_profile" != "$LAB_PROFILE" ]; then
+  # 'up --remove-orphans' keeps containers of services that only the old profile enables
+  # (e.g. Spark after engineer -> core), so stop the whole lab first. Data volumes and
+  # users' home volumes are kept.
+  hdr "Profile changed ($cur_profile -> $LAB_PROFILE): stopping the running lab first; data is kept"
+  lab_stop_workspaces || die "could not stop the workspace containers."
+  lab_compose down --remove-orphans || die "could not stop the lab."
 fi
 
 hdr "Starting the lab (profile $LAB_PROFILE); first start builds/pulls images and can take several minutes"

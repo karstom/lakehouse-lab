@@ -1,0 +1,5 @@
+# GENERATED from the workspace image lock (spikes/s4-workspace-image/lock/constraints.txt): the transitive pins of pandas/pyarrow on the Spark image. Do not edit; regenerate with the workspace lock.
+numpy==2.5.3
+python-dateutil==2.9.0.post0
+six==1.17.0
+tzdata==2026.4

@@ -1,13 +1,23 @@
 {
   "catalogs": [
     {
+      "user": "service-account-trino",
+      "catalog": "lakehouse",
+      "allow": "all"
+    },
+    {
+      "user": "service-account-trino",
+      "catalog": "tpch|system",
+      "allow": "read-only"
+    },
+    {
       "group": "lab-admin|engineer",
       "catalog": ".*",
       "allow": "all"
     },
     {
       "group": "analyst|viewer",
-      "catalog": "lakehouse",
+      "catalog": "lakehouse|tpch",
       "allow": "read-only"
     },
     {
@@ -18,6 +28,16 @@
   ],
   "schemas": [
     {
+      "user": "service-account-trino",
+      "catalog": "lakehouse",
+      "schema": "samples",
+      "owner": true
+    },
+    {
+      "user": "service-account-trino",
+      "owner": false
+    },
+    {
       "group": "lab-admin|engineer",
       "owner": true
     },
@@ -26,6 +46,27 @@
     }
   ],
   "tables": [
+    {
+      "user": "service-account-trino",
+      "catalog": "lakehouse",
+      "schema": "samples",
+      "privileges": [
+        "SELECT",
+        "INSERT",
+        "OWNERSHIP"
+      ]
+    },
+    {
+      "user": "service-account-trino",
+      "catalog": "tpch|system",
+      "privileges": [
+        "SELECT"
+      ]
+    },
+    {
+      "user": "service-account-trino",
+      "privileges": []
+    },
     {
       "group": "lab-admin|engineer",
       "privileges": [
@@ -45,6 +86,12 @@
     }
   ],
   "queries": [
+    {
+      "user": "service-account-trino",
+      "allow": [
+        "execute"
+      ]
+    },
     {
       "group": "lab-admin",
       "allow": [

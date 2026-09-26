@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Lakehouse Lab V3 end-to-end smoke test (CONTRACT.md "Test contract"). `./lab test` runs it.
-# Against the RUNNING stack; exits 0 only if all seven checks pass:
+# Against the RUNNING stack; exits 0 only if every check passes (skipped ones aside):
 #   1. the stack is healthy                                            (here, on the host)
 #   2. headless browser logs in as alice through auth. and reaches the Trino UI
 #   3. with alice's Keycloak token, Trino creates a namespace + Iceberg table, inserts, reads
@@ -8,12 +8,21 @@
 #      denied on a sibling prefix
 #   5. victor (viewer) is denied a write in Trino
 #   6. no static S3 key in Trino's config or environment                (here, on the host)
+#  11. the Docker socket proxy refuses out-of-scope requests (in the jupyterhub container)
 #   7. a group change made through the Keycloak admin API (as in the Keycloak UI) reaches
 #      Trino automatically via identity-sync, granting and then revoking (OQ-20)
-# Checks 2-5 and 7 run in the `smoke` container (profile test) on the lab network: smoke.py.
+#   8. alice logs into jupyter. in the browser, her workspace spawns, and INSIDE it (her
+#      kernel, her lab_token()) Trino reads lakehouse.samples.orders, DuckDB ATTACHes the
+#      catalog with vended credentials, and `dbt build` of the starter project passes
+#   9. victor's workspace is denied a Trino write
+#  10. profile engineer only (a [SKIP] line on core): Spark Connect, from alice's workspace,
+#      creates and reads an Iceberg table
+# Checks 2-5 and 7-10 run in the `smoke` container (profile test) on the lab network:
+# smoke.py, with workspace.py driving the workspace and kernel_probe.py running inside it.
 #
 # Usage: tests/smoke/run.sh [--no-build]
 # Env:   LAB_SMOKE_OUT  where screenshots/results.json go (default: tests/smoke/out)
+#        LAB_SMOKE_ONLY debugging only: comma list of in-container checks to run (e.g. 8,9)
 set -uo pipefail
 
 V3=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -32,8 +41,9 @@ DC=(docker compose --project-directory "$V3" --env-file "$V3/versions.env" --env
     --profile "$PROFILE")
 
 FAILED=()
-pass() { printf '[PASS] %s: %s\n' "$1" "$2"; }
-fail() { printf '[FAIL] %s: %s\n' "$1" "$2"; FAILED+=("$1"); }
+HOST_PASSED=0 HOST_FAILED=0
+pass() { printf '[PASS] %s: %s\n' "$1" "$2"; HOST_PASSED=$((HOST_PASSED + 1)); }
+fail() { printf '[FAIL] %s: %s\n' "$1" "$2"; FAILED+=("$1"); HOST_FAILED=$((HOST_FAILED + 1)); }
 
 # ---------------------------------------------------------------- 1. stack healthy
 echo "== 1. stack health (project $PROJECT, profile $PROFILE)"
@@ -83,22 +93,48 @@ else
 fi
 
 # ---------------------------------------------------------------- 2-5. in the smoke container
-echo "== 2-5. browser login, Trino, PyIceberg, viewer denial (smoke container on the lab network)"
+echo "== 2-5, 7-10. browser login, Trino, PyIceberg, viewer denial, group sync, workspaces (smoke container on the lab network)"
 out=${LAB_SMOKE_OUT:-$V3/tests/smoke/out}
 mkdir -p "$out"
+rm -f "$out/summary.env" "$out/results.json"
 build=(--build)
 [ "${1:-}" = "--no-build" ] && build=()
 if LAB_SMOKE_OUT="$out" "${DC[@]}" --profile test run --rm "${build[@]}" \
-     --user "$(id -u):$(id -g)" -e HOME=/tmp/smoke-home smoke; then
+     --user "$(id -u):$(id -g)" -e HOME=/tmp/smoke-home -e LAB_PROFILE="$PROFILE" \
+     -e LAB_SMOKE_ONLY="${LAB_SMOKE_ONLY:-}" smoke; then
   :
 else
-  FAILED+=("2-5,7 (see [FAIL] lines above, $out/results.json)")
+  FAILED+=("in-container checks (see [FAIL] lines above, $out/results.json)")
 fi
 
+# ---------------------------------------------------------------- 11. Docker proxy scope
+echo "== 11. Docker socket proxy refuses out-of-scope requests (from inside jupyterhub)"
+if probe=$("${DC[@]}" exec -T jupyterhub python3 - <"$V3/tests/smoke/proxy_probe.py" 2>&1); then
+  pass "11.docker_proxy_scope" "$(printf '%s' "$probe" | tail -n 1)"
+else
+  fail "11.docker_proxy_scope" "$(printf '%s' "$probe" | tail -n 3 | tr '\n' ' ')"
+fi
+
+# Totals: host checks (1, 6, 11) + the container's summary. Skipped checks are not counted.
+c_pass=0 c_fail=0 c_skip=0 c_skipped=""
+if [ -f "$out/summary.env" ]; then
+  c_pass=$(env_get "$out/summary.env" CONTAINER_PASSED)
+  c_fail=$(env_get "$out/summary.env" CONTAINER_FAILED)
+  c_skip=$(env_get "$out/summary.env" CONTAINER_SKIPPED)
+  c_skipped=$(env_get "$out/summary.env" CONTAINER_SKIPPED_NAMES)
+else
+  FAILED+=("no $out/summary.env: the smoke container did not finish")
+  c_fail=1
+fi
+passed=$((HOST_PASSED + ${c_pass:-0}))
+total=$((passed + HOST_FAILED + ${c_fail:-0}))
+skipped=""
+[ "${c_skip:-0}" -gt 0 ] && skipped=", ${c_skip} skipped: ${c_skipped}"
+
 echo
-if [ ${#FAILED[@]} -eq 0 ]; then
-  echo "SMOKE: PASS (7/7)"
+if [ ${#FAILED[@]} -eq 0 ] && [ "${c_fail:-0}" = 0 ]; then
+  echo "SMOKE: PASS (${passed}/${total}${skipped}; profile $PROFILE)"
   exit 0
 fi
-echo "SMOKE: FAIL: ${FAILED[*]}"
+echo "SMOKE: FAIL (${passed}/${total} passed${skipped}; profile $PROFILE): ${FAILED[*]}"
 exit 1

@@ -34,7 +34,7 @@ V3_DIR="$WORK/libtree"; mkdir -p "$V3_DIR"
 # shellcheck source=../../installer/ca.sh
 . "$SRC/installer/ca.sh"
 
-CONTRACT_SECRETS="POSTGRES_PASSWORD KEYCLOAK_DB_PASSWORD LAKEKEEPER_DB_PASSWORD KC_ADMIN_USER KC_ADMIN_PASSWORD LAB_ADMIN_USER LAB_ADMIN_PASSWORD SEAWEEDFS_ADMIN_ACCESS_KEY SEAWEEDFS_ADMIN_SECRET_KEY SEAWEEDFS_STS_SIGNING_KEY LAKEKEEPER_PG_ENCRYPTION_KEY OIDC_CLIENT_SECRET_TRINO OIDC_CLIENT_SECRET_LAKEKEEPER OIDC_CLIENT_SECRET_CONSOLE TRINO_INTERNAL_SECRET LAB_TEST_USER_PASSWORD"
+CONTRACT_SECRETS="POSTGRES_PASSWORD KEYCLOAK_DB_PASSWORD LAKEKEEPER_DB_PASSWORD KC_ADMIN_USER KC_ADMIN_PASSWORD LAB_ADMIN_USER LAB_ADMIN_PASSWORD SEAWEEDFS_ADMIN_ACCESS_KEY SEAWEEDFS_ADMIN_SECRET_KEY SEAWEEDFS_STS_SIGNING_KEY LAKEKEEPER_PG_ENCRYPTION_KEY OIDC_CLIENT_SECRET_TRINO OIDC_CLIENT_SECRET_LAKEKEEPER OIDC_CLIENT_SECRET_CONSOLE OIDC_CLIENT_SECRET_SYNC OIDC_CLIENT_SECRET_JUPYTERHUB JUPYTERHUB_CRYPT_KEY TRINO_INTERNAL_SECRET LAB_TEST_USER_PASSWORD"
 CONTRACT_ENV="COMPOSE_PROJECT_NAME LAB_DOMAIN LAB_HTTPS_PORT LAB_HTTP_PORT LAB_PROFILE LAB_STATE_DIR LAB_TZ"
 mode_of() { stat -c '%a' "$1"; }
 sha() { sha256sum "$1" | cut -d' ' -f1; }
@@ -110,6 +110,8 @@ for k in $CONTRACT_SECRETS; do
 done
 assert_match "DB password length" '^[0-9a-f]{48}$' "$(env_get "$s" POSTGRES_PASSWORD)"
 assert_match "admin password strength" '^[A-Za-z0-9]{20}$' "$(env_get "$s" LAB_ADMIN_PASSWORD)"
+# JupyterHub needs a 32-byte key, hex-encoded (enable_auth_state).
+assert_match "JUPYTERHUB_CRYPT_KEY is 32 bytes hex" '^[0-9a-f]{64}$' "$(env_get "$s" JUPYTERHUB_CRYPT_KEY)"
 h1=$(sha "$s"); ensure_secrets "$s" >/dev/null
 assert_eq "re-run changes nothing" "$h1" "$(sha "$s")"
 pg=$(env_get "$s" POSTGRES_PASSWORD)
@@ -195,6 +197,7 @@ assert "domain change with --reconfigure" "$T/install.sh" --non-interactive --no
 assert_eq "domain changed" lab2.localhost "$(env_get "$T/.env" LAB_DOMAIN)"
 assert_not "unknown profile refused" "$T/install.sh" --non-interactive --no-start --profile bogus
 assert_not "unavailable profile refused" "$T/install.sh" --non-interactive --no-start --profile full
+assert_eq "refused profile leaves .env" core "$(env_get "$T/.env" LAB_PROFILE)"
 assert_not "bad port refused" "$T/install.sh" --non-interactive --no-start --https-port 70000
 assert_not "unknown flag refused" "$T/install.sh" --frobnicate
 assert_not "same https/http port refused" "$T/install.sh" --non-interactive --no-start --https-port 18080 --http-port 18080
@@ -261,6 +264,109 @@ assert_not "unknown command" "$T/lab" frob
 rm -f "$T/.env"
 assert_not "lab without install refuses" "$T/lab" status
 
+echo "== engineer profile (fake docker)"
+t_begin engineer
+TE="$WORK/tree-eng"; make_tree "$TE"
+: >"$SHIM_LOG"
+out=$("$TE/install.sh" --non-interactive --domain lab.localhost --project-name v3-p2-eng \
+  --https-port 18643 --http-port 18280 --profile engineer 2>&1); rc=$?
+assert_eq "install --profile engineer exit 0" 0 "$rc"
+[ "$rc" = 0 ] || printf '%s\n' "$out"
+assert_eq ".env LAB_PROFILE=engineer" engineer "$(env_get "$TE/.env" LAB_PROFILE)"
+assert_eq "engineer: exact contract compose command" \
+  "COMPOSE_PROJECT_NAME=v3-p2-eng docker compose --project-directory $TE --env-file $TE/versions.env --env-file $TE/.env --profile engineer up -d --wait --remove-orphans --build" \
+  "$(cat "$SHIM_LOG")"
+assert_contains "urls: jupyter" "https://jupyter.lab.localhost:18643/" "$out"
+: >"$SHIM_LOG"
+"$TE/install.sh" --non-interactive >/dev/null 2>&1
+assert_eq "re-run keeps profile engineer" engineer "$(env_get "$TE/.env" LAB_PROFILE)"
+assert_not "unchanged profile: no down before up" grep -q ' down ' "$SHIM_LOG"
+: >"$SHIM_LOG"
+"$TE/lab" down >/dev/null 2>&1
+assert_contains "lab down uses the .env profile" "--profile engineer down --remove-orphans" "$(cat "$SHIM_LOG")"
+: >"$SHIM_LOG"
+"$TE/lab" up >/dev/null 2>&1
+assert_contains "lab up uses the .env profile" "--profile engineer up -d --wait --remove-orphans" "$(cat "$SHIM_LOG")"
+# engineer -> core: Spark would survive 'up --remove-orphans', so the lab is stopped first.
+: >"$SHIM_LOG"
+"$TE/install.sh" --non-interactive --profile core >/dev/null 2>&1
+assert_eq "profile switch: down (no -v) then up" \
+  "COMPOSE_PROJECT_NAME=v3-p2-eng docker compose --project-directory $TE --env-file $TE/versions.env --env-file $TE/.env --profile core down --remove-orphans
+COMPOSE_PROJECT_NAME=v3-p2-eng docker compose --project-directory $TE --env-file $TE/versions.env --env-file $TE/.env --profile core up -d --wait --remove-orphans --build" \
+  "$(cat "$SHIM_LOG")"
+assert_eq ".env LAB_PROFILE=core after switch" core "$(env_get "$TE/.env" LAB_PROFILE)"
+: >"$SHIM_LOG"
+"$TE/install.sh" --non-interactive --no-start --profile engineer >/dev/null 2>&1
+assert_eq "--no-start profile switch makes no compose call" "" "$(cat "$SHIM_LOG")"
+out=$(SHIM_MEM_BYTES=8589934592 "$TE/install.sh" --non-interactive --no-start 2>&1)
+assert_contains "engineer on 8 GB warns" "profile engineer (Spark) wants" "$out"
+out=$(SHIM_MEM_BYTES=8589934592 "$TE/install.sh" --non-interactive --no-start --profile core 2>&1)
+assert_not "core on 8 GB: no engineer warning" grep -q "profile engineer" <<<"$out"
+"$TE/install.sh" --non-interactive --no-start --profile engineer >/dev/null 2>&1
+
+echo "== per-user workspace cleanup (fake docker inventory)"
+t_begin workspaces
+# Inventory: this project's two workspaces + home volumes, and look-alikes that must never
+# be touched: another project's workspace, a project whose name has ours as a prefix, this
+# project's compose-managed objects (no lab.role), and an unrelated production container.
+P=v3-p2-eng
+export SHIM_CONTAINERS="$P-ws-alice|com.docker.compose.project=$P,lab.role=workspace
+$P-ws-victor|lab.role=workspace,com.docker.compose.project=$P
+$P-trino-1|com.docker.compose.project=$P,com.docker.compose.service=trino
+v3-other-ws-alice|com.docker.compose.project=v3-other,lab.role=workspace
+${P}2-ws-alice|com.docker.compose.project=${P}2,lab.role=workspace
+$P-ws-imposter|com.docker.compose.project=$P,lab.role=workspace-not
+prod-db|com.docker.compose.project=production"
+export SHIM_VOLUMES="$P-home-alice|com.docker.compose.project=$P,lab.role=workspace
+$P-home-victor|com.docker.compose.project=$P,lab.role=workspace
+${P}_postgres-data|com.docker.compose.project=$P,com.docker.compose.volume=postgres-data
+v3-other-home-alice|com.docker.compose.project=v3-other,lab.role=workspace
+${P}2-home-alice|com.docker.compose.project=${P}2,lab.role=workspace
+prod-data|com.docker.compose.project=production"
+never="v3-other|${P}2|imposter|trino-1|postgres-data|prod-"
+DC_PREFIX="COMPOSE_PROJECT_NAME=$P docker compose --project-directory $TE --env-file $TE/versions.env --env-file $TE/.env --profile engineer"
+
+rm -f "$WORK/shim-removed"; : >"$SHIM_LOG"
+"$TE/lab" down >/dev/null 2>&1; rc=$?
+assert_eq "down with workspaces: exit 0" 0 "$rc"
+assert_eq "down: stop + rm this project's workspaces, then compose down" \
+  "docker stop -t 10 $P-ws-alice $P-ws-victor
+docker rm -f $P-ws-alice $P-ws-victor
+$DC_PREFIX down --remove-orphans" "$(cat "$SHIM_LOG")"
+assert_not "down: no volume removed" grep -q 'volume rm' "$SHIM_LOG"
+assert_not "down: look-alikes untouched" grep -qE "$never" "$SHIM_LOG"
+: >"$SHIM_LOG"
+"$TE/lab" down >/dev/null 2>&1
+assert_eq "down again: nothing left to stop" "$DC_PREFIX down --remove-orphans" "$(cat "$SHIM_LOG")"
+
+rm -f "$WORK/shim-removed"; : >"$SHIM_LOG"
+"$TE/lab" reset --yes >/dev/null 2>&1; rc=$?
+assert_eq "reset with workspaces: exit 0" 0 "$rc"
+assert_eq "reset: workspaces, then compose down -v, then this project's home volumes" \
+  "docker stop -t 10 $P-ws-alice $P-ws-victor
+docker rm -f $P-ws-alice $P-ws-victor
+$DC_PREFIX down -v --remove-orphans
+docker volume rm $P-home-alice $P-home-victor" "$(cat "$SHIM_LOG")"
+assert_not "reset: look-alikes untouched" grep -qE "$never" "$SHIM_LOG"
+left=$(docker volume ls -q --filter label=lab.role=workspace | LC_ALL=C sort | tr '\n' ' ')
+assert_eq "reset: other projects' home volumes still exist" "v3-other-home-alice ${P}2-home-alice " "$left"
+assert "reset keeps settings and CA" test -s "$TE/state/ca/root.crt"
+
+rm -f "$WORK/shim-removed"; : >"$SHIM_LOG"
+SHIM_RM_FAIL=1 "$TE/lab" reset --yes >/dev/null 2>&1 && t_fail "reset: stuck workspace -> error" || t_pass "reset: stuck workspace -> error"
+assert_not "reset: stuck workspace -> no compose down -v, no volume rm" grep -qE 'down -v|volume rm' "$SHIM_LOG"
+rm -f "$WORK/shim-removed"; : >"$SHIM_LOG"
+SHIM_RM_FAIL=1 "$TE/lab" down >/dev/null 2>&1 && t_fail "down: stuck workspace -> non-zero" || t_pass "down: stuck workspace -> non-zero"
+assert_contains "down: stuck workspace still runs compose down" "down --remove-orphans" "$(cat "$SHIM_LOG")"
+
+# The selector refuses an empty or malformed project (no label wildcard is possible).
+( COMPOSE_PROJECT_NAME="" lab_workspace_ids volume ) >/dev/null 2>&1 && t_fail "empty project refused" || t_pass "empty project refused"
+( COMPOSE_PROJECT_NAME="x,lab.role=workspace" lab_workspace_ids volume ) >/dev/null 2>&1 && t_fail "malformed project refused" || t_pass "malformed project refused"
+assert_eq "selector: exact labels, both required" "$P-home-alice $P-home-victor " \
+  "$(rm -f "$WORK/shim-removed"; COMPOSE_PROJECT_NAME=$P lab_workspace_ids volume | tr '\n' ' ')"
+unset SHIM_CONTAINERS SHIM_VOLUMES
+rm -f "$WORK/shim-removed"
+
 echo "== issuer origin (REG_V3_OIDC_ISSUER_DEFAULT_PORT)"
 for pair in "443:https://auth.lab.localhost" "18443:https://auth.lab.localhost:18443"; do
   T3=$(mktemp -d)
@@ -272,6 +378,32 @@ done
 for f in compose/identity.yaml compose/catalog.yaml compose/engines.yaml config/trino/config.properties; do
   assert_not "no hand-built auth origin in $f" grep -qF 'https://auth.$' "$SRC/$f"
 done
+
+echo "== bind-mounted config hashes (REG_V3_STALE_BIND_MOUNT_CONFIG_ON_UPGRADE)"
+t_begin config-hash
+T4=$(mktemp -d)
+mkdir -p "$T4/config/trino/catalog" "$T4/config/caddy"
+echo a >"$T4/config/trino/rules.json"; echo b >"$T4/config/trino/catalog/x.properties"; echo c >"$T4/config/caddy/Caddyfile"
+h1=$( V3_DIR=$T4; config_hash config/trino )
+h2=$( V3_DIR=$T4; config_hash config/trino )
+assert_eq "hash is stable" "$h1" "$h2"
+echo a2 >"$T4/config/trino/rules.json"
+h3=$( V3_DIR=$T4; config_hash config/trino )
+assert_not "hash changes when a file changes" test "$h1" = "$h3"
+echo c2 >"$T4/config/caddy/Caddyfile"
+h4=$( V3_DIR=$T4; config_hash config/trino )
+assert_eq "another service's config does not change it" "$h3" "$h4"
+echo d >"$T4/config/trino/catalog/tpch.properties"
+h5=$( V3_DIR=$T4; config_hash config/trino )
+assert_not "a new file changes it" test "$h4" = "$h5"
+assert_eq "missing dir -> none" "none" "$( V3_DIR=$T4; config_hash config/spark )"
+got=$( V3_DIR=$T4; LAB_ENV_FILE="$T4/.env"; : >"$LAB_ENV_FILE"; lab_settings; printf '%s' "$LAB_CONFIG_HASH_TRINO" )
+assert_eq "lab_settings exports LAB_CONFIG_HASH_TRINO" "$h5" "$got"
+for pair in edge.yaml:CADDY engines.yaml:TRINO storage.yaml:SEAWEEDFS workspace.yaml:JUPYTERHUB spark.yaml:SPARK; do
+  assert "compose/${pair%%:*} labels its service with LAB_CONFIG_HASH_${pair#*:}" \
+    grep -qF "lab.config-hash: \${LAB_CONFIG_HASH_${pair#*:}:-}" "$SRC/compose/${pair%%:*}"
+done
+rm -rf "$T4"
 
 echo "== repo hygiene (public repo)"
 t_begin hygiene

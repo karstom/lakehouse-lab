@@ -1,9 +1,11 @@
-"""Lakehouse Lab V3 smoke test, in-container part (CONTRACT.md "Test contract", checks 2-5).
+"""Lakehouse Lab V3 smoke test, in-container part (CONTRACT.md "Test contract", checks 2-5
+and 7; Phase 2 checks 8-10, the workspace, driven by workspace.py + kernel_probe.py).
 
 Runs on the `lab` network and talks to the public URLs https://<svc>.<LAB_DOMAIN>:<port>
 through Caddy, trusting only the lab CA. Checks 1 and 6 need the Docker host and live in
-run.sh. Prints one [PASS]/[FAIL] line per check, writes /out/results.json, and exits 0 only
-if every check passed. Idempotent: it recreates its own table on every run.
+run.sh. Prints one [PASS]/[FAIL]/[SKIP] line per check, writes /out/results.json and
+/out/summary.env (counts for run.sh), and exits 0 only if no check failed. Idempotent: it
+recreates its own tables on every run and stops the workspaces it started.
 """
 import json
 import os
@@ -23,6 +25,8 @@ PORT_SUFFIX = os.environ["LAB_AUTH_URL"].removeprefix(f"https://auth.{D}")
 PW = os.environ.get("LAB_TEST_USER_PASSWORD", "")
 TRINO_SECRET = os.environ["OIDC_CLIENT_SECRET_TRINO"]
 CA = "/trust/ca-bundle.crt"
+PROFILE = os.environ.get("LAB_PROFILE", "core")
+SPARK_PROFILES = ("engineer", "full", "server")   # profiles that include Spark (ARCHITECTURE §8)
 
 SCHEMA = "smoke"
 TABLE = "events"
@@ -39,6 +43,11 @@ def check(name, ok, evidence):
     RESULTS[name] = {"pass": bool(ok), "evidence": evidence}
     print(f"[{'PASS' if ok else 'FAIL'}] {name}: {evidence}", flush=True)
     return bool(ok)
+
+
+def skip(name, reason):
+    RESULTS[name] = {"pass": None, "skipped": True, "evidence": reason}
+    print(f"[SKIP] {name}: {reason}", flush=True)
 
 
 def guarded(name, fn):
@@ -269,20 +278,152 @@ def check_group_change_propagates():
            "seconds_until_revoked": revoked, "budget_s": budget})
 
 
+# ---------------------------------------------------------------- 8-10. inside the workspace
+C8 = "8.workspace_alice_trino_duckdb_dbt"
+C9 = "9.workspace_viewer_write_denied"
+C10 = "10.workspace_spark_connect_iceberg"
+
+
+def probe_params(user, steps):
+    return {
+        "user": user, "steps": steps,
+        "trino_host": f"trino.{D}", "trino_port": int(P),
+        # Fallbacks after the workspace's $LAB_CATALOG_URL / $LAB_TRINO_HOST: the internal
+        # catalog on the lab network, then the public URL through Caddy.
+        "catalog_urls": ["http://lakekeeper:8181/catalog", url("catalog", "/catalog")],
+        "token_modules": ["lakehouse", "lab_token"],
+        "starter_dirs": ["starter/dbt_lakehouse", "starter"],
+        "write_probe_table": f"lakehouse.{SCHEMA}.{TABLE}",
+        "spark_helpers": ["lakehouse.spark"],
+        "spark_remote": "sc://spark-connect:15002", "spark_catalog": "lakehouse",
+        "spark_schema": SCHEMA, "spark_table": "spark_probe",
+        "dbt_timeout": 420,
+    }
+
+
+def _steps_evidence(result, raw, names):
+    if result is None:
+        return {"probe": "no result from the kernel", "status": raw.get("status"),
+                "error": raw.get("error"), "timeout": raw.get("timeout"),
+                "stderr_tail": (raw.get("stderr") or "")[-800:],
+                "stdout_tail": (raw.get("stdout") or "")[-400:],
+                "stack_dump": raw.get("stack_dump")}
+    ev = {"jupyterhub_user": result.get("user_env"), "kernel_seconds": raw.get("kernel_seconds")}
+    for n in names:
+        ev[n] = result["steps"].get(n, {"ok": False, "error": "step did not run"})
+    return ev
+
+
+def _workspace_browser(pw):
+    caddy_ip = socket.gethostbyname(f"jupyter.{D}")   # same *.localhost workaround as check 2
+    return pw.chromium.launch(args=[f"--host-resolver-rules=MAP *.{D} {caddy_ip}"])
+
+
+def _alice_session(ws, spark):
+    alice_steps = ["trino_samples", "duckdb_attach", "dbt_build"]
+    login = ws.login_and_spawn()
+    if not login["ok"]:
+        check(C8, False, {"login_spawn": login})
+        if spark:
+            check(C10, False, "alice's workspace did not start (see check 8)")
+        return
+    steps = alice_steps + (["spark_iceberg"] if spark else [])
+    result, raw = ws.run_probe(probe_params("alice", steps))
+    ev = _steps_evidence(result, raw, alice_steps)
+    ev["login_spawn"] = login
+    ok8 = result is not None and result.get("user_env") == "alice" and \
+        all(result["steps"].get(n, {}).get("ok") for n in alice_steps)
+    check(C8, ok8, ev)
+    if spark:
+        check(C10, result is not None and bool(result["steps"].get("spark_iceberg", {}).get("ok")),
+              _steps_evidence(result, raw, ["spark_iceberg"]))
+
+
+def _victor_session(ws, _spark):
+    login = ws.login_and_spawn()
+    if not login["ok"]:
+        check(C9, False, {"login_spawn": login})
+        return
+    steps = ["trino_write_denied"] + (["spark_write_denied"] if _spark else [])
+    result, raw = ws.run_probe(probe_params("victor", steps), timeout=300)
+    ev = _steps_evidence(result, raw, steps)
+    ev["login_spawn"] = {k: login[k] for k in ("final_url", "seconds")}
+    ok = result is not None and result.get("user_env") == "victor" and \
+        all(result["steps"].get(n, {}).get("ok") for n in steps)
+    check(C9, ok, ev)
+
+
+def check_workspaces():
+    """8: alice logs into jupyter., her workspace spawns, and inside it (her kernel, her token)
+    Trino reads samples, DuckDB ATTACHes the catalog with vended credentials, and the starter
+    dbt project builds. 10 (Spark profiles only): Spark Connect creates and reads an Iceberg
+    table as alice, in the same kernel. 9: victor's workspace is denied a Trino write.
+    One user at a time: each workspace is stopped again before the next one starts."""
+    from playwright.sync_api import sync_playwright
+
+    from workspace import Workspace
+
+    spark = PROFILE in SPARK_PROFILES
+    if not spark:
+        skip(C10, f"profile {PROFILE}: Spark Connect is only in profile engineer")
+    sessions = (("alice", _alice_session, (C8, C10) if spark else (C8,)),
+                ("victor", _victor_session, (C9,)))
+    with sync_playwright() as pw:
+        browser = _workspace_browser(pw)
+        try:
+            for user, fn, names in sessions:
+                ws = Workspace(browser, url, D, user, PW)
+                try:
+                    fn(ws, spark)
+                except Exception as e:  # noqa: BLE001 - record, then go on to the next user
+                    traceback.print_exc()
+                    for name in names:
+                        if name not in RESULTS:
+                            check(name, False, f"{type(e).__name__}: {e}"[:500])
+                finally:
+                    print(f"[info] {user}'s workspace stopped: {ws.stop_server()}", flush=True)
+                    ws.close()
+        finally:
+            browser.close()
+
+
 def main():
     if not PW:
         print("LAB_TEST_USER_PASSWORD is empty: the smoke test needs LAB_SEED_TEST_USERS=true")
         sys.exit(2)
-    guarded("2.browser_login_trino_ui", check_browser_login)
-    guarded("3.trino_alice_create_insert_read", check_trino_alice)
-    guarded("4.pyiceberg_vended_credentials", check_pyiceberg_vended)
-    guarded("5.viewer_write_denied", check_viewer_denied)
-    guarded("7.group_change_propagates_without_shell", check_group_change_propagates)
-    failed = [k for k, v in RESULTS.items() if not v["pass"]]
+    # LAB_SMOKE_ONLY=3,8 runs only those checks (debugging; the contract run runs all).
+    only = {x.strip() for x in os.environ.get("LAB_SMOKE_ONLY", "").split(",") if x.strip()}
+
+    def want(n):
+        return not only or str(n) in only
+
+    for n, name, fn in ((2, "2.browser_login_trino_ui", check_browser_login),
+                        (3, "3.trino_alice_create_insert_read", check_trino_alice),
+                        (4, "4.pyiceberg_vended_credentials", check_pyiceberg_vended),
+                        (5, "5.viewer_write_denied", check_viewer_denied),
+                        (7, "7.group_change_propagates_without_shell", check_group_change_propagates)):
+        if want(n):
+            guarded(name, fn)
+    if want(8) or want(9) or want(10):
+        try:
+            check_workspaces()
+        except Exception as e:  # noqa: BLE001 - e.g. the browser failed to start
+            traceback.print_exc()
+            for name in (C8, C9, C10):
+                if name not in RESULTS:
+                    check(name, False, f"not run: {type(e).__name__}: {e}"[:500])
+    failed = [k for k, v in RESULTS.items() if v["pass"] is False]
+    skipped = [k for k, v in RESULTS.items() if v.get("skipped")]
+    passed = [k for k, v in RESULTS.items() if v["pass"] is True]
     try:
         os.makedirs("/out", exist_ok=True)
         with open("/out/results.json", "w") as f:
-            json.dump({"results": RESULTS, "failed": failed}, f, indent=1, default=str)
+            json.dump({"profile": PROFILE, "results": RESULTS, "failed": failed,
+                       "skipped": skipped}, f, indent=1, default=str)
+        with open("/out/summary.env", "w") as f:
+            f.write(f"CONTAINER_PASSED={len(passed)}\nCONTAINER_FAILED={len(failed)}\n"
+                    f"CONTAINER_SKIPPED={len(skipped)}\n"
+                    f"CONTAINER_SKIPPED_NAMES={','.join(skipped)}\n")
     except OSError:
         pass
     sys.exit(1 if failed else 0)

@@ -1,0 +1,25 @@
+version: 2
+
+sources:
+  - name: samples
+    description: TPC-H "tiny" sample tables, created by the lab's bootstrap with Trino CTAS.
+    database: lakehouse
+    schema: samples
+    tables:
+      - name: region
+        columns:
+          - name: regionkey
+            tests: [unique, not_null]
+      - name: nation
+        columns:
+          - name: nationkey
+            tests: [unique, not_null]
+      - name: customer
+        columns:
+          - name: custkey
+            tests: [unique, not_null]
+      - name: orders
+        columns:
+          - name: orderkey
+            tests: [unique, not_null]
+      - name: lineitem

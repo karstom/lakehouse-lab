@@ -5,6 +5,9 @@
 services:
   seaweedfs:
     image: chrislusf/seaweedfs:${SEAWEEDFS_VERSION}
+    labels:
+      # Recreated by `up` when its bind-mounted config changes (installer/lib.sh lab_config_hashes).
+      lab.config-hash: ${LAB_CONFIG_HASH_SEAWEEDFS:-}
     # The script renders the identity, IAM/STS and security.toml files from the environment,
     # then hands over to the image's own entrypoint (which drops to the seaweed user).
     entrypoint: ["/opt/lab/seaweedfs/entrypoint.sh"]
