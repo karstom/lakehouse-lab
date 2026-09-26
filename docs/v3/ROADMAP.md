@@ -52,6 +52,11 @@ minutes, and CI shows it green.
 
 **Exit:** the smoke lesson (ADR-015) passes in CI for `core` and `engineer`.
 
+> **Status (2026-09-26): built, independently verified, and CI green.** GitHub runs
+> `v3-ci`: `core` e2e in 6m10s, `engineer` e2e in 7m42s, on fresh runners. The smoke test
+> has 11 checks, including in-workspace Trino, DuckDB and dbt, and Spark as the real user.
+> Details: [`v3/PHASE2_RESULTS.md`](../../v3/PHASE2_RESULTS.md).
+
 ## Phase 3: Orchestration and BI
 
 - Airflow 3.1 with the Keycloak auth manager; sample DAGs: ingest, `dbt build`, papermill notebook

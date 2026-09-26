@@ -280,3 +280,10 @@ in a standalone client (refusal plus `stop()` in 2.0 s). To make any recurrence 
 the probe now writes all thread stacks to `~/.smoke-stack.txt` shortly before the harness
 times out, and the harness attaches that dump to the check's evidence. Tracked as
 WATCH_V3_SPARK_CONNECT_INTERMITTENT_HANG.
+
+## GitHub CI (commit 483230b)
+
+`v3-ci` is green. lint passed in 21 s; **e2e (core) passed in 6 m 10 s** and **e2e (engineer)
+in 7 m 42 s**, on fresh runners with cold image builds. All V2 workflows and `v3-images`
+are green too. That closes the "CI has not run Phase 2" gap and gives cold-cache timings for
+both profiles.
