@@ -380,3 +380,17 @@
 **LastVerified:** 2026-09-26
 **Commit:** 6202fd0
 **LastUpdated:** 2026-09-26
+
+---
+
+## NODE: DEC_V3_LONG_SPARK_JOBS_VIA_AIRFLOW
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3: long Spark jobs run as Airflow batch jobs (service identity); session renewal later
+**Summary:** Owner chose option c on 2026-09-26. Interactive Spark Connect sessions are limited by the user's token (30 to 60 min), so long-running Spark work runs as Airflow batch jobs under a client-credentials service identity whose catalog token the Iceberg client renews. Only engineer and lab-admin may trigger them, and Airflow records who did. Token renewal for interactive sessions is a later follow-up (Keycloak rejects the token exchange Iceberg uses). ADR-017.
+**Tags:** v3, spark, airflow, identity, batch
+**Edges:**
+- RELATES_TO → DEC_V3_SPARK_CONNECT_PER_SESSION_TOKEN: interactive sessions keep the user's token and its lifetime limit
+**Files:** `docs/v3/DECISIONS.md`, `v3/images/workspace/lakehouse/clients.py`
+**Commit:** 1afab2f
+**LastUpdated:** 2026-09-26

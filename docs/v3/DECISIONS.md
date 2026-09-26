@@ -420,3 +420,32 @@ external provider, to test the brokering, first-login and no-group behavior. The
 login is a manual release check.
 
 **Open:** OQ-18.
+
+---
+
+## ADR-017: Long-running Spark work: Airflow batch jobs now, session token renewal later
+**Status:** Accepted (owner decision, 2026-09-26; option "c")
+
+**Context:** An interactive Spark Connect session carries the user's token as its catalog
+token (OQ-15). That token can't be refreshed inside a running session, so one Spark job
+from a workspace can't outlive it (30 to 60 minutes). That is fine for lessons and
+interactive analysis, but not for multi-TB batch work.
+
+**Decision:**
+- **Now (Phase 3):** long-running Spark work runs as **Airflow batch jobs** submitted to the
+  cluster under a **service identity**: a Keycloak client-credentials account whose catalog
+  token the Iceberg client renews itself.
+  - Only `engineer` and `lab-admin` can trigger or edit these DAGs, enforced by Airflow's
+    Keycloak authorization.
+  - Lakekeeper sees the service identity, and Airflow's run log records which person
+    triggered it.
+  - The job must survive well past a token lifetime; this is tested with a deliberately
+    short token lifetime.
+- **Later (follow-up, not scheduled):** token renewal for interactive Spark Connect
+  sessions, so workspace jobs can run longer too. Keycloak rejects the token exchange that
+  Iceberg's own refresh uses today; the options are enabling token exchange for the
+  `jupyterhub` client or a Spark-side refresh hook.
+
+**Why:** It reuses Phase 3's Airflow, matches how production teams separate interactive
+exploration from scheduled batch jobs (a lesson in itself), and doesn't block on the harder
+renewal work.

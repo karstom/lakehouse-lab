@@ -65,7 +65,7 @@ git, not notebooks. See [ADR-007](DECISIONS.md#adr-007-per-user-workspace-jupyte
 | Doc | Contents |
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Components, networking, identity and data-access flows, AI assist layer, profiles |
-| [DECISIONS.md](DECISIONS.md) | Architecture decision records (ADR-001 … ADR-016) |
+| [DECISIONS.md](DECISIONS.md) | Architecture decision records (ADR-001 … ADR-017) |
 | [ROADMAP.md](ROADMAP.md) | Phases, exit criteria, and validation spikes |
 | [MIGRATION.md](MIGRATION.md) | V2 → V3 upgrade path for existing installs and data |
 | [OPEN_QUESTIONS.md](OPEN_QUESTIONS.md) | Unresolved questions and who or what resolves them |

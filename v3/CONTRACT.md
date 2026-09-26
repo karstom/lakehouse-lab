@@ -252,3 +252,93 @@ template: the realm is imported on first start only, so existing installs would 
   - `core` + one active workspace fits **≤ 10 GB** of limits;
   - `engineer` + one workspace fits a **16 GB** machine and the GitHub runner (16 GB). Use
     lower CI limits if needed, via env overrides in the workflow, not by editing defaults.
+
+---
+
+# Phase 3: Orchestration, BI, Console, external login
+
+> Added by the lead after Phase 2 (verified, CI matrix green). Everything above still
+> applies. Design: ADR-009/010/016/017, OQ-16/18. Evidence: `spikes/s3-sso-bootstrap/RESULTS.md`
+> (Airflow 3 + Keycloak and Superset 6 OIDC already worked there), `v3/PHASE2_RESULTS.md`.
+
+## Scope, profiles and exit
+
+- **Profile `engineer`** adds **Airflow ≥ 3.1** (`AIRFLOW_VERSION`), with the Keycloak
+  auth manager, and the **Spark UI** behind forward-auth.
+- **Profile `full`** = engineer + **Superset 6** (`SUPERSET_VERSION`).
+- **Every profile** gets the **Lab Console** v1 and optional **GitHub login** (ADR-016).
+
+**Exit:**
+1. **Airflow (engineer):**
+   - One Keycloak login works. `lab-admin` is Admin, `engineer` can trigger and edit
+     DAGs, `analyst`/`viewer` are read-only.
+   - DAGs `lab_ingest`, `lab_dbt_build`, `lab_notebook` and `lab_spark_batch` succeed when
+     triggered.
+   - **ADR-017 proof:** `lab_spark_batch` survives past its token lifetime. With the batch
+     service account's access-token lifespan cut to 120 s for the test, a Spark job running
+     at least 300 s completes and commits.
+2. **Superset (full):**
+   - One Keycloak login works; `lab-admin` is Admin; others get Gamma plus SQL Lab
+     (`analyst`, `engineer`) or Gamma only (`viewer`).
+   - Queries run in Trino **as the logged-in user** (`current_user` = the person).
+   - The bundled **"Revenue by region"** dashboard over `lakehouse.analytics.*` renders:
+     the chart-data API returns rows.
+3. **Console:** after login, `console.` shows only the tiles the user's groups can reach,
+   plus a health summary. **Spark UI** (`spark.`) is reachable by
+   `engineer`/`lab-admin` and refused (403) for `viewer`.
+4. **GitHub login (optional, ADR-016):**
+   - Off unless the installer is given `--github-client-id/--github-client-secret`.
+   - A first external login creates a user with **no group**, who can reach nothing.
+   - Once an admin adds a group in Keycloak, access follows within the `identity-sync`
+     interval.
+   - No automatic linking by email.
+   - CI proves the flow against a **mock provider**: a second realm acting as an OIDC IdP,
+     with alias `github-mock` in tests.
+5. **Everything together:**
+   - Upgrade in place from the running Phase 2 install passes; smoke passes on `core`,
+     `engineer` and `full`.
+   - The PR CI matrix (`core`, `engineer`) is green.
+   - A **nightly/dispatch `full`** job runs the end-to-end chain ingest → dbt → dashboard. If
+     `full` cannot fit a 16 GB runner even with overrides, say so with numbers and keep it
+     dev-host-only.
+6. The Docker-safety invariants and smoke check 11 still pass, and non-v3 objects on the
+   dev host are unchanged.
+
+## Shared interfaces (decided here so workstreams don't guess)
+
+- **The `analytics` schema** is shared, production-style output. `lab_dbt_build` runs the
+  starter dbt project with target `analytics` into `lakehouse.analytics`, as the batch
+  service identity. Required tables: `fct_orders`, `dim_customers`, `revenue_by_region`.
+  Superset's bundled dashboard reads only these. Everyone can read `analytics`; only the
+  batch identity, `engineer` and `lab-admin` can write it (Trino rules plus Lakekeeper roles
+  via bootstrap/identity-sync).
+- **The batch service identity** is Keycloak client `lab-batch` (secret
+  `OIDC_CLIENT_SECRET_BATCH`), created by bootstrap. Spark, dbt and Trino authenticate as it
+  with **client credentials**, and clients re-fetch tokens themselves. The Iceberg REST
+  `credential` flow (not the user token-exchange path) is expected to renew; prove it
+  (exit 1).
+- **Superset → Trino as the user:** Superset connects as service client `superset` and
+  uses Trino **impersonation** of the logged-in username, with Trino
+  `impersonation` rules allowing only that principal to impersonate users in the lab
+  groups. Superset's per-user database OAuth2 is an acceptable alternative if it passes the
+  same test.
+- **Forward-auth** (Console and Spark UI) is **oauth2-proxy** (pinned) behind Caddy
+  `forward_auth`, as Keycloak client `console` (the existing confidential client, which
+  bootstrap repairs). Group headers from oauth2-proxy decide which Console tiles show and
+  whether the Spark UI is allowed.
+- **Keycloak clients** `airflow`, `superset`, `lab-batch` and the GitHub IdP are all
+  ensured idempotently by bootstrap (never only in the realm template). Airflow's UMA
+  authorization is a scripted, idempotent bootstrap step (OQ-16).
+
+## Workstreams and ownership
+
+| Workstream | Owns |
+|---|---|
+| **AIRFLOW** | `images/airflow/`, `compose/airflow.yaml`, `config/airflow/`, `dags/`, `bootstrap/airflow_client.py`, `bootstrap/batch_client.py` |
+| **BI+CONSOLE** | `images/superset/`, `compose/superset.yaml`, `config/superset/` (incl. dashboard export), `bootstrap/superset_client.py`, `compose/console.yaml` (oauth2-proxy), `config/console/`, Caddy site changes for `console.`/`spark.`/`superset.`/`airflow.` (edits to `config/caddy/Caddyfile`), Trino impersonation rules (edits to `config/trino/rules.json`) |
+| **IDP+TESTS+CI** | `bootstrap/github_idp.py`, installer/lab flags (`--profile full`, `--github-client-id/secret`), `tests/smoke/` new checks (Airflow, Superset, Console, Spark UI, IdP mock, batch long-run), `.github/workflows/v3-ci.yml` (+ `v3-nightly.yml`), mock-IdP test fixture |
+
+As before: only the integrator edits `bootstrap/__main__.py`, `compose.yaml`,
+`versions.env` and this contract. New pins go in `v3/.pins/<workstream>.env`. Public
+hostnames added in Phase 3: `airflow.`, `superset.`, `spark.` (`console.` becomes real).
+Memory target: `full` ≤ 24 GB of limits with one workspace.

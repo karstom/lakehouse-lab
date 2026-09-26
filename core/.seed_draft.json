@@ -1,0 +1,1440 @@
+{
+  "seedVersion": "0.4.0",
+  "repoRoot": "/home/jim/development/lakehouse-lab",
+  "headSha": "6f267e79977fd5f807037bef15beb981bb96b478",
+  "headDate": "2026-04-13",
+  "options": {
+    "minConfidence": 0.5,
+    "maxPerType": 15,
+    "types": [
+      "Component",
+      "Invariant",
+      "Regression",
+      "Decision",
+      "Watchlist"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "JUPYTERHUB",
+      "type": "Component",
+      "label": "jupyterhub/",
+      "summary": "Top-level module `jupyterhub/` — 3 tracked file(s), mainly .py, .simple.",
+      "tags": [
+        "seeded",
+        "structure"
+      ],
+      "files": [
+        "jupyterhub/Dockerfile",
+        "jupyterhub/Dockerfile",
+        "jupyterhub/Dockerfile.simple"
+      ],
+      "paths": [
+        "jupyterhub"
+      ],
+      "edges": [],
+      "confidence": 0.8,
+      "lastUpdated": "2026-04-13",
+      "provenance": {
+        "commits": [],
+        "locations": [
+          "jupyterhub/"
+        ],
+        "extractor": "component-structure",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "SCRIPTS",
+      "type": "Component",
+      "label": "scripts/",
+      "summary": "Top-level module `scripts/` — 24 tracked file(s), mainly .sh, .md.",
+      "tags": [
+        "seeded",
+        "structure"
+      ],
+      "files": [
+        "scripts/README.md",
+        "scripts/README.md",
+        "scripts/backup-lakehouse.sh"
+      ],
+      "paths": [
+        "scripts"
+      ],
+      "edges": [
+        {
+          "edgeType": "CONTAINS",
+          "target": "REG_REPEAT_SCRIPTS_INIT_COMPUTE_SH_C0A4",
+          "explanation": "seeded from files under scripts/"
+        },
+        {
+          "edgeType": "CONTAINS",
+          "target": "REG_REPEAT_SCRIPTS_INIT_INFRASTRUCTURE_SH_5BD9",
+          "explanation": "seeded from files under scripts/"
+        },
+        {
+          "edgeType": "CONTAINS",
+          "target": "REG_REPEAT_SCRIPTS_INIT_STORAGE_SH_FB0D",
+          "explanation": "seeded from files under scripts/"
+        },
+        {
+          "edgeType": "CONTAINS",
+          "target": "REG_REPEAT_SCRIPTS_LIB_INIT_CORE_DB77",
+          "explanation": "seeded from files under scripts/"
+        },
+        {
+          "edgeType": "CONTAINS",
+          "target": "REG_REPEAT_SCRIPTS_BACKUP_LAKEHOUSE_SH_C65A",
+          "explanation": "seeded from files under scripts/"
+        },
+        {
+          "edgeType": "CONTAINS",
+          "target": "REG_REPEAT_SCRIPTS_INSTALL_CREDENTIALS_SH_D2B0",
+          "explanation": "seeded from files under scripts/"
+        },
+        {
+          "edgeType": "CONTAINS",
+          "target": "REG_REPEAT_SCRIPTS_SHOW_CREDENTIALS_SH_40A5",
+          "explanation": "seeded from files under scripts/"
+        },
+        {
+          "edgeType": "CONTAINS",
+          "target": "DEC_REMOVE_ORPHANED_CONTAINERS_DURING_UPGRADES_5BC0",
+          "explanation": "seeded from files under scripts/"
+        },
+        {
+          "edgeType": "CONTAINS",
+          "target": "DEC_REPLACE_HOMER_WITH_MODERN_HOMEPAGE_5702",
+          "explanation": "seeded from files under scripts/"
+        },
+        {
+          "edgeType": "CONTAINS",
+          "target": "DEC_MIGRATE_FROM_BITNAMI_OFFICIAL_APACHE_4B39",
+          "explanation": "seeded from files under scripts/"
+        },
+        {
+          "edgeType": "CONTAINS",
+          "target": "DEC_REMOVE_SUDO_DEPENDENCIES_FROM_ALPINE_6EF3",
+          "explanation": "seeded from files under scripts/"
+        },
+        {
+          "edgeType": "CONTAINS",
+          "target": "INV_DO_NOT_EDIT_MANUALLY_USE_F164",
+          "explanation": "seeded from files under scripts/"
+        },
+        {
+          "edgeType": "CONTAINS",
+          "target": "WATCH_HIGH_CHURN_SCRIPTS_CONFIGURE_SERVICES_DF67",
+          "explanation": "seeded from files under scripts/"
+        },
+        {
+          "edgeType": "CONTAINS",
+          "target": "WATCH_HIGH_CHURN_SCRIPTS_INIT_DASHBOARDS_F409",
+          "explanation": "seeded from files under scripts/"
+        },
+        {
+          "edgeType": "CONTAINS",
+          "target": "WATCH_HIGH_CHURN_SCRIPTS_INIT_WORKFLOWS_93DA",
+          "explanation": "seeded from files under scripts/"
+        },
+        {
+          "edgeType": "CONTAINS",
+          "target": "WATCH_HIGH_CHURN_SCRIPTS_LEGACY_INIT_419A",
+          "explanation": "seeded from files under scripts/"
+        },
+        {
+          "edgeType": "RELATES_TO",
+          "target": "TEMPLATES",
+          "explanation": "co-modified in 15 commits — likely coupled"
+        },
+        {
+          "edgeType": "RELATES_TO",
+          "target": "TESTS",
+          "explanation": "co-modified in 13 commits — likely coupled"
+        }
+      ],
+      "confidence": 0.8,
+      "lastUpdated": "2026-04-13",
+      "provenance": {
+        "commits": [],
+        "locations": [
+          "scripts/"
+        ],
+        "extractor": "component-structure",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "TEMPLATES",
+      "type": "Component",
+      "label": "templates/",
+      "summary": "Top-level module `templates/` — 11 tracked file(s), mainly .py, .md.",
+      "tags": [
+        "seeded",
+        "structure"
+      ],
+      "files": [
+        "templates/airflow/dags/data_quality_check.py",
+        "templates/airflow/dags/data_quality_check.py",
+        "templates/airflow/dags/lakehouse_backup_dag.py"
+      ],
+      "paths": [
+        "templates"
+      ],
+      "edges": [
+        {
+          "edgeType": "CONTAINS",
+          "target": "DEC_REMOVE_DASHBOARD_FUNCTIONALITY_FOCUS_ON_8492",
+          "explanation": "seeded from files under templates/"
+        },
+        {
+          "edgeType": "CONTAINS",
+          "target": "DEC_REPLACE_DASHY_WITH_LIGHTWEIGHT_STATIC_C62A",
+          "explanation": "seeded from files under templates/"
+        },
+        {
+          "edgeType": "CONTAINS",
+          "target": "DEC_REPLACE_HOMEPAGE_WITH_DASHY_DASHBOARD_284C",
+          "explanation": "seeded from files under templates/"
+        },
+        {
+          "edgeType": "CONTAINS",
+          "target": "DEC_REPLACE_HOMER_WITH_MODERN_HOMEPAGE_5702",
+          "explanation": "seeded from files under templates/"
+        },
+        {
+          "edgeType": "CONTAINS",
+          "target": "DEC_MIGRATE_FROM_BITNAMI_OFFICIAL_APACHE_4B39",
+          "explanation": "seeded from files under templates/"
+        },
+        {
+          "edgeType": "RELATES_TO",
+          "target": "TESTS",
+          "explanation": "co-modified in 6 commits — likely coupled"
+        }
+      ],
+      "confidence": 0.8,
+      "lastUpdated": "2026-04-13",
+      "provenance": {
+        "commits": [],
+        "locations": [
+          "templates/"
+        ],
+        "extractor": "component-structure",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "TESTS",
+      "type": "Component",
+      "label": "tests/",
+      "summary": "Top-level module `tests/` — 14 tracked file(s), mainly .py, .sh, .md.",
+      "tags": [
+        "seeded",
+        "structure"
+      ],
+      "files": [
+        "tests/README.md",
+        "tests/README.md",
+        "tests/conftest.py"
+      ],
+      "paths": [
+        "tests"
+      ],
+      "edges": [],
+      "confidence": 0.8,
+      "lastUpdated": "2026-04-13",
+      "provenance": {
+        "commits": [],
+        "locations": [
+          "tests/"
+        ],
+        "extractor": "component-structure",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "UTILS",
+      "type": "Component",
+      "label": "utils/",
+      "summary": "Top-level module `utils/` — 4 tracked file(s), mainly .py, .md.",
+      "tags": [
+        "seeded",
+        "structure"
+      ],
+      "files": [
+        "utils/README.md",
+        "utils/README.md",
+        "utils/iceberg_jar_manager.py"
+      ],
+      "paths": [
+        "utils"
+      ],
+      "edges": [],
+      "confidence": 0.8,
+      "lastUpdated": "2026-04-13",
+      "provenance": {
+        "commits": [],
+        "locations": [
+          "utils/"
+        ],
+        "extractor": "component-structure",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "REG_REPEAT_DOCKER_COMPOSE_ICEBERG_YML_A423",
+      "type": "Regression",
+      "label": "Repeatedly fixed: docker-compose.iceberg.yml",
+      "summary": "docker-compose.iceberg.yml received 7 separate fix commits in the mined window: \"Fix YAML formatting issues in Docker Compose files\" (77c0ea9), \"Fix Docker Compose volume warnings by marking volumes as ex…\" (3b43c4f), \"Fix AWS SDK version compatibility for Iceberg S3FileIO\" (62e8115), \"Fix Iceberg JAR download by updating to available version 1…\" (959ca82), \"Fix Iceberg JAR configuration for proper Spark integration\" (a0766af), \"Fix Docker Compo…",
+      "tags": [
+        "seeded",
+        "repeat-fix"
+      ],
+      "files": [
+        "docker-compose.iceberg.yml"
+      ],
+      "edges": [],
+      "confidence": 0.8,
+      "lastUpdated": "2025-09-10",
+      "provenance": {
+        "commits": [
+          "77c0ea9d65759e2478756c51f699ad76e2bc3654",
+          "3b43c4fb2a3b1dfbfa8ee4e0bcd723e19382c7ee",
+          "62e81151c076dda3b3c0d67fda5670a15ffc0fc2",
+          "959ca82ab7a0e925a92f107c8db88e2d48885241",
+          "a0766affddf69a8e79cead3d0221a814b7fc422b",
+          "f6a71b4197641f727e947c439c6c2b8878bd5bcd",
+          "2a735b310ac7330ed3a5556de512214b91af3ed4"
+        ],
+        "locations": [
+          "docker-compose.iceberg.yml"
+        ],
+        "extractor": "regression-commits",
+        "extractorVersion": "1"
+      },
+      "regressedNTimes": 7
+    },
+    {
+      "id": "REG_REPEAT_DOCKER_COMPOSE_JUPYTERHUB_YML_98A4",
+      "type": "Regression",
+      "label": "Repeatedly fixed: docker-compose.jupyterhub.yml",
+      "summary": "docker-compose.jupyterhub.yml received 2 separate fix commits in the mined window: \"Fix YAML formatting issues in Docker Compose files\" (77c0ea9), \"Fix Docker Compose volume warnings by marking volumes as ex…\" (3b43c4f). Multiple fixes to the same file suggest a recurring failure mode or a symptomatic-fix pattern worth root-causing.",
+      "tags": [
+        "seeded",
+        "repeat-fix"
+      ],
+      "files": [
+        "docker-compose.jupyterhub.yml"
+      ],
+      "edges": [],
+      "confidence": 0.8,
+      "lastUpdated": "2025-09-10",
+      "provenance": {
+        "commits": [
+          "77c0ea9d65759e2478756c51f699ad76e2bc3654",
+          "3b43c4fb2a3b1dfbfa8ee4e0bcd723e19382c7ee"
+        ],
+        "locations": [
+          "docker-compose.jupyterhub.yml"
+        ],
+        "extractor": "regression-commits",
+        "extractorVersion": "1"
+      },
+      "regressedNTimes": 2
+    },
+    {
+      "id": "REG_REPEAT_DOCKER_COMPOSE_YML_4DD1",
+      "type": "Regression",
+      "label": "Repeatedly fixed: docker-compose.yml",
+      "summary": "docker-compose.yml received 56 separate fix commits in the mined window: \"Fix lakehouse-init container bash installation failure\" (680b017), \"Fix YAML formatting issues in Docker Compose files\" (77c0ea9), \"Fix duplicate 'deploy' key YAML syntax error in docker-comp…\" (e9badc8), \"Fix Docker Compose warnings for shell variables in lakehous…\" (fb466e4), \"Fix Homepage showing default services instead of Lakehouse…\" (3e0bc64), \"Fix Homepage host vali…",
+      "tags": [
+        "seeded",
+        "repeat-fix"
+      ],
+      "files": [
+        "docker-compose.yml"
+      ],
+      "edges": [],
+      "confidence": 0.8,
+      "lastUpdated": "2025-09-11",
+      "provenance": {
+        "commits": [
+          "680b017c903ca4f2502858ecb812fa1889428387",
+          "77c0ea9d65759e2478756c51f699ad76e2bc3654",
+          "e9badc805e7814b40a80060f4dba25290d1ed4a9",
+          "fb466e48f5a076a9a3fd1ffcccbd48b25abe3b2a",
+          "3e0bc64c6e5afa55742ad44b309e3e00c7c7e98e",
+          "fcc6af7bacecdf101a7c0af30ea79d57e32981f2",
+          "5cfafd8f44ca8a524876f0d92bd8579dc71a57f0",
+          "3b43c4fb2a3b1dfbfa8ee4e0bcd723e19382c7ee",
+          "707a1a90c24126184c7df40edfdd4603454721ca",
+          "42ee20693b9403735b7d5305d1381c40facf0bde",
+          "4ed2cb547104ecf23d9e042bb2f2b7fba7ac49c6",
+          "d532f0ec811c23b55c6779fd49b77057dc5f1dc7",
+          "924dc6a8a427bac7b5cd9c3aea827c4fe223d141",
+          "b66f739b6cde755abef15c203f76f29d7a7a8f39",
+          "16ad57f18e2dfb9f026996f28334d13b0647e0fc",
+          "179cebeee7c07e2d675c05666bdda839f263072c",
+          "208b4e44f901cfd099d736586701113e609ef8d3",
+          "dbac3f7e861244a63e56e7b1448098cdbeb7d641",
+          "3819f753b4cfb7c5403bdb72c095b3491ca2a3d8",
+          "213a8d7469320c6dfa4eab248de852912dc60406",
+          "3b8b0b329b730dcc62d62a5a7bb3f4fbccd37fbb",
+          "1f9ddafefd078234ce03e68255a96d417fb4a327",
+          "4b9c2f2b2290d05df41ec1438b0bbc8fcfc25c31",
+          "eb0513991d34dac596667f29be3ebb71cb9f47f4",
+          "04af7918d50579ff169ed4860aeeb88d0744cb88",
+          "3c45c39c69b21a05608ad25873ce2e76f38c49f8",
+          "a9330b7b1af423c9aaf2b14ed56720c6353b8a20",
+          "838bdd9d5cb8e8ce51d55fcd7190b91493f562e0",
+          "dd10dbf74bd0f357a1b175f2c124a2230740b30b",
+          "cd745b2ee38e0670bf546061307845a1ff94b196",
+          "f6a71b4197641f727e947c439c6c2b8878bd5bcd",
+          "dba8f9d5a1a1e77dd449e92db5a62b5e281bd377",
+          "1fc130002e1959c709468803853ee8d3036aa97e",
+          "68d7424c65d5b438664d3b1edcc356adc7b96c11",
+          "5c248d3f30382668c469a198a87d1995669ec419",
+          "354089b6c227a08537437817f1cb5322f8cb5385",
+          "054e8309baf0e28a44ba160668e30488262bc30b",
+          "082cfd4a95b6045b5b301d1bb820c163bc09cc2f",
+          "10823cedad98bbb5d6352bdb2d20bf2866ce9943",
+          "8e7ac1d704bc96022addb2645d76f2f3d1519c59",
+          "280140104bbf7455a455a3909ac6099b8b038044",
+          "328739eaac55f22f4b2d812c49d66be1ef3fe350",
+          "c2ec6b2f9b913b943bbe9906dc521bbed1efb11c",
+          "25e4dac8d5733571fd0af18bb1cd93c653932497",
+          "a0d93b55125dda7c0e2d61065eaba89f2cb51ead",
+          "3ab7b7229e6124995101ce78ab8a25310457695c",
+          "efa8fc4e8e04e8395b0fe6603b5f98c12f67d12d",
+          "bbba7e0158c3628da68203e601d6c7e1fafed6f3",
+          "913cd65015c06fe650e5f90abdb7b6dd62d96ce1",
+          "04ea8a921dc5fe28aff72b6fe37da96a3cf02d3d",
+          "8b988f43c8a3c8d198727d57d225d0f9777e737e",
+          "62ac053af6517fc2c9ea25aa4eb015ab1a8475a8",
+          "f68964c7ae8aef8bca03be01096ed59f23e49191",
+          "044c33325f4ed4fe24be7c0fca8c83ba11f49872",
+          "086d41410aff9a1d9c667d69310c4383ea6a8611",
+          "299a2e53609ead3e712807d8bb74f8d52710dd5e"
+        ],
+        "locations": [
+          "docker-compose.yml"
+        ],
+        "extractor": "regression-commits",
+        "extractorVersion": "1"
+      },
+      "regressedNTimes": 56
+    },
+    {
+      "id": "REG_REPEAT_GITHUB_WORKFLOWS_CI_YML_2F7F",
+      "type": "Regression",
+      "label": "Repeatedly fixed: .github/workflows/ci.yml",
+      "summary": ".github/workflows/ci.yml received 3 separate fix commits in the mined window: \"Fix GitHub Actions workflow YAML formatting and finalize ya…\" (3907f45), \"Fix GitHub CI/CD pipeline failures and improve code quality\" (f647427), \"Fix GitHub workflow failures and v2.0 issues\" (179cebe). Multiple fixes to the same file suggest a recurring failure mode or a symptomatic-fix pattern worth root-causing.",
+      "tags": [
+        "seeded",
+        "repeat-fix"
+      ],
+      "files": [
+        ".github/workflows/ci.yml"
+      ],
+      "edges": [],
+      "confidence": 0.8,
+      "lastUpdated": "2025-09-10",
+      "provenance": {
+        "commits": [
+          "3907f45a2c6c45921269d3119ede35c236a6b2ac",
+          "f647427783c42ce9b3fa0373171624bf6f99f3df",
+          "179cebeee7c07e2d675c05666bdda839f263072c"
+        ],
+        "locations": [
+          ".github/workflows/ci.yml"
+        ],
+        "extractor": "regression-commits",
+        "extractorVersion": "1"
+      },
+      "regressedNTimes": 3
+    },
+    {
+      "id": "REG_REPEAT_GITHUB_WORKFLOWS_SECURITY_SCAN_CD69",
+      "type": "Regression",
+      "label": "Repeatedly fixed: .github/workflows/security-scan.yml",
+      "summary": ".github/workflows/security-scan.yml received 3 separate fix commits in the mined window: \"Fix GitHub Actions workflow YAML formatting and finalize ya…\" (3907f45), \"Fix remaining CI/CD failures from PR #24\" (ed8eca8), \"Fix GitHub CI/CD pipeline failures and improve code quality\" (f647427). Multiple fixes to the same file suggest a recurring failure mode or a symptomatic-fix pattern worth root-causing.",
+      "tags": [
+        "seeded",
+        "repeat-fix"
+      ],
+      "files": [
+        ".github/workflows/security-scan.yml"
+      ],
+      "edges": [],
+      "confidence": 0.8,
+      "lastUpdated": "2025-09-10",
+      "provenance": {
+        "commits": [
+          "3907f45a2c6c45921269d3119ede35c236a6b2ac",
+          "ed8eca85bf03d5e198da95561f22adfd29446916",
+          "f647427783c42ce9b3fa0373171624bf6f99f3df"
+        ],
+        "locations": [
+          ".github/workflows/security-scan.yml"
+        ],
+        "extractor": "regression-commits",
+        "extractorVersion": "1"
+      },
+      "regressedNTimes": 3
+    },
+    {
+      "id": "REG_REPEAT_GITHUB_WORKFLOWS_STARTUP_TEST_B2A5",
+      "type": "Regression",
+      "label": "Repeatedly fixed: .github/workflows/startup-test.yml",
+      "summary": ".github/workflows/startup-test.yml received 3 separate fix commits in the mined window: \"Fix CI/CD workflow failures: ignore localhost links and imp…\" (cbc5569), \"Fix GitHub Actions workflow YAML formatting and finalize ya…\" (3907f45), \"Fix GitHub workflow failures and v2.0 issues\" (179cebe). Multiple fixes to the same file suggest a recurring failure mode or a symptomatic-fix pattern worth root-causing.",
+      "tags": [
+        "seeded",
+        "repeat-fix"
+      ],
+      "files": [
+        ".github/workflows/startup-test.yml"
+      ],
+      "edges": [],
+      "confidence": 0.8,
+      "lastUpdated": "2025-09-11",
+      "provenance": {
+        "commits": [
+          "cbc556965e0f31109955e6c71d00895c14bf5327",
+          "3907f45a2c6c45921269d3119ede35c236a6b2ac",
+          "179cebeee7c07e2d675c05666bdda839f263072c"
+        ],
+        "locations": [
+          ".github/workflows/startup-test.yml"
+        ],
+        "extractor": "regression-commits",
+        "extractorVersion": "1"
+      },
+      "regressedNTimes": 3
+    },
+    {
+      "id": "REG_REPEAT_INSTALL_SH_82D8",
+      "type": "Regression",
+      "label": "Repeatedly fixed: install.sh",
+      "summary": "install.sh received 13 separate fix commits in the mined window: \"Fix installer credential generation bug in clean install mo…\" (24ccbc1), \"Fix ShellCheck violations in install.sh and start-lakehouse…\" (f560919), \"Fix GitHub CI/CD pipeline failures and improve code quality\" (f647427), \"Fix Smart Upgrade issues: volume handling and cancellation…\" (42a33c5), \"Fix upgrade credential mismatch issue\" (b67b1a4), \"Fix installer directory nesting proble…",
+      "tags": [
+        "seeded",
+        "repeat-fix"
+      ],
+      "files": [
+        "install.sh"
+      ],
+      "edges": [],
+      "confidence": 0.8,
+      "lastUpdated": "2025-09-11",
+      "provenance": {
+        "commits": [
+          "24ccbc1b23fe514b2c471f8196424423d1197ff7",
+          "f56091986c6a1dfecc8e89f75c6b44c99452e5be",
+          "f647427783c42ce9b3fa0373171624bf6f99f3df",
+          "42a33c567ce4690ad188f6871f1537968ef9ef5b",
+          "b67b1a48b2a10b06d0145a9b1a110c150e7c9c5f",
+          "5782f5dc3c1c4673a51cf47143edc1940329c819",
+          "a4a8b91d12caf0b4164d17f2fac6b68540932431",
+          "06fd235438125440d717b5629699ccc8df1e94f3",
+          "5d0236543771ab850ebcce7cbf8effe6194392d8",
+          "cd745b2ee38e0670bf546061307845a1ff94b196",
+          "0a470b2cc8db26edb117c5ba9b1a30457a63f229",
+          "3f06179d592fdcec2e07ee085a24ddc7252b10c8",
+          "18fc04d66607951dc686a1df608aac20d38fb651"
+        ],
+        "locations": [
+          "install.sh"
+        ],
+        "extractor": "regression-commits",
+        "extractorVersion": "1"
+      },
+      "regressedNTimes": 13
+    },
+    {
+      "id": "REG_REPEAT_README_MD_BFC3",
+      "type": "Regression",
+      "label": "Repeatedly fixed: README.md",
+      "summary": "README.md received 7 separate fix commits in the mined window: \"Fix documentation backup text validation issue\" (4de64e9), \"Fix GitHub CI/CD pipeline failures and improve code quality\" (f647427), \"Fix upgrade issues and improve README\" (5cfafd8), \"Fix PostgreSQL access documentation and add optional port m…\" (16ad57f), \"Fix remaining IP detection issues for complete remote serve…\" (556e661), \"Fix DuckDB connection auto-creation and update Jupyte…",
+      "tags": [
+        "seeded",
+        "repeat-fix"
+      ],
+      "files": [
+        "README.md"
+      ],
+      "edges": [],
+      "confidence": 0.8,
+      "lastUpdated": "2025-09-10",
+      "provenance": {
+        "commits": [
+          "4de64e995f3889108874fc47768cddf8f310cc09",
+          "f647427783c42ce9b3fa0373171624bf6f99f3df",
+          "5cfafd8f44ca8a524876f0d92bd8579dc71a57f0",
+          "16ad57f18e2dfb9f026996f28334d13b0647e0fc",
+          "556e661785890451e70c24bf94986dcbdfbb62d2",
+          "a9330b7b1af423c9aaf2b14ed56720c6353b8a20",
+          "4f8472dd75f4f80ab51d2cf537e63f0829549a3c"
+        ],
+        "locations": [
+          "README.md"
+        ],
+        "extractor": "regression-commits",
+        "extractorVersion": "1"
+      },
+      "regressedNTimes": 7
+    },
+    {
+      "id": "REG_REPEAT_SCRIPTS_BACKUP_LAKEHOUSE_SH_C65A",
+      "type": "Regression",
+      "label": "Repeatedly fixed: scripts/backup-lakehouse.sh",
+      "summary": "scripts/backup-lakehouse.sh received 2 separate fix commits in the mined window: \"Fix security scan by avoiding password pattern in grep comm…\" (0ab15fa), \"Fix security scan credential exposure warnings\" (362b08c). Multiple fixes to the same file suggest a recurring failure mode or a symptomatic-fix pattern worth root-causing.",
+      "tags": [
+        "seeded",
+        "repeat-fix"
+      ],
+      "files": [
+        "scripts/backup-lakehouse.sh"
+      ],
+      "edges": [],
+      "confidence": 0.8,
+      "lastUpdated": "2025-09-10",
+      "provenance": {
+        "commits": [
+          "0ab15fac528c02df19e51f3841cffa0e827d87fe",
+          "362b08c6fff1ab61535a2bdf215a40c5db452f31"
+        ],
+        "locations": [
+          "scripts/backup-lakehouse.sh"
+        ],
+        "extractor": "regression-commits",
+        "extractorVersion": "1"
+      },
+      "regressedNTimes": 2
+    },
+    {
+      "id": "REG_REPEAT_SCRIPTS_INIT_COMPUTE_SH_C0A4",
+      "type": "Regression",
+      "label": "Repeatedly fixed: scripts/init-compute.sh",
+      "summary": "scripts/init-compute.sh received 6 separate fix commits in the mined window: \"Fix compute module to handle network-restricted environment…\" (4070f9e), \"Fix AWS SDK version compatibility for Iceberg S3FileIO\" (62e8115), \"Fix Docker service check logic to prevent storage module fa…\" (4c5a4d5), \"Fix Iceberg JAR download URL path construction\" (1fd1749), \"Fix Iceberg JAR download by updating to available version 1…\" (959ca82), \"Fix hardcoded MinIO/P…",
+      "tags": [
+        "seeded",
+        "repeat-fix"
+      ],
+      "files": [
+        "scripts/init-compute.sh"
+      ],
+      "edges": [],
+      "confidence": 0.8,
+      "lastUpdated": "2025-09-11",
+      "provenance": {
+        "commits": [
+          "4070f9e77fbcbb3d4e6ddc5a3237d9b2acd99c7a",
+          "62e81151c076dda3b3c0d67fda5670a15ffc0fc2",
+          "4c5a4d58e66c2951924e0334b4d8787f2f175d30",
+          "1fd17490101e6aa9327cbd4ecaadd7718e3e7de4",
+          "959ca82ab7a0e925a92f107c8db88e2d48885241",
+          "61ffcbf13636bceda42da5f28a4b36e7e13a9932"
+        ],
+        "locations": [
+          "scripts/init-compute.sh"
+        ],
+        "extractor": "regression-commits",
+        "extractorVersion": "1"
+      },
+      "regressedNTimes": 6
+    },
+    {
+      "id": "REG_REPEAT_SCRIPTS_INIT_INFRASTRUCTURE_SH_5BD9",
+      "type": "Regression",
+      "label": "Repeatedly fixed: scripts/init-infrastructure.sh",
+      "summary": "scripts/init-infrastructure.sh received 2 separate fix commits in the mined window: \"Fix lakehouse-init network resilience and make initializati…\" (8b07634), \"Fix filesystem permissions for multi-user container access\" (43fc4ca). Multiple fixes to the same file suggest a recurring failure mode or a symptomatic-fix pattern worth root-causing.",
+      "tags": [
+        "seeded",
+        "repeat-fix"
+      ],
+      "files": [
+        "scripts/init-infrastructure.sh"
+      ],
+      "edges": [],
+      "confidence": 0.8,
+      "lastUpdated": "2025-09-11",
+      "provenance": {
+        "commits": [
+          "8b076343c69e578d1da712bac2e3744d8b87ca3a",
+          "43fc4ca8e47aa96d5eba86c2c20c42078154ee8e"
+        ],
+        "locations": [
+          "scripts/init-infrastructure.sh"
+        ],
+        "extractor": "regression-commits",
+        "extractorVersion": "1"
+      },
+      "regressedNTimes": 2
+    },
+    {
+      "id": "REG_REPEAT_SCRIPTS_INIT_STORAGE_SH_FB0D",
+      "type": "Regression",
+      "label": "Repeatedly fixed: scripts/init-storage.sh",
+      "summary": "scripts/init-storage.sh received 3 separate fix commits in the mined window: \"Fix lakehouse-init network resilience and make initializati…\" (8b07634), \"Fix hardcoded MinIO/PostgreSQL credentials throughout all i…\" (61ffcbf), \"Fix MinIO connectivity from init container\" (181d213). Multiple fixes to the same file suggest a recurring failure mode or a symptomatic-fix pattern worth root-causing.",
+      "tags": [
+        "seeded",
+        "repeat-fix"
+      ],
+      "files": [
+        "scripts/init-storage.sh"
+      ],
+      "edges": [],
+      "confidence": 0.8,
+      "lastUpdated": "2025-09-11",
+      "provenance": {
+        "commits": [
+          "8b076343c69e578d1da712bac2e3744d8b87ca3a",
+          "61ffcbf13636bceda42da5f28a4b36e7e13a9932",
+          "181d2134c73e94114d73c3f29f68a4aceb7c789c"
+        ],
+        "locations": [
+          "scripts/init-storage.sh"
+        ],
+        "extractor": "regression-commits",
+        "extractorVersion": "1"
+      },
+      "regressedNTimes": 3
+    },
+    {
+      "id": "REG_REPEAT_SCRIPTS_INSTALL_CREDENTIALS_SH_D2B0",
+      "type": "Regression",
+      "label": "Repeatedly fixed: scripts/install/fix-credentials.sh",
+      "summary": "scripts/install/fix-credentials.sh received 3 separate fix commits in the mined window: \"Fix GitHub CI/CD pipeline failures and improve code quality\" (f647427), \"Fix misleading credential display in fix-credentials.sh\" (e6d5675), \"Fix upgrade credential mismatch issue\" (b67b1a4). Multiple fixes to the same file suggest a recurring failure mode or a symptomatic-fix pattern worth root-causing.",
+      "tags": [
+        "seeded",
+        "repeat-fix"
+      ],
+      "files": [
+        "scripts/install/fix-credentials.sh"
+      ],
+      "edges": [],
+      "confidence": 0.8,
+      "lastUpdated": "2025-09-10",
+      "provenance": {
+        "commits": [
+          "f647427783c42ce9b3fa0373171624bf6f99f3df",
+          "e6d5675a39eee84118fde5145d3ad8fd3a4fb134",
+          "b67b1a48b2a10b06d0145a9b1a110c150e7c9c5f"
+        ],
+        "locations": [
+          "scripts/install/fix-credentials.sh"
+        ],
+        "extractor": "regression-commits",
+        "extractorVersion": "1"
+      },
+      "regressedNTimes": 3
+    },
+    {
+      "id": "REG_REPEAT_SCRIPTS_LIB_INIT_CORE_DB77",
+      "type": "Regression",
+      "label": "Repeatedly fixed: scripts/lib/init-core.sh",
+      "summary": "scripts/lib/init-core.sh received 5 separate fix commits in the mined window: \"Fix lakehouse-init network resilience and make initializati…\" (8b07634), \"Fix Docker service check logic to prevent storage module fa…\" (4c5a4d5), \"Fix Superset setup script corruption and Docker check logic\" (2475ce2), \"Fix MinIO connectivity from init container\" (181d213), \"Fix Alpine Linux dependency installation in validation\" (dbbfb4a). Multiple fixes to the same…",
+      "tags": [
+        "seeded",
+        "repeat-fix"
+      ],
+      "files": [
+        "scripts/lib/init-core.sh"
+      ],
+      "edges": [],
+      "confidence": 0.8,
+      "lastUpdated": "2025-09-11",
+      "provenance": {
+        "commits": [
+          "8b076343c69e578d1da712bac2e3744d8b87ca3a",
+          "4c5a4d58e66c2951924e0334b4d8787f2f175d30",
+          "2475ce25de087257ac243413c9600acfb81d361c",
+          "181d2134c73e94114d73c3f29f68a4aceb7c789c",
+          "dbbfb4a711d504cc4a66c112434020dbf210aa89"
+        ],
+        "locations": [
+          "scripts/lib/init-core.sh"
+        ],
+        "extractor": "regression-commits",
+        "extractorVersion": "1"
+      },
+      "regressedNTimes": 5
+    },
+    {
+      "id": "REG_REPEAT_SCRIPTS_SHOW_CREDENTIALS_SH_40A5",
+      "type": "Regression",
+      "label": "Repeatedly fixed: scripts/show-credentials.sh",
+      "summary": "scripts/show-credentials.sh received 3 separate fix commits in the mined window: \"Fix GitHub CI/CD pipeline failures and improve code quality\" (f647427), \"Fix LanceDB syntax error and credentials script path resolu…\" (1dedb57), \"Fix PostgreSQL access documentation and add optional port m…\" (16ad57f). Multiple fixes to the same file suggest a recurring failure mode or a symptomatic-fix pattern worth root-causing.",
+      "tags": [
+        "seeded",
+        "repeat-fix"
+      ],
+      "files": [
+        "scripts/show-credentials.sh"
+      ],
+      "edges": [],
+      "confidence": 0.8,
+      "lastUpdated": "2025-09-10",
+      "provenance": {
+        "commits": [
+          "f647427783c42ce9b3fa0373171624bf6f99f3df",
+          "1dedb570c1f17351ad8bb7f22b67eb9cfb07bb94",
+          "16ad57f18e2dfb9f026996f28334d13b0647e0fc"
+        ],
+        "locations": [
+          "scripts/show-credentials.sh"
+        ],
+        "extractor": "regression-commits",
+        "extractorVersion": "1"
+      },
+      "regressedNTimes": 3
+    },
+    {
+      "id": "DEC_MAJOR_INFRASTRUCTURE_IMPROVEMENTS_A9D3",
+      "type": "Decision",
+      "label": "Major Infrastructure Improvements",
+      "summary": "Merged change (71ffcb3): Major Infrastructure Improvements This pull request contains significant infrastructure improvements, bug fixes, and the replacement of the Homer dashboard system with a focus on core stack stability. 🔧 Major Infrastructure Changes Dashboard System Evolution: - Replaced Homer with Homepage dashboard for better Docker integration and modern UI - Identified Homepage API wi…",
+      "tags": [
+        "seeded",
+        "merge"
+      ],
+      "files": [
+        ".env.default",
+        ".github/workflows/backup-system-test.yml",
+        ".github/workflows/ci.yml",
+        ".github/workflows/docker-compose-validation.yml",
+        ".github/workflows/documentation-check.yml",
+        ".github/workflows/environment-validation.yml"
+      ],
+      "edges": [],
+      "confidence": 0.6,
+      "lastUpdated": "2025-09-08",
+      "provenance": {
+        "commits": [
+          "71ffcb3cac2c83c4db40a7e24e1f351f032f0367"
+        ],
+        "locations": [],
+        "extractor": "decision-history",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "DEC_MIGRATE_FROM_BITNAMI_OFFICIAL_APACHE_4B39",
+      "type": "Decision",
+      "label": "Migrate from Bitnami to official Apache Spark 3.5.6 images",
+      "summary": "Deliberate change in 422b08a: Migrate from Bitnami to official Apache Spark 3.5.6 images. - Replace bitnami/spark:3.5.0 with apache/spark:3.5.6-scala2.12-java11 - Update Spark Master and Worker configurations for Apache images - Fix entrypoint commands to use native Spark class invocation - Update all JAR paths from /opt/bitnami/spark to /opt/spark - Update test scripts and CI pipeline for new Sp…",
+      "tags": [
+        "seeded",
+        "deliberate-change"
+      ],
+      "files": [
+        ".github/workflows/ci.yml",
+        "docker-compose.iceberg.yml",
+        "docker-compose.override.yml.example",
+        "docker-compose.yml",
+        "scripts/init-compute.sh",
+        "templates/jupyter/notebooks/03_Iceberg_Tables.ipynb"
+      ],
+      "edges": [],
+      "confidence": 0.6,
+      "lastUpdated": "2025-09-03",
+      "provenance": {
+        "commits": [
+          "422b08a0ca1b9e9adfcb4ff657ad55dab35e04b7"
+        ],
+        "locations": [],
+        "extractor": "decision-history",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "DEC_REMOVE_DASHBOARD_FUNCTIONALITY_FOCUS_ON_8492",
+      "type": "Decision",
+      "label": "Remove dashboard functionality to focus on core stack stability",
+      "summary": "Deliberate change in 397126a: Remove dashboard functionality to focus on core stack stability. Removes all dashboard-related components (Homepage, Dashy, static HTML) to focus on delivering a stable, reliable core Lakehouse Lab stack without additional UI complexity. Changes: • Remove dashboard service from docker-compose.yml • Remove dashboard volume and references • Clean up lakehouse-init dash…",
+      "tags": [
+        "seeded",
+        "deliberate-change"
+      ],
+      "files": [
+        "docker-compose.yml",
+        "templates/dashboard/index.html"
+      ],
+      "edges": [],
+      "confidence": 0.6,
+      "lastUpdated": "2025-09-08",
+      "provenance": {
+        "commits": [
+          "397126ab359075d57b0b7bd27eb6dea1c1134182"
+        ],
+        "locations": [],
+        "extractor": "decision-history",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "DEC_REMOVE_ICEBERG_ENABLED_FROM_SOURCE_1F54",
+      "type": "Decision",
+      "label": "Remove .iceberg-enabled from source control and add to .gitignore",
+      "summary": "Deliberate change in c32029b: Remove .iceberg-enabled from source control and add to .gitignore. - .iceberg-enabled is an environment-specific marker file - Should be created locally when Iceberg is enabled, not tracked in git - This prevents conflicts between different installation configurations 🤖 Generated with [Claude Code](https://claude.ai/code) Co-Authored-By: Claude <noreply@anthropic.co…",
+      "tags": [
+        "seeded",
+        "deliberate-change"
+      ],
+      "files": [
+        ".gitignore",
+        ".iceberg-enabled"
+      ],
+      "edges": [],
+      "confidence": 0.6,
+      "lastUpdated": "2025-07-28",
+      "provenance": {
+        "commits": [
+          "c32029b0720e5650c6969d713fce30bf9cea6aaf"
+        ],
+        "locations": [],
+        "extractor": "decision-history",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "DEC_REMOVE_MCP_SERVER_COMPLETELY_FROM_67B4",
+      "type": "Decision",
+      "label": "Remove MCP server completely from codebase",
+      "summary": "Deliberate change in 750c37f: Remove MCP server completely from codebase. The MCP (Model Context Protocol) server was incomplete and not functional. Removed all references to focus on working features: Changes: • Removed mcp-server/ directory and implementation • Updated README.md to remove AI-powered API references • Updated architecture diagram to remove MCP components • Changed \"Quadruple Anal…",
+      "tags": [
+        "seeded",
+        "deliberate-change"
+      ],
+      "files": [
+        ".github/workflows/ci.yml",
+        ".lakehouse-services.conf",
+        "README.md",
+        "docs/CHANGELOG.md",
+        "docs/LAKEHOUSE_LLM_GUIDE.md",
+        "docs/QUICKSTART.md"
+      ],
+      "edges": [],
+      "confidence": 0.6,
+      "lastUpdated": "2025-09-05",
+      "provenance": {
+        "commits": [
+          "750c37f2b1cd87f2ed97bfac93043457228e90c8"
+        ],
+        "locations": [],
+        "extractor": "decision-history",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "DEC_REMOVE_OAUTH_AUTHENTICATION_SYSTEM_ENTIRELY_2B27",
+      "type": "Decision",
+      "label": "Remove OAuth authentication system entirely",
+      "summary": "Deliberate change in 494f04f: Remove OAuth authentication system entirely. OAuth was unstable and not needed for a lab/learning platform. Simplified Lakehouse Lab to focus on data engineering education: Changes: • Removed auth-service/ directory and OAuth implementation • Deleted docker-compose.auth.yml authentication overlay • Removed install-with-auth.sh secure installer • Deleted OAuth setup/c…",
+      "tags": [
+        "seeded",
+        "deliberate-change"
+      ],
+      "files": [
+        ".lakehouse-services.conf",
+        "README.md",
+        "auth-service/Dockerfile",
+        "auth-service/config.py",
+        "auth-service/main.py",
+        "auth-service/requirements.txt"
+      ],
+      "edges": [],
+      "confidence": 0.6,
+      "lastUpdated": "2025-09-05",
+      "provenance": {
+        "commits": [
+          "494f04faec946ea2846650024e465369d8f6ca39"
+        ],
+        "locations": [],
+        "extractor": "decision-history",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "DEC_REMOVE_ORPHANED_CONTAINERS_DURING_UPGRADES_5BC0",
+      "type": "Decision",
+      "label": "Remove orphaned containers during upgrades and service startup",
+      "summary": "Deliberate change in a45e861: Remove orphaned containers during upgrades and service startup. Eliminates warnings about orphaned containers (like Homer) that remain after service replacements during upgrades and normal operations. Changes: • Add --remove-orphans flag to all docker compose up -d commands in: - install.sh upgrade process - migrate-to-named-volumes.sh service startup - fix-credentia…",
+      "tags": [
+        "seeded",
+        "deliberate-change"
+      ],
+      "files": [
+        "install.sh",
+        "scripts/install/fix-credentials.sh",
+        "scripts/install/migrate-to-named-volumes.sh",
+        "start-lakehouse.sh"
+      ],
+      "edges": [],
+      "confidence": 0.6,
+      "lastUpdated": "2025-09-06",
+      "provenance": {
+        "commits": [
+          "a45e86172490cbe756800b7e9ffe367eb8156e36"
+        ],
+        "locations": [],
+        "extractor": "decision-history",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "DEC_REMOVE_SUDO_DEPENDENCIES_FROM_ALPINE_6EF3",
+      "type": "Decision",
+      "label": "Remove sudo dependencies from Alpine container scripts",
+      "summary": "Deliberate change in 07adab4: Remove sudo dependencies from Alpine container scripts. Remove sudo calls that cause failures in Alpine container where: 1. sudo is not installed by default 2. We're already running as root so sudo is unnecessary This fixes MinIO client installation and permission setting issues. 🤖 Generated with [Claude Code](https://claude.ai/code) Co-Authored-By: Claude <noreply@…",
+      "tags": [
+        "seeded",
+        "deliberate-change"
+      ],
+      "files": [
+        "scripts/init-infrastructure.sh",
+        "scripts/lib/init-core.sh"
+      ],
+      "edges": [],
+      "confidence": 0.6,
+      "lastUpdated": "2025-07-27",
+      "provenance": {
+        "commits": [
+          "07adab40a704dea646703da7933eb67474917245"
+        ],
+        "locations": [],
+        "extractor": "decision-history",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "DEC_REMOVE_UNUSED_CODECOV_INTEGRATION_B8A6",
+      "type": "Decision",
+      "label": "Remove unused Codecov integration",
+      "summary": "Deliberate change in e7047ce: Remove unused Codecov integration. - Remove Codecov upload step from CI workflow (no coverage.xml generated) - Remove Codecov badge from README since coverage reports aren't created - Remove pytest-cov dependency that wasn't being used - Update testing documentation to reflect actual CI behavior 🤖 Generated with [Claude Code](https://claude.ai/code) Co-Authored-By:…",
+      "tags": [
+        "seeded",
+        "deliberate-change"
+      ],
+      "files": [
+        ".github/workflows/ci.yml",
+        "README.md",
+        "docs/TESTING.md"
+      ],
+      "edges": [],
+      "confidence": 0.6,
+      "lastUpdated": "2025-09-11",
+      "provenance": {
+        "commits": [
+          "e7047ce7aec9217e4be73b5d38e3466f15963835"
+        ],
+        "locations": [],
+        "extractor": "decision-history",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "DEC_REPLACE_DASHY_WITH_LIGHTWEIGHT_STATIC_C62A",
+      "type": "Decision",
+      "label": "Replace Dashy with lightweight static HTML dashboard",
+      "summary": "Deliberate change in d38bcf2: Replace Dashy with lightweight static HTML dashboard. Replaces the complex Dashy dashboard with a simple, reliable static HTML page served by nginx. This eliminates volume creation issues, external dependencies, and configuration complexity while providing a clean interface for accessing all Lakehouse Lab services. Changes: • Remove Dashy service and replace with ngi…",
+      "tags": [
+        "seeded",
+        "deliberate-change"
+      ],
+      "files": [
+        "docker-compose.yml",
+        "templates/dashboard/index.html",
+        "templates/dashy/conf.yml"
+      ],
+      "edges": [],
+      "confidence": 0.6,
+      "lastUpdated": "2025-09-06",
+      "provenance": {
+        "commits": [
+          "d38bcf2497edec00a7bccb47feb2c8be2aa8687c"
+        ],
+        "locations": [],
+        "extractor": "decision-history",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "DEC_REPLACE_HOMEPAGE_WITH_DASHY_DASHBOARD_284C",
+      "type": "Decision",
+      "label": "Replace Homepage with Dashy dashboard for better Docker integration",
+      "summary": "Deliberate change in 193ecd1: Replace Homepage with Dashy dashboard for better Docker integration. Dashy provides superior Docker auto-discovery and eliminates the API widget configuration issues encountered with Homepage. This change delivers a cleaner, more maintainable dashboard solution. Changes: • Replace Homepage service with Dashy in docker-compose.yml • Update service configuration (port…",
+      "tags": [
+        "seeded",
+        "deliberate-change"
+      ],
+      "files": [
+        "docker-compose.yml",
+        "templates/dashy/config.yml"
+      ],
+      "edges": [],
+      "confidence": 0.6,
+      "lastUpdated": "2025-09-06",
+      "provenance": {
+        "commits": [
+          "193ecd125a388cb81a6ddd7b914c06278b6225fe"
+        ],
+        "locations": [],
+        "extractor": "decision-history",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "DEC_REPLACE_HOMER_WITH_MODERN_HOMEPAGE_5702",
+      "type": "Decision",
+      "label": "Replace Homer with modern Homepage dashboard",
+      "summary": "Deliberate change in f251471: Replace Homer with modern Homepage dashboard. Homer had persistent issues with configuration, broken links, and poor integration. Replaced with Homepage which offers: Changes: • Replaced Homer service with Homepage in docker-compose.yml • Updated all scripts and configuration files: - configure-services.sh: Updated service definitions and presets - start-lakehouse.sh…",
+      "tags": [
+        "seeded",
+        "deliberate-change"
+      ],
+      "files": [
+        ".lakehouse-services.conf",
+        "docker-compose.yml",
+        "scripts/configure-services.sh",
+        "scripts/show-credentials.sh",
+        "start-lakehouse.sh",
+        "templates/homepage/docker.yaml"
+      ],
+      "edges": [],
+      "confidence": 0.6,
+      "lastUpdated": "2025-09-06",
+      "provenance": {
+        "commits": [
+          "f251471f585b58c496e971f33c69f563500d2a4b"
+        ],
+        "locations": [],
+        "extractor": "decision-history",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "DEC_REPLACE_UNRELIABLE_DOCKER_STARTUP_TEST_AD13",
+      "type": "Decision",
+      "label": "Replace unreliable Docker startup test with configuration validation",
+      "summary": "Deliberate change in 4dbfda8: Replace unreliable Docker startup test with configuration validation. - Remove time-consuming Docker image pulls and container startups - Replace with fast docker-compose config validation - Check that all required services are properly defined - Eliminate CI timeout failures from slow Docker operations 🤖 Generated with [Claude Code](https://claude.ai/code) Co-Autho…",
+      "tags": [
+        "seeded",
+        "deliberate-change"
+      ],
+      "files": [
+        ".github/workflows/startup-test.yml"
+      ],
+      "edges": [],
+      "confidence": 0.6,
+      "lastUpdated": "2025-09-11",
+      "provenance": {
+        "commits": [
+          "4dbfda880cb667713c94325054cd5a6ab30bee87"
+        ],
+        "locations": [],
+        "extractor": "decision-history",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "DEC_SUCCESSFULLY_RESOLVED_MERGE_CONFLICTS_COMBINING_BA62",
+      "type": "Decision",
+      "label": "Successfully resolved merge conflicts combining:",
+      "summary": "Merged change (74c905d): Successfully resolved merge conflicts combining: FROM MAIN BRANCH: - Enhanced credential management and security improvements - Better Jupyter PySpark integration with proper environment setup - Improved service configurations and resource management - Updated documentation with clearer setup instructions - .env.example file for better templating FROM DEV BRANCH: - Comple…",
+      "tags": [
+        "seeded",
+        "merge"
+      ],
+      "files": [
+        ".env.example",
+        ".gitignore",
+        "CHANGELOG.md",
+        "ICEBERG.md",
+        "INSTALLATION.md",
+        "QUICKSTART.md"
+      ],
+      "edges": [],
+      "confidence": 0.6,
+      "lastUpdated": "2025-07-28",
+      "provenance": {
+        "commits": [
+          "74c905d42911b7a63c74816b9d38f867fd7cf147"
+        ],
+        "locations": [],
+        "extractor": "decision-history",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "DEC_SWITCH_SPARK_3_5_3_A7AE",
+      "type": "Decision",
+      "label": "Switch to Spark 3.5.3 compatible Jupyter image and simplify startup",
+      "summary": "Deliberate change in 8191f56: Switch to Spark 3.5.3 compatible Jupyter image and simplify startup. Use quay.io/jupyter/pyspark-notebook:spark-3.5.3 to avoid PySpark version conflicts. Simplified startup command to use standard Jupyter scripts instead of complex custom installation that caused dependency issues. 🤖 Generated with [Claude Code](https://claude.ai/code) Co-Authored-By: Claude <norepl…",
+      "tags": [
+        "seeded",
+        "deliberate-change"
+      ],
+      "files": [
+        "docker-compose.yml"
+      ],
+      "edges": [],
+      "confidence": 0.6,
+      "lastUpdated": "2025-09-03",
+      "provenance": {
+        "commits": [
+          "8191f568912d743255d2083b9339e30af58a95e2"
+        ],
+        "locations": [],
+        "extractor": "decision-history",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "INV_DO_NOT_EDIT_MANUALLY_USE_F164",
+      "type": "Invariant",
+      "label": "DO NOT EDIT MANUALLY - use the configuration script instead",
+      "summary": "Rule asserted in code comments: \"DO NOT EDIT MANUALLY - use the configuration script instead\" (1 occurrence, e.g. scripts/configure-services.sh:321).",
+      "tags": [
+        "seeded",
+        "comment-rule"
+      ],
+      "files": [
+        "scripts/configure-services.sh"
+      ],
+      "edges": [],
+      "confidence": 0.7,
+      "lastUpdated": "2026-04-13",
+      "provenance": {
+        "commits": [],
+        "locations": [
+          "scripts/configure-services.sh:321"
+        ],
+        "extractor": "invariant-worktree",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "WATCH_HIGH_CHURN_GITHUB_WORKFLOWS_BACKUP_EDF7",
+      "type": "Watchlist",
+      "label": "High churn: .github/workflows/backup-system-test.yml",
+      "summary": ".github/workflows/backup-system-test.yml was modified in 7 commits within the mined window — well above typical. High-churn files concentrate risk: review related regressions before editing.",
+      "tags": [
+        "seeded",
+        "churn"
+      ],
+      "files": [
+        ".github/workflows/backup-system-test.yml"
+      ],
+      "edges": [],
+      "confidence": 0.55,
+      "lastUpdated": "2026-04-13",
+      "provenance": {
+        "commits": [],
+        "locations": [
+          ".github/workflows/backup-system-test.yml"
+        ],
+        "extractor": "watchlist-worktree",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "WATCH_HIGH_CHURN_GITHUB_WORKFLOWS_DOCKER_15C8",
+      "type": "Watchlist",
+      "label": "High churn: .github/workflows/docker-compose-validation.yml",
+      "summary": ".github/workflows/docker-compose-validation.yml was modified in 7 commits within the mined window — well above typical. High-churn files concentrate risk: review related regressions before editing.",
+      "tags": [
+        "seeded",
+        "churn"
+      ],
+      "files": [
+        ".github/workflows/docker-compose-validation.yml"
+      ],
+      "edges": [],
+      "confidence": 0.55,
+      "lastUpdated": "2026-04-13",
+      "provenance": {
+        "commits": [],
+        "locations": [
+          ".github/workflows/docker-compose-validation.yml"
+        ],
+        "extractor": "watchlist-worktree",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "WATCH_HIGH_CHURN_GITHUB_WORKFLOWS_DOCUMENTATION_83A1",
+      "type": "Watchlist",
+      "label": "High churn: .github/workflows/documentation-check.yml",
+      "summary": ".github/workflows/documentation-check.yml was modified in 9 commits within the mined window — well above typical. High-churn files concentrate risk: review related regressions before editing.",
+      "tags": [
+        "seeded",
+        "churn"
+      ],
+      "files": [
+        ".github/workflows/documentation-check.yml"
+      ],
+      "edges": [],
+      "confidence": 0.55,
+      "lastUpdated": "2026-04-13",
+      "provenance": {
+        "commits": [],
+        "locations": [
+          ".github/workflows/documentation-check.yml"
+        ],
+        "extractor": "watchlist-worktree",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "WATCH_HIGH_CHURN_GITHUB_WORKFLOWS_ENVIRONMENT_6799",
+      "type": "Watchlist",
+      "label": "High churn: .github/workflows/environment-validation.yml",
+      "summary": ".github/workflows/environment-validation.yml was modified in 7 commits within the mined window — well above typical. High-churn files concentrate risk: review related regressions before editing.",
+      "tags": [
+        "seeded",
+        "churn"
+      ],
+      "files": [
+        ".github/workflows/environment-validation.yml"
+      ],
+      "edges": [],
+      "confidence": 0.55,
+      "lastUpdated": "2026-04-13",
+      "provenance": {
+        "commits": [],
+        "locations": [
+          ".github/workflows/environment-validation.yml"
+        ],
+        "extractor": "watchlist-worktree",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "WATCH_HIGH_CHURN_GITHUB_WORKFLOWS_STORAGE_A030",
+      "type": "Watchlist",
+      "label": "High churn: .github/workflows/storage-persistence-test.yml",
+      "summary": ".github/workflows/storage-persistence-test.yml was modified in 5 commits within the mined window — well above typical. High-churn files concentrate risk: review related regressions before editing.",
+      "tags": [
+        "seeded",
+        "churn"
+      ],
+      "files": [
+        ".github/workflows/storage-persistence-test.yml"
+      ],
+      "edges": [],
+      "confidence": 0.55,
+      "lastUpdated": "2026-04-13",
+      "provenance": {
+        "commits": [],
+        "locations": [
+          ".github/workflows/storage-persistence-test.yml"
+        ],
+        "extractor": "watchlist-worktree",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "WATCH_HIGH_CHURN_SCRIPTS_CONFIGURE_SERVICES_DF67",
+      "type": "Watchlist",
+      "label": "High churn: scripts/configure-services.sh",
+      "summary": "scripts/configure-services.sh was modified in 11 commits within the mined window — well above typical. High-churn files concentrate risk: review related regressions before editing.",
+      "tags": [
+        "seeded",
+        "churn"
+      ],
+      "files": [
+        "scripts/configure-services.sh"
+      ],
+      "edges": [],
+      "confidence": 0.55,
+      "lastUpdated": "2026-04-13",
+      "provenance": {
+        "commits": [],
+        "locations": [
+          "scripts/configure-services.sh"
+        ],
+        "extractor": "watchlist-worktree",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "WATCH_HIGH_CHURN_SCRIPTS_INIT_DASHBOARDS_F409",
+      "type": "Watchlist",
+      "label": "High churn: scripts/init-dashboards.sh",
+      "summary": "scripts/init-dashboards.sh was modified in 9 commits within the mined window — well above typical. High-churn files concentrate risk: review related regressions before editing.",
+      "tags": [
+        "seeded",
+        "churn"
+      ],
+      "files": [
+        "scripts/init-dashboards.sh"
+      ],
+      "edges": [],
+      "confidence": 0.55,
+      "lastUpdated": "2026-04-13",
+      "provenance": {
+        "commits": [],
+        "locations": [
+          "scripts/init-dashboards.sh"
+        ],
+        "extractor": "watchlist-worktree",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "WATCH_HIGH_CHURN_SCRIPTS_INIT_WORKFLOWS_93DA",
+      "type": "Watchlist",
+      "label": "High churn: scripts/init-workflows.sh",
+      "summary": "scripts/init-workflows.sh was modified in 5 commits within the mined window — well above typical. High-churn files concentrate risk: review related regressions before editing.",
+      "tags": [
+        "seeded",
+        "churn"
+      ],
+      "files": [
+        "scripts/init-workflows.sh"
+      ],
+      "edges": [],
+      "confidence": 0.55,
+      "lastUpdated": "2026-04-13",
+      "provenance": {
+        "commits": [],
+        "locations": [
+          "scripts/init-workflows.sh"
+        ],
+        "extractor": "watchlist-worktree",
+        "extractorVersion": "1"
+      }
+    },
+    {
+      "id": "WATCH_HIGH_CHURN_SCRIPTS_LEGACY_INIT_419A",
+      "type": "Watchlist",
+      "label": "High churn: scripts/legacy/init-all-in-one-modular.sh",
+      "summary": "scripts/legacy/init-all-in-one-modular.sh was modified in 5 commits within the mined window — well above typical. High-churn files concentrate risk: review related regressions before editing.",
+      "tags": [
+        "seeded",
+        "churn"
+      ],
+      "files": [
+        "scripts/legacy/init-all-in-one-modular.sh"
+      ],
+      "edges": [],
+      "confidence": 0.55,
+      "lastUpdated": "2026-04-13",
+      "provenance": {
+        "commits": [],
+        "locations": [
+          "scripts/legacy/init-all-in-one-modular.sh"
+        ],
+        "extractor": "watchlist-worktree",
+        "extractorVersion": "1"
+      }
+    }
+  ],
+  "dropped": {
+    "belowConfidence": 0,
+    "overCap": 36,
+    "deduped": 19
+  }
+}
