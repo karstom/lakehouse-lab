@@ -798,3 +798,94 @@ contract.
 
   Tracked as `WATCH_V3_WORKSPACE_LAN_EGRESS_BYPASSES_GATEWAY`. No test probes the owner's
   model server.
+
+---
+
+# Phase 6: Migration guide, AI polish, cutover and beta release prep
+
+> Added by the lead after Phase 5 (verified; real-model check passed twice, including with
+> the gateway-held API key). Owner decisions, 2026-09-27:
+> - No supported migration tool, just a **guide**. The owner copies MinIO files to the new
+>   storage and starts fresh.
+> - **Local-model quiet hours** go into the gateway.
+> - Release by **merging to main as `v3.0.0-beta.1`**. The lead does the merge and tags
+>   after showing the owner the finished cutover. **Agents never merge, tag, publish or
+>   push.**
+
+## ⚠ Quiet hours still apply
+
+No inference on the owner's llama-server (:9999) by agents at any time. Use the MOCK model.
+`v3-p1` is mock-only.
+
+## Scope
+
+1. **MIGRATION guide** (rewrite `docs/v3/MIGRATION.md`; a short user-facing version goes in
+   the new README):
+   - Copy the V2 MinIO buckets into V3 with `rclone` (or `mc mirror`), into a clearly named
+     V3 location, then load what you want as Iceberg tables following E1's approach.
+   - Optional notes: exporting and restoring Postgres, copying notebooks and DAGs (the
+     Airflow 2 → 3 changes to check), exporting and importing Superset dashboards.
+   - **Test the commands** on the dev host against a **throwaway MinIO container with
+     synthetic data** (project `v3-p6-*`), copying into a throwaway V3 install. **Never
+     touch the production `lakehouse-lab` project or its volumes.**
+   - Record the commands exactly as run.
+   - Remove the migration tool and nightly migration test from ROADMAP/ARCHITECTURE.
+2. **AI polish** (gateway and workspace):
+   - (a) **Quiet hours for the local provider:** `./lab ai quiet-hours HH:MM-HH:MM --tz
+     Area/City` or `off`. Off by default for new installs; the installer asks when a local
+     URL is set. During quiet hours, requests that would go to the `local` provider
+     (directly or through `lab-default`) are refused **before routing**, with a friendly
+     message ("The lab's local AI model is resting until 07:00 America/New_York…").
+     Hosted providers, if an admin enabled them, are not affected. Unit tests use an
+     injected clock, covering windows across midnight and DST days.
+   - (b) **The Lab Assistant's system prompt carries the current date, time and time zone**
+     (the model called today "yesterday").
+   - (c) **Keep the model's planning text out of the final answer shown to beginners.**
+     Either strip leading "The user is asking… / Let me…" narration, or show intermediate
+     tool-use narration in a collapsed or secondary style. Keep the final answer intact.
+     Test it with the mock scripted to produce narration.
+3. **Cutover** (on branch `v3`, ready to merge):
+   - V2 moves to `legacy/v2/`: the old compose, scripts, templates, docs, tests and V2
+     workflows. V2 CI workflows are removed or disabled so they don't fail on moved files.
+   - V3 **stays in `v3/`**, with no mass path moves.
+   - The root README is rewritten for V3: what it is, the quick start (clone +
+     `v3/install.sh`), profiles, links to docs and tracks, the AI policy (hosted off by
+     default, local via any OpenAI-compatible server, quiet hours), and a short "coming
+     from V2?" pointer to the migration guide.
+   - The root `install.sh` becomes a thin bootstrap for the one-line install: fetch the repo
+     at a given ref (default `main`), then run `v3/install.sh "$@"`. It must be safe when
+     piped to bash, and show what it will do before doing it.
+   - `docs/`: V3 docs become the main docs; V2 docs move to `legacy/v2/docs/`.
+   - CHANGELOG entry for `v3.0.0-beta.1`. CONTRIBUTING updated for V3 (tests, contracts,
+     memory graph).
+   - `v3-nightly` works on `main` after the merge.
+4. **Release prep (not the release):**
+   - Draft release notes in `v3/RELEASE_NOTES_v3.0.0-beta.1.md`: highlights, known gaps,
+     beta caveats, how to report issues.
+   - A pre-merge checklist the lead runs: tag the old main as `v2.1.1-final`, merge, tag
+     `v3.0.0-beta.1`, GitHub pre-release, the image publish that `v3-images` does on the
+     tag, and a post-merge smoke check.
+
+## Exit
+
+- The migration commands are proven on synthetic data.
+- Quiet hours: unit-tested, plus on the dev host with the mock provider standing in for
+  local.
+- The date is in the prompt, and the narration handling is tested.
+- The cutover tree passes all lint and unit tests and `v3-ci` locally (actionlint,
+  compose-check).
+- Upgrade in place of `v3-p1` still passes all 18 smoke checks.
+- A clean install from the new root bootstrap (pointed at the working tree or branch
+  `v3`) passes.
+- Docker safety holds; non-v3 objects are unchanged.
+
+## Workstreams
+
+| Workstream | Owns |
+|---|---|
+| **MIGRATION** | `docs/v3/MIGRATION.md`, test fixtures under `v3/tests/migration/` |
+| **AI-POLISH** | `config/ai/`, `installer/ai.sh`, `lab` (ai subcommands), `images/workspace/lakehouse/ai*.py` |
+| **CUTOVER** | repo root files, `legacy/`, `docs/`, V2 workflows, `v3/RELEASE_NOTES_*`, CHANGELOG, CONTRIBUTING |
+
+The integrator owns `compose.yaml`, `versions.env`, `bootstrap/__main__.py` and this
+contract.
