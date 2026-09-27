@@ -604,3 +604,100 @@ a kernel, and learners would see the same thing (a notebook that stops answering
 - **Workspace kernels:** `IPYKERNEL_VERSION` is pinned on the 6.x line
   (REG_V3_WORKSPACE_KERNEL_FIRST_MESSAGE_STALL). Caddy drops idle upstream connections to
   JupyterHub after 4 s, before the hub proxy's 5 s (WATCH_V3_CADDY_UPSTREAM_KEEPALIVE_502).
+
+---
+
+# Phase 5: Context-aware AI assist
+
+> Added by the lead after Phase 4 (verified, CI green). Everything above still applies.
+> Design: ADR-014. OQ-8 is decided (owner, 2026-09-26): **hosted providers are OFF by
+> default**, only an admin can enable one with its own key, and local models run through a
+> local OpenAI-compatible server. OQ-7 (gateway) and OQ-9 (Trino MCP) are decided in this
+> phase, with evidence.
+
+## ⚠ Quiet hours (owner rule): no inference on the owner's local LLM before 07:00
+
+The dev host runs llama.cpp `llama-server` at `http://<host>:9999`, OpenAI-compatible,
+serving a Qwen 27B model. Inference spins up the server's fans.
+
+**Agents in this phase must not send a single inference or embedding request to it, at
+any time.** Configure it as the default local provider, but every build and test uses a
+**mock model**. `/health` and `/v1/models` metadata calls are allowed. The lead runs the
+one real-model check after 07:00 America/New_York (11:00 UTC).
+
+## Scope (profile `full`; the AI gateway is part of `full`)
+
+1. **Model gateway** (`ai-gateway`):
+   - LiteLLM proxy (OQ-7). Use **only** features available in its open-source license and
+     record which ones.
+   - It is pinned and has its own Postgres DB, created by bootstrap.
+   - **Keys:** each user gets a per-user virtual key with a budget. JupyterHub mints it
+     through bootstrap-created admin credentials and injects it into the workspace. Users
+     never see provider keys.
+   - **Providers:**
+     - `local` (`LAB_AI_LOCAL_URL`, default unset; the installer asks; on the dev host it
+       points at llama-server);
+     - `hosted` (Anthropic/OpenAI), off unless enabled with
+       `./lab ai enable-hosted --provider … --key-file …`;
+     - `mock`, for tests only (a deterministic, scripted OpenAI-compatible server in
+       `tests/ai/`).
+   - With no provider enabled, AI features return a clear "AI isn't configured; ask your
+     lab admin" message, and the lab makes **no outbound AI calls**. Tests assert this.
+2. **Workspace:**
+   - Jupyter AI v3 is configured to use the gateway with the user's key.
+   - **Claude Code is not built into the image** (proprietary; the image is public). A
+     user-initiated `lab-ai install-claude-code` installs it into the home folder, pinned
+     and pointed at the gateway.
+   - A `lab-ai` CLI: `status`, `tutor on|off`, `install-claude-code`.
+3. **MCP servers, acting as the user** (the token from `lab_token()`; read-only; row and
+   time limits; tokens never appear in tool output):
+   - **dbt-mcp**, the official one: models, lineage, docs of the user's project and of
+     `analytics`.
+   - **Trino** (OQ-9): adopt a community server only if it can use the user's JWT and
+     enforce read-only access. Otherwise build a thin wrapper (SELECT/SHOW/DESCRIBE only,
+     ≤ 200 rows, ≤ 30 s).
+   - **lab-context** (ours, thin):
+     - `superset_dashboard_datasets`;
+     - `table_last_snapshot` (Iceberg snapshot times via Lakekeeper/Trino as the user);
+     - `airflow_runs` (as the user);
+     - `catalog_list`;
+     - `current_lesson` (from `~/.lab-progress.json` + the module's `tutor.md`).
+4. **Tutor mode:** inside a track module, the assistant's system prompt comes from that
+   module's `tutor.md`: explain and hint, don't hand over the solution. It is on by default
+   for track work, and `lab-ai tutor off` turns it off per user.
+5. **Safety:**
+   - Tool outputs are untrusted input, and the docs say so (prompt injection).
+   - Every tool call runs with the user's permissions, so victor sees nothing he couldn't
+     query himself.
+   - Per-user budgets are enforced: past the budget, requests get a clear error.
+
+## Exit
+
+1. **CI (mock model): smoke check 18.** A scripted agent loop, going through the gateway
+   and the MCP servers **as alice**, answers **"Which tables feed the 'Revenue by region'
+   dashboard, and when did each last load?"**:
+   - the dataset and table names come from Superset + dbt lineage, and the load times from
+     Iceberg snapshots;
+   - the tool calls hit the real services;
+   - the numbers are checked against Trino.
+2. **As victor** (viewer), the same loop returns only what he may read: tool calls he
+   isn't allowed to make are denied, with no leak in the output.
+3. With no provider enabled, the lab makes no outbound AI calls (checked). A budget
+   overrun gives an error. Tutor mode's prompt carries the module's `tutor.md`, and turning
+   it off works.
+4. **Real model: lead-run, after 07:00 only.** The same question through the gateway to the
+   local llama-server Qwen model gives a correct, grounded answer. This is recorded as
+   evidence, not a CI gate.
+5. Upgrade in place and a clean install (`full`) pass all checks. Docker-safety invariants
+   hold, including docker-guard. Non-v3 objects on the dev host are unchanged.
+
+## Workstreams and ownership
+
+| Workstream | Owns |
+|---|---|
+| **GATEWAY** | `images/ai-gateway/`, `compose/ai.yaml`, `config/ai/`, `bootstrap/ai_gateway.py`, installer/`lab ai` flags and subcommands, the mock LLM server in `tests/ai/mock_llm/` |
+| **WORKSPACE-AI** | Jupyter AI config in `images/workspace/` and `config/jupyterhub/` (key injection), the `lab-ai` CLI, the Claude Code opt-in installer, MCP client configuration, tutor-mode prompt assembly |
+| **MCP+TESTS** | `images/workspace/mcp/` (lab-context server, Trino MCP decision/wrapper, dbt-mcp integration), `tests/smoke/` check 18, CI wiring (mock only), OQ-9 evidence |
+
+The integrator owns `bootstrap/__main__.py`, `compose.yaml`, `versions.env` and this
+contract.

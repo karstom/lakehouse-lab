@@ -82,7 +82,7 @@ minutes, and CI shows it green.
 **Exit:** a new user completes module 1 of each track with no out-of-band help (tested
 with at least two real beginners).
 
-> **Phase 4 status (2026-09-27): built and independently verified; waiting on the owner's
+> **Phase 4 status (2026-09-26): built and independently verified; waiting on the owner's
 > beginner sessions.**
 > - **Tracks:** all 8 modules (E1–E4, A1–A4) pass their checkpoints as the seeded users,
 >   inside their own workspaces, and reset correctly on the upgraded install and on a clean

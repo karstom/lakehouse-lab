@@ -257,7 +257,7 @@
 **Type:** Decision
 **Priority:** MEDIUM
 **Label:** V3 (proposed): context-aware AI via MCP, user-scoped, through a model gateway
-**Summary:** Proposed for V3 Phase 5: lab context (dbt lineage, catalog, Trino, Airflow runs, current lesson) comes from MCP servers, using the official dbt-mcp and existing servers first plus a thin lab-context server. Assistants are Jupyter AI v3 (ACP agents) and Claude Code in the workspace. The assistant acts as the user through their Keycloak token, read-only by default. A model gateway holds keys and budgets and can use local models, and tutor mode applies inside learning tracks. ADR-014; OQ-7/8/9 open.
+**Summary:** V3 Phase 5: lab context (dbt lineage, catalog, Trino, Airflow runs, current lesson) comes from MCP servers, using the official dbt-mcp and existing servers first plus a thin lab-context server. Assistants are Jupyter AI v3 and Claude Code in the workspace. The assistant acts as the user via their Keycloak token, read-only by default. A model gateway holds keys and budgets, and tutor mode applies inside learning tracks. OQ-8 decided by the owner 2026-09-26: hosted providers are OFF by default; only an admin can enable one, with its key. Local models are offered for private data through any local OpenAI-compatible server (the owner runs llama.cpp llama-server); with nothing enabled, no outbound AI calls. ADR-014.
 **Tags:** v3, ai, mcp, tutor
 **Edges:**
 - RELATES_TO → DEC_REMOVE_MCP_SERVER_COMPLETELY_FROM_67B4: V2's custom MCP server was removed; V3 composes existing servers

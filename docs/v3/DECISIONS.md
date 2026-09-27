@@ -355,7 +355,10 @@ assistants. Acting as the user makes it safe on shared or private data.
 **Rejected:** V2's approach of a custom in-stack MCP API, which was removed as incomplete.
 V3 writes only thin glue.
 
-**Open:** OQ-7 (gateway choice), OQ-8 (default providers and data policy).
+**Open:** OQ-7 (gateway choice). **OQ-8 resolved (owner, 2026-09-26):** hosted providers are
+off by default. The installer asks, and only an admin can enable a hosted provider, with its
+own key. Local models are offered for private data through any local OpenAI-compatible server (llama.cpp `llama-server`, Ollama, vLLM). With no provider enabled, the
+lab makes no outbound AI calls.
 
 **Spike S-4 note:** jupyter-ai 3.2 installs cleanly, but no assistant persona works out of
 the box: each of its 8 ACP agent personas needs its agent's CLI installed, and there is no
