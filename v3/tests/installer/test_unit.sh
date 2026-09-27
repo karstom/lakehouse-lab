@@ -574,6 +574,13 @@ assert_eq "lab ai set-local exit 0" 0 "$rc"
 assert_eq "set-local saved" "http://host.docker.internal:9/v1" "$(env_get "$TA/.env" LAB_AI_LOCAL_URL)"
 "$TA/lab" ai set-local none >/dev/null 2>&1
 assert_not "set-local none" env_has "$TA/.env" LAB_AI_LOCAL_URL
+# REG_V3_LAB_AI_STALE_EXPORT: with the gateway running, set-local must hand compose the NEW
+# URL. require_install exported the old (empty) value, and a stale export beats .env.
+env_set "$TA/.env" LAB_AI_LOCAL_URL ""
+: >"$WORK/shim-env.log"
+SHIM_PS="gw1" SHIM_ENV_LOG="$WORK/shim-env.log" "$TA/lab" ai set-local http://localhost:9 --model m1 --no-probe >/dev/null 2>&1
+assert_eq "set-local applies the new URL (no stale export)" "LAB_AI_LOCAL_URL=http://host.docker.internal:9/v1" "$(tail -n 1 "$WORK/shim-env.log")"
+"$TA/lab" ai set-local none >/dev/null 2>&1
 assert "profile_includes full ai" profile_includes full ai
 assert_not "profile_includes engineer ai is false" profile_includes engineer ai
 for u in "http://h:8080|http://h:8080/v1" "https://x.y/v1/|https://x.y/v1" "http://localhost:11434|http://host.docker.internal:11434/v1"; do

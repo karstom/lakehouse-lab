@@ -14,6 +14,15 @@ Loaded by the gateway through `litellm_settings.callbacks: [lab_hooks.proxy_hand
    OVERWRITES the body's `user` and the end-user id in the request metadata with the key's
    user_id (key without a user, i.e. the admin: removed), so spend logs attribute correctly.
 
+4. Content normalisation (OpenAI-format chat): clients such as LangChain agents (the Jupyter
+   AI Lab Assistant) send message `content` as typed parts, including parts that duplicate
+   structured fields (`tool_call` / `tool_use` blocks next to `tool_calls`, reasoning blocks).
+   Local OpenAI-compatible servers accept only `text` (+ `image_url`) parts; llama.cpp
+   answers "unsupported content[].type" (REG_V3_AI_CONTENT_PARTS_LOCAL_SERVER). The hook
+   keeps text/image parts, maps input_text/output_text to text, drops the duplicate
+   structured parts, and flattens all-text content to a plain string, which every
+   OpenAI-compatible server accepts.
+
 The state (configured or not) comes from state.json, written next to this file by
 render_config.py at container start.
 """
@@ -85,6 +94,43 @@ def attribute_to_key_owner(data, user_api_key_dict):
     return data
 
 
+_TEXT_TYPES = ("text", "input_text", "output_text")
+_KEEP_TYPES = ("image_url",)
+_CHAT_CALLS = ("completion", "acompletion", "text_completion", "atext_completion")
+
+
+def normalize_content(data):
+    """OpenAI-format chat messages -> only text/image content parts; all-text -> a string.
+    Returns the number of parts dropped (for tests/logging). Never touches tool_calls."""
+    dropped = 0
+    for msg in data.get("messages") or []:
+        if not isinstance(msg, dict) or not isinstance(msg.get("content"), list):
+            continue
+        parts = []
+        for part in msg["content"]:
+            if isinstance(part, str):
+                parts.append({"type": "text", "text": part})
+                continue
+            if not isinstance(part, dict):
+                dropped += 1
+                continue
+            kind = part.get("type")
+            if kind in _TEXT_TYPES or (kind is None and isinstance(part.get("text"), str)):
+                if isinstance(part.get("text"), str):
+                    parts.append({"type": "text", "text": part["text"]})
+                else:
+                    dropped += 1
+            elif kind in _KEEP_TYPES:
+                parts.append(part)
+            else:
+                dropped += 1          # tool_call/tool_use/reasoning/thinking/...: duplicates
+        if all(p["type"] == "text" for p in parts):
+            msg["content"] = "\n\n".join(p["text"] for p in parts if p["text"])
+        else:
+            msg["content"] = parts
+    return dropped
+
+
 class LabHooks(CustomLogger):
     def __init__(self):
         super().__init__()
@@ -94,6 +140,8 @@ class LabHooks(CustomLogger):
         if not self.state.get("configured"):
             raise HTTPException(status_code=503, detail={
                 "error": {"message": NOT_CONFIGURED, "type": "ai_not_configured", "code": 503}})
+        if call_type in _CHAT_CALLS:
+            normalize_content(data)
         return attribute_to_key_owner(data, user_api_key_dict)
 
     async def async_post_call_failure_hook(self, request_data, original_exception,

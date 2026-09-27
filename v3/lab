@@ -226,6 +226,10 @@ ai_apply() {
     return 0
   fi
   info "Applying: recreating the AI gateway"
+  # Re-read .env: the caller has just rewritten it, and require_install exported the OLD
+  # values. Compose prefers shell variables over --env-file, so a stale export (for example
+  # LAB_AI_LOCAL_URL="" from before set-local) would silently win (REG_V3_LAB_AI_STALE_EXPORT).
+  lab_settings
   lab_compose up -d --wait ai-gateway ai-keys || die "the AI gateway did not become healthy; see '$V3_DIR/lab logs ai-gateway'."
   ok "AI gateway updated"
 }

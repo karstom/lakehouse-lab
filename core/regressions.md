@@ -524,3 +524,36 @@
 **Commit:** 0dc8f05
 **LastUpdated:** 2026-09-27
 **Author:** claude-code
+
+---
+
+## NODE: REG_V3_LAB_AI_STALE_EXPORT
+**Type:** Regression
+**Priority:** MEDIUM
+**Label:** `lab ai set-local`/`enable-hosted` applied a stale exported value instead of the new .env
+**Summary:** Found during the lead's real-model check (2026-09-27). `lab ai set-local` wrote the new LAB_AI_LOCAL_URL to .env, but ai_apply ran compose with the OLD value that require_install/lab_settings had already exported. The value was empty from an earlier 'set-local none' line in .env, and Compose prefers shell variables over --env-file, so the gateway started with no provider (fail-safe: no calls) even though .env and `lab ai status` showed the local URL. Tests missed it because the unit test never reached ai_apply with a running gateway, and the mock-only phase runs never set a local URL. Fix: ai_apply re-runs lab_settings (re-reads .env) before compose. The regression test reproduces the sequence with the shim recording the interpolated value; it fails without the fix.
+**Tags:** v3, ai, installer, env, compose
+**REGRESSED_N_TIMES:** 1
+**Edges:**
+- RELATES_TO → INV_V3_PUBLIC_ORIGIN_SINGLE_SOURCE: same lesson: .env is the source of truth and derived or exported copies go stale
+**Files:** `v3/lab`, `v3/installer/lib.sh`, `v3/installer/ai.sh`, `v3/tests/installer/test_unit.sh`, `v3/tests/installer/fixtures/docker-shim.sh`
+**Symbols:** `ai_apply`, `lab_settings`, `ai_set_local`
+**Evidence:** bash v3/tests/installer/run.sh -> 'set-local applies the new URL (no stale export)' PASS; FAIL (got 'LAB_AI_LOCAL_URL=') with the fix removed
+**Commit:** 251692c
+**LastUpdated:** 2026-09-27
+
+---
+
+## NODE: REG_V3_AI_CONTENT_PARTS_LOCAL_SERVER
+**Type:** Regression
+**Priority:** MEDIUM
+**Label:** Lab Assistant requests rejected by llama.cpp: 'unsupported content[].type'
+**Summary:** Found by the lead's first real-model check (2026-09-27; mock-only tests could not see it). The Jupyter AI Lab Assistant (a LangChain agent via ChatLiteLLM) sends OpenAI-format messages whose content is a list of typed parts, including parts that duplicate structured fields (tool_call, reasoning) next to tool_calls. llama.cpp's llama-server accepts only text/image_url parts and returned 400 'unsupported content[].type' on the round after a tool call. Fix at the one place every client passes: the gateway's pre-call hook (normalize_content) keeps text and image parts, maps input_text/output_text to text, drops duplicate structured parts, and flattens all-text content to a string. The mock accepts any shape, so the real-model check (after 07:00) is the test for this class.
+**Tags:** v3, ai, llama.cpp, gateway, langchain
+**REGRESSED_N_TIMES:** 1
+**Edges:** _(none)_
+**Files:** `v3/config/ai/lab_hooks.py`, `v3/tests/ai/test_render_config.py`, `v3/images/workspace/lakehouse/ai_persona.py`
+**Symbols:** `normalize_content`, `LabHooks.async_pre_call_hook`
+**Evidence:** python3 -m unittest discover -s v3/tests/ai -> 72 OK (ContentNormalization: LangChain agent history flattened, tool_calls untouched)
+**Commit:** 251692c
+**LastUpdated:** 2026-09-27

@@ -19,7 +19,10 @@ if [ "${1:-}" = compose ]; then
   esac
   printf 'COMPOSE_PROJECT_NAME=%s docker compose %s\n' "${COMPOSE_PROJECT_NAME:-}" "$*" >>"${SHIM_LOG:?}"
   case " $* " in
-    *" up "*) exit "${SHIM_UP_EXIT:-0}" ;;
+    *" up "*)
+      # SHIM_ENV_LOG: record what compose would interpolate from the SHELL (it beats --env-file).
+      [ -n "${SHIM_ENV_LOG:-}" ] && printf 'LAB_AI_LOCAL_URL=%s\n' "${LAB_AI_LOCAL_URL-<unset>}" >>"$SHIM_ENV_LOG"
+      exit "${SHIM_UP_EXIT:-0}" ;;
     *" ps "*) [ -n "${SHIM_PS:-}" ] && printf '%b\n' "$SHIM_PS"; exit 0 ;;
   esac
   exit 0

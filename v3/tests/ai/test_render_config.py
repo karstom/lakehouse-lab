@@ -236,3 +236,50 @@ class Hooks(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ContentNormalization(unittest.TestCase):
+    """REG_V3_AI_CONTENT_PARTS_LOCAL_SERVER: llama.cpp rejects non-text content parts."""
+
+    @classmethod
+    def setUpClass(cls):
+        Hooks.setUpClass.__func__(cls)      # same fastapi/litellm stand-ins
+
+    def test_langchain_agent_history_is_flattened(self):
+        data = {"messages": [
+            {"role": "system", "content": [{"type": "text", "text": "You are the Lab Assistant."}]},
+            {"role": "user", "content": [{"type": "text", "text": "Which tables feed it?"}]},
+            {"role": "assistant",
+             "content": [{"type": "text", "text": "Let me look."},
+                         {"type": "tool_call", "id": "c1", "name": "superset_dashboard_datasets", "args": {}},
+                         {"type": "reasoning", "reasoning": "think"}],
+             "tool_calls": [{"id": "c1", "type": "function",
+                             "function": {"name": "superset_dashboard_datasets", "arguments": "{}"}}]},
+            {"role": "tool", "tool_call_id": "c1", "content": [{"type": "text", "text": "[...]"}]},
+        ]}
+        dropped = self.hooks.normalize_content(data)
+        self.assertEqual(dropped, 2)
+        m = data["messages"]
+        self.assertEqual(m[0]["content"], "You are the Lab Assistant.")
+        self.assertEqual(m[2]["content"], "Let me look.")
+        self.assertEqual(m[2]["tool_calls"][0]["id"], "c1")          # structured field untouched
+        self.assertEqual(m[3]["content"], "[...]")
+        for msg in m:                                                 # nothing but strings left
+            self.assertIsInstance(msg["content"], str)
+
+    def test_images_keep_list_and_types_are_only_text_or_image(self):
+        data = {"messages": [{"role": "user", "content": [
+            {"type": "input_text", "text": "look"},
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64,AA"}},
+            {"type": "tool_use", "id": "x"}]}]}
+        self.assertEqual(self.hooks.normalize_content(data), 1)
+        c = data["messages"][0]["content"]
+        self.assertEqual([p["type"] for p in c], ["text", "image_url"])
+
+    def test_string_content_and_empty_untouched(self):
+        data = {"messages": [{"role": "user", "content": "hi"},
+                             {"role": "assistant", "content": None, "tool_calls": []}]}
+        self.assertEqual(self.hooks.normalize_content(data), 0)
+        self.assertEqual(data["messages"][0]["content"], "hi")
+        self.assertIsNone(data["messages"][1]["content"])
+

@@ -33,7 +33,7 @@
 | 3a. No provider enabled → no outbound AI calls (checked) | **Met.** After the plain upgrade (`./install.sh --non-interactive`, no AI flags) `v3-p1` had no provider: `lab ai status` showed `models: []`, and `tests/smoke/ai-no-provider.sh` passed. On the clean room, `tests/ai/gateway-e2e.sh` step 2 watched the gateway's sockets during start and requests: `outside: []`. |
 | 3b. Budget overrun → error | **Met** in check 18 (`gateway_rules.budget`: first 200, second 400 "Your AI budget for this period is used up…") and in `gateway-e2e.sh`. The Jupyter AI persona now shows its friendly budget message for this wording (fixed during integration, see "Found and fixed"). |
 | 3c. Tutor prompt carries the module's `tutor.md`; turning it off works | **Met.** Check 18 (`current_lesson`, `lab-ai prompt --module A1` with tutor on and off). Also through the **real** Jupyter AI persona → gateway → mock: the mock's recorded system prompt contains A1's `tutor.md` verbatim with tutor on and no tutor block with tutor off (integrator chat run). |
-| 4. Real model (lead-run, after 07:00) | **Prepared, not run.** See the last section. |
+| 4. Real model (lead-run, after 07:00) | **Met (2026-09-27, 10:55–11:05 EDT).** Qwen3.8-27B (Q4_K_M) on llama.cpp via Lab Assistant → front door → gateway answered the exit question as alice with the correct tables and load times. It took two lead fixes the mock could not reveal; see "REAL-MODEL CHECK: results". |
 | 5. Upgrade in place and clean install (`full`) pass all checks; Docker safety incl. docker-guard; non-v3 objects unchanged | **Met.** `v3-p1` upgrade: `LAB_SMOKE_LONG=1 ./lab test --tracks all` **SMOKE: PASS (18/18; profile full)**. Clean room `v3-p5`: install plus the same test **SMOKE: PASS (18/18)**, `gateway-e2e.sh` PASS, no-provider PASS. Check 11: 54/54 on both, guard forwarded the canonical body. Non-v3 containers, volumes and networks identical before and after (see "Docker safety"). |
 
 ## What was integrated
@@ -650,3 +650,49 @@ from `lab-ai status` in her terminal. Confirm that nothing called `/health` duri
 ./install.sh --non-interactive --ai-mock --ai-local-url none
 ./lab ai status        # expect: models [lab-default, mock]
 ```
+
+## REAL-MODEL CHECK: results (lead, 2026-09-27)
+
+Run from 10:46 to 11:10 EDT, after the owner's 07:00 quiet-hours limit.
+
+- **0b. Dry run on the mock:** `ok: true`. The Lab Assistant, the only persona, answered
+  "mock reply …".
+- **1. Switch to local:** exposed **REG_V3_LAB_AI_STALE_EXPORT**. `lab ai set-local` wrote
+  the URL to `.env`, but `ai_apply` ran compose with the stale exported empty value, so the
+  gateway came up with no provider (fail-safe: no calls).
+  - **Fix:** `ai_apply` re-reads `.env` (`lab_settings`) before compose.
+  - **Regression test:** `set-local applies the new URL (no stale export)`. It fails without
+    the fix and passes with it.
+  - After the fix, the gateway reported `providers: local; lab-default -> local`.
+- **2. Ground truth (Trino as alice, newest snapshot):**
+  - analytics.dim_customers 2026-09-27 14:13:36.419 UTC
+  - fct_orders 14:13:36.725
+  - revenue_by_region 14:13:38.740
+  - samples.* 2026-09-26 00:11:25–32
+- **3a, first attempt:** llama-server returned 400 `unsupported content[].type`. The
+  persona's LangChain agent sends typed content parts, including duplicate `tool_call` and
+  reasoning blocks, on the round after a tool call. This is
+  **REG_V3_AI_CONTENT_PARTS_LOCAL_SERVER**.
+  - **Fix:** the gateway pre-call hook `normalize_content` keeps text and image parts, drops
+    the duplicate structured parts and flattens all-text content to a string.
+  - 72 AI unit tests pass.
+  - The 400 is raised while the request is parsed, so it did negligible model work.
+- **3a, second attempt:** `ok: true` in 159.5 s (reply in 69.4 s). The only persona was
+  Lab Assistant.
+  - **Tools called:** `superset_dashboard_datasets`, then `table_last_snapshot` for each
+    table.
+  - **Answer:** the three `lakehouse.analytics` datasets (`dim_customers`, `fct_orders`,
+    `revenue_by_region`), last loaded 14:13:36 / 14:13:36 / 14:13:38 UTC. That matches the
+    ground truth.
+  - It also gave record counts (1,500 / 15,000 / 35) and noted the times are "as visible to
+    you (alice)". It then offered to trace the upstream dbt lineage without being asked.
+- **4. Evidence:**
+  - 0 `/health` lines in the front door log.
+  - 0 non-liveliness `/health` lines in the gateway log.
+  - alice's budget: 0.3320 of 5.00 USD.
+- **5. Restored:** `v3-p1` is mock-only again (`LAB_AI_MOCK=true`, `LAB_AI_LOCAL_URL`
+  empty, gateway `providers: mock`).
+
+**Lesson:** the mock accepts any request shape, so a real OpenAI-compatible server is the
+only test for request-format compatibility. Keep a real-model smoke run (daytime only) as
+part of each AI change.
