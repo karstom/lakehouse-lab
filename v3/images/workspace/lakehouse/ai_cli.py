@@ -52,21 +52,20 @@ def _gateway_get(gw, path, timeout=5):
         return json.load(r)
 
 
+# The one budget route the AI front door allows (bootstrap/ai_frontdoor.py ROUTES): LiteLLM's
+# lightweight user lookup WITHOUT user_id, i.e. the key's own user (no keys, no teams).
+BUDGET_PATH = "/v2/user/info"
+
+
 def budget(gw):
-    """-> {spend, max_budget, budget_reset_at} of the user (or the key), best effort."""
-    out = {}
-    user = os.environ.get("JUPYTERHUB_USER", "")
-    for path in (f"/user/info?user_id={urllib.request.quote(user)}", "/key/info"):
-        try:
-            data = _gateway_get(gw, path)
-        except (OSError, ValueError, urllib.error.HTTPError):
-            continue
-        info = data.get("user_info") or data.get("info") or {}
-        if isinstance(info, dict) and "spend" in info:
-            for k in ("spend", "max_budget", "budget_reset_at"):
-                if info.get(k) is not None:
-                    out.setdefault(k, info[k])
-    return out
+    """-> {spend, max_budget, budget_reset_at} of the user, best effort ({} on any error)."""
+    try:
+        data = _gateway_get(gw, BUDGET_PATH)
+    except (OSError, ValueError, urllib.error.HTTPError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {k: data[k] for k in ("spend", "max_budget", "budget_reset_at") if data.get(k) is not None}
 
 
 # ---------------------------------------------------------------------------- status

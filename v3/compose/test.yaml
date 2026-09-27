@@ -33,7 +33,9 @@ services:
       - ./tests/smoke:/opt/smoke:ro
       - trust:/trust:ro
       - ${LAB_SMOKE_OUT:-./tests/smoke/out}:/out
-    networks: [lab]
+    # `ai` too: check 18 uses the gateway's admin API (ai-gateway is only on `ai`) and asserts
+    # that user keys reach the gateway only through ai-frontdoor (CONTRACT Phase 5).
+    networks: [lab, ai]
     restart: "no"
     mem_limit: ${SMOKE_MEM:-2g}
     cpus: ${SMOKE_CPUS:-2}

@@ -19,6 +19,11 @@
           their budget gets the budget error;
         * tutor mode: `current_lesson` carries the module's tutor.md, and `lab-ai tutor off|on`
           switches it (WORKSPACE-AI's CLI).
+        * AI front door (inside alice's workspace): the workspace is pointed at ai-frontdoor,
+          cannot open ai-gateway:4000 at all (neither by name nor by its IP), and its own key
+          gets 403 there on /health, /model/info and /v1/model/info; the Jupyter AI persona
+          list holds only the Lab Assistant, which answers a chat message through the front
+          door (tests/workspace/ai_chat_probe.py, mock model).
       Profile `full` only (the gateway, Superset and Airflow are all in `full`).
 
 NEVER a real model: the loop always names the mock model, and the owner's local LLM must not
@@ -49,7 +54,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 #   (OPENAI_BASE_URL/OPENAI_API_KEY); `mock` is served only by tests/ai/mock_llm (ai-mock),
 #   whose script API the loop uses. The admin key (AI_GATEWAY_MASTER_KEY) reaches this
 #   container only through run.sh, by name.
-GATEWAY = os.environ.get("LAB_SMOKE_AI_GATEWAY_URL", "http://ai-gateway:4000").rstrip("/")
+GATEWAY = os.environ.get("LAB_SMOKE_AI_GATEWAY_URL", "http://ai-gateway:4000").rstrip("/")    # admin only
+# Every user-key call goes where a workspace's goes: the AI front door (bootstrap/ai_frontdoor.py).
+FRONTDOOR = os.environ.get("LAB_SMOKE_AI_FRONTDOOR_URL", "http://ai-frontdoor:4000").rstrip("/")
+PERSONA_ID = "jupyter-ai-personas::lakehouse::LabAssistant"     # lakehouse/ai.py PERSONA_ID
+CHAT_PROBE = os.environ.get("LAB_SMOKE_CHAT_PROBE", "/opt/tests-workspace/ai_chat_probe.py")
 MOCK_CTL = os.environ.get("LAB_SMOKE_AI_MOCK_URL", "http://ai-mock:8000").rstrip("/")
 MOCK_MODEL = "mock"          # never anything else (quiet hours: no real model in tests)
 HOSTED_OR_LOCAL = ("claude", "gpt", "local")
@@ -113,7 +122,7 @@ def _gateway_override():
     """Debugging only: LAB_SMOKE_AI_KEYS='alice=k1,victor=k2' (+ LAB_SMOKE_AI_GATEWAY_URL) replace
     the key the hub injected into the workspace."""
     keys = dict(kv.split("=", 1) for kv in os.environ.get("LAB_SMOKE_AI_KEYS", "").split(",") if "=" in kv)
-    return {u: {"gateway_url": GATEWAY + "/v1", "gateway_key": k} for u, k in keys.items()}
+    return {u: {"gateway_url": FRONTDOOR + "/v1", "gateway_key": k} for u, k in keys.items()}
 
 
 class Gateway:
@@ -126,7 +135,10 @@ class Gateway:
         self.s = requests.Session()
 
     def call(self, method, path, body=None, key=None):
-        r = self.s.request(method, self.base + path, json=body, timeout=120,
+        """With `key` (a user key): through the front door, like a workspace. Without: the
+        admin API on the gateway itself (the smoke container is on the `ai` network)."""
+        base = FRONTDOOR if key else self.base
+        r = self.s.request(method, base + path, json=body, timeout=120,
                            headers={"Authorization": f"Bearer {key or self.key}"})
         try:
             return r.status_code, r.json()
@@ -252,8 +264,98 @@ def ensure_analytics(S, phase3, browser, ev):
     alice.close()
 
 
+# ---------------------------------------------------------------- AI front door, from inside
+WS_FRONTDOOR_CODE = r"""
+import json, os, socket, subprocess, sys, urllib.error, urllib.request
+out = {"LAB_AI_GATEWAY_URL": os.environ.get("LAB_AI_GATEWAY_URL"),
+       "OPENAI_BASE_URL": os.environ.get("OPENAI_BASE_URL")}
+def tcp(host, port):
+    try:
+        socket.create_connection((host, port), timeout=5).close()
+        return "connected"
+    except OSError as e:
+        return f"{type(e).__name__}: {e}"[:120]
+out["direct_gateway_by_name"] = tcp("ai-gateway", 4000)
+out["direct_gateway_by_ip"] = tcp(GATEWAY_IP, 4000) if GATEWAY_IP else "no ip"
+out["frontdoor_tcp"] = tcp("ai-frontdoor", 4000)
+def get(path):
+    req = urllib.request.Request(os.environ.get("LAB_AI_GATEWAY_URL", "") + path,
+                                 headers={"Authorization": "Bearer " + os.environ.get("LAB_AI_KEY", "")})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            r.read()
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
+    except Exception as e:
+        return f"{type(e).__name__}: {e}"[:120]
+out["status"] = {p: get(p) for p in ("/health", "/model/info", "/v1/model/info", "/v1/models")}
+base = os.environ.get("JUPYTERHUB_SERVICE_URL", "").replace("0.0.0.0", "127.0.0.1")
+# A NEW chat file: a .chat document keeps every user that ever joined it, so an old file
+# would list personas of an earlier image, not the ones this server offers now.
+chat_file = os.path.expanduser("~/smoke18/frontdoor.chat")
+if os.path.exists(chat_file):
+    os.remove(chat_file)
+with open(os.path.expanduser("~/.smoke-ai-chat-probe.py"), "w") as f:
+    f.write(PROBE_SRC)
+p = subprocess.run([sys.executable, os.path.expanduser("~/.smoke-ai-chat-probe.py"), "--base", base,
+                    "--token", os.environ.get("JUPYTERHUB_API_TOKEN", ""), "--chat", "smoke18/frontdoor.chat",
+                    "--message", "Hello from smoke check 18: which schema is mine?", "--timeout", "240"],
+                   capture_output=True, text=True, timeout=300)
+try:
+    out["chat"] = json.loads(p.stdout.strip().splitlines()[-1])
+except Exception:
+    out["chat"] = {"ok": False, "stdout": p.stdout[-600:], "stderr": p.stderr[-600:]}
+print("SMOKE_AI_FRONTDOOR " + json.dumps(out), flush=True)
+"""
+
+
+def workspace_frontdoor(ws):
+    """Run WS_FRONTDOOR_CODE in the user's workspace kernel -> its JSON (or an error dict)."""
+    import socket
+    try:
+        gw_ip = socket.gethostbyname(GATEWAY.split("://", 1)[1].split(":")[0])
+    except OSError:
+        gw_ip = ""
+    try:
+        with open(CHAT_PROBE, encoding="utf-8") as f:
+            probe_src = f.read()
+    except OSError as e:
+        return {"error": f"no chat probe at {CHAT_PROBE}: {e}"}
+    code = f"GATEWAY_IP = {gw_ip!r}\nPROBE_SRC = {probe_src!r}\n" + WS_FRONTDOOR_CODE
+    raw = ws.run(code, timeout=420)
+    for line in reversed((raw.get("stdout") or "").splitlines()):
+        if line.startswith("SMOKE_AI_FRONTDOOR "):
+            res = json.loads(line[len("SMOKE_AI_FRONTDOOR "):])
+            res["gateway_ip"] = gw_ip
+            return res
+    return {"error": "no result", "stderr_tail": (raw.get("stderr") or "")[-800:],
+            "stdout_tail": (raw.get("stdout") or "")[-400:]}
+
+
+def evaluate_frontdoor(fdr):
+    fdr = fdr or {}
+    st = fdr.get("status") or {}
+    chat = fdr.get("chat") or {}
+    checks = {
+        "workspace_points_at_frontdoor": str(fdr.get("LAB_AI_GATEWAY_URL", "")).startswith("http://ai-frontdoor:")
+        and str(fdr.get("OPENAI_BASE_URL", "")).startswith("http://ai-frontdoor:"),
+        "gateway_unreachable_by_name": fdr.get("direct_gateway_by_name", "connected") != "connected",
+        "gateway_unreachable_by_ip": bool(fdr.get("gateway_ip")) and
+        fdr.get("direct_gateway_by_ip", "connected") != "connected",
+        "frontdoor_reachable": fdr.get("frontdoor_tcp") == "connected",
+        "health_and_model_info_403": all(st.get(p) == 403 for p in ("/health", "/model/info", "/v1/model/info")),
+        "models_200": st.get("/v1/models") == 200,
+        "persona_list_only_lab_assistant": chat.get("personas") == [PERSONA_ID],
+        "persona_answers_through_frontdoor": bool(chat.get("ok")) and chat.get("sender") == PERSONA_ID
+        and "mock reply" in str(chat.get("reply", "")),
+    }
+    return all(checks.values()), {"checks": checks, **{k: v for k, v in fdr.items() if k != "chat"},
+                                  "chat": {k: (str(v)[:300] if k == "reply" else v) for k, v in chat.items()}}
+
+
 # ---------------------------------------------------------------- the check
-def _run_user(S, browser, user, params, gw):
+def _run_user(S, browser, user, params, gw, frontdoor=False):
     from workspace import Workspace
     ws = Workspace(browser, S.url, S.D, user, S.PW)
     keep = None
@@ -265,11 +367,13 @@ def _run_user(S, browser, user, params, gw):
         # Fallback key (only used when the workspace has none): minted for this user.
         temp_key, created = gw.temp_key(user)
         if temp_key:
-            params = dict(params, fallback_gateway_url=GATEWAY + "/v1", fallback_gateway_key=temp_key)
+            params = dict(params, fallback_gateway_url=FRONTDOOR + "/v1", fallback_gateway_key=temp_key)
         # After the spawn: minting the workspace key (ai-keys) re-applies the lab's budget.
         keep = gw.lift_budget(user)
         info_budget["budget_lifted"] = keep is not None
         raw = ws.run(probe_code(params), timeout=1500)
+        if frontdoor:
+            info_budget["frontdoor"] = workspace_frontdoor(ws)
         if temp_key:
             gw.call("POST", "/key/delete", {"keys": [temp_key]})
         if created:
@@ -425,8 +529,9 @@ def check_ai(S):
                                                    "WHERE \"user\" = 'alice'"}),
                     ("ctx__airflow_runs", {"dag_id": "lab_dbt_build", "limit": 1})]
             res_a, info_a = _run_user(S, browser, "alice",
-                                      _probe_params("alice", override, both, True), gw)
+                                      _probe_params("alice", override, both, True), gw, frontdoor=True)
             ok_a, ev["alice"] = evaluate_alice(res_a, truth_alice, private_id)
+            ok_fd, ev["frontdoor"] = evaluate_frontdoor(info_a.pop("frontdoor", None))
             ev["alice"]["run"] = info_a
             res_v, info_v = _run_user(S, browser, "victor",
                                       _probe_params("victor", override, both, False), gw)
@@ -442,7 +547,7 @@ def check_ai(S):
             browser.close()
     rules = ev["gateway_rules"]
     tutor_ok = bool((ev.get("tutor") or {}).get("ok"))
-    S.check(C18, ok_a and ok_v and rules.get("ok") and tutor_ok, ev)
+    S.check(C18, ok_a and ok_v and ok_fd and rules.get("ok") and tutor_ok, ev)
 
 
 # ---------------------------------------------------------------- gateway rules (smoke side)

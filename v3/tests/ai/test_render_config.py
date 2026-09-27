@@ -188,7 +188,35 @@ class Hooks(unittest.TestCase):
         h = self.hooks.LabHooks()
         h.state = {"configured": True}
         data = {"model": "lab-default"}
-        self.assertIs(self.run_async(h.async_pre_call_hook(None, None, data, "completion")), data)
+        out = self.run_async(h.async_pre_call_hook(types.SimpleNamespace(user_id="alice", end_user_id=None),
+                                                   None, data, "completion"))
+        self.assertIs(out, data)
+        self.assertEqual(out, {"model": "lab-default", "user": "alice"})
+
+    def test_spoofed_end_user_is_overwritten_with_the_key_owner(self):
+        h = self.hooks.LabHooks()
+        h.state = {"configured": True}
+        key = types.SimpleNamespace(user_id="alice", end_user_id="victor")
+        copy = types.SimpleNamespace(user_id="alice", end_user_id="victor")
+        for slot, call in (("metadata", "acompletion"), ("litellm_metadata", "anthropic_messages")):
+            with self.subTest(slot=slot):
+                data = {"model": "lab-default", "user": "victor",
+                        slot: {"user_api_key_end_user_id": "victor", "user_api_key_auth": copy,
+                               "user_api_key_user_id": "alice"}}
+                out = self.run_async(h.async_pre_call_hook(key, None, data, call))
+                self.assertEqual(out["user"], "alice")
+                self.assertEqual(out[slot]["user_api_key_end_user_id"], "alice")
+                self.assertEqual(out[slot]["user_api_key_auth"].end_user_id, "alice")
+                self.assertEqual(key.end_user_id, "alice")
+
+    def test_key_without_user_drops_the_callers_end_user(self):
+        h = self.hooks.LabHooks()
+        h.state = {"configured": True}
+        data = {"model": "m", "user": "victor", "metadata": {"user_api_key_end_user_id": "victor"}}
+        out = self.run_async(h.async_pre_call_hook(types.SimpleNamespace(user_id=None, end_user_id="victor"),
+                                                   None, data, "acompletion"))
+        self.assertNotIn("user", out)
+        self.assertIsNone(out["metadata"]["user_api_key_end_user_id"])
 
     def test_budget_message(self):
         h = self.hooks.LabHooks()

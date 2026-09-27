@@ -707,7 +707,7 @@ contract.
 
 ## Conventions added at Phase 5 integration
 
-- **Profiles:** the AI gateway services (`ai-gateway-db`, `ai-gateway`, `ai-keys`) are `[full]`.
+- **Profiles:** the AI gateway services (`ai-gateway-db`, `ai-gateway`, `ai-keys`, and since the follow-up `ai-frontdoor`) are `[full]`.
   The deterministic mock model `ai-mock` has its own profile `ai-mock`, added by `./lab` (and
   `lab_compose`) only when `.env` has `LAB_AI_MOCK=true` (`install.sh --ai-mock`; test installs
   and CI only). `compose.yaml` includes `compose/ai.yaml` before `compose/test.yaml`.
@@ -730,3 +730,71 @@ contract.
   `versions.env`); the image carries the pin, never the binary.
 - **Tests use the mock model only.** Smoke check 18 (profile `full`) always requests model
   `mock`; `tests/ai/gateway-e2e.sh` and `tests/smoke/ai-no-provider.sh` run in the nightly.
+- **`tests/ai/gateway-e2e.sh` never configures the `local` provider by default.** It runs
+  only on a lab whose gateway renders providers exactly `[mock]` (else it stops before any
+  request). Its step 3 (`local-via-mock`: `LAB_AI_LOCAL_URL` pointed at `ai-mock`) is
+  opt-in with `LAB_E2E_LOCAL_VIA_MOCK=1`, for hosts where no real model server can be
+  reached (a CI runner). On the dev host (a real model server, quiet hours) leave it off.
+  `tests/ai/test_gateway_e2e_script.py` checks this against a fake `docker`.
+
+## AI front door and workspace AI boundaries (Phase 5 follow-up)
+
+- **Workspaces never talk to the gateway directly.** `ai-gateway` is only on the `ai`
+  network (`compose.yaml`: `ai-gateway`, `ai-frontdoor`, `ai-keys`, `postgres`, and on test
+  installs `ai-mock` and the smoke driver). Workspaces are only on `lab` (docker-guard pins
+  them there). The only path between the two is **`ai-frontdoor`**
+  (`bootstrap/ai_frontdoor.py`, stdlib, on the bootstrap image, `lab` + `ai`, port 4000). The
+  broker hands out `http://ai-frontdoor:4000` (`AI_GATEWAY_CLIENT_URL`) as `base_url`, so
+  `LAB_AI_GATEWAY_URL` and `OPENAI_BASE_URL` in a workspace point at the front door. Nothing
+  else (Superset, Airflow, Trino, the hub) calls the gateway. `ai-keys` uses the admin API on
+  `ai`.
+- **The front door's `ROUTES` is the single source of truth for what a user key may call:**
+  - `POST /v1/chat/completions`, `POST /chat/completions`;
+  - `POST /v1/messages` and `POST /v1/messages/count_tokens` (only query `beta=true`);
+  - `POST /v1/embeddings`, `GET /v1/models`;
+  - `GET /v2/user/info` (no query: the key's own user; `lab-ai status` budget).
+
+  Everything else gets 403 and never reaches the gateway: `/health*`, `/model/info`,
+  `/v1/model/info`, `/key/*`, `/user/*`, `/spend/*`, `/global/*`, `/config*`, the admin UI and
+  every other LiteLLM route. The match is exact and case-sensitive. Paths may contain only
+  `[A-Za-z0-9/_.-]` (so no %-encoding and no absolute-form) and no empty, `.` or `..` segment.
+  The front door also requires `Authorization: Bearer sk-…`, and takes POST bodies only with
+  one `Content-Length` (no chunked), ≤ `LAB_AI_FRONTDOOR_MAX_BODY` (16 MiB), as JSON. It
+  forwards only the request headers `Authorization`, `Content-Type`, `Accept`, `User-Agent`,
+  `anthropic-version` and `anthropic-beta`, and returns only `Content-Type`, `Cache-Control`
+  and `Retry-After` (never `x-litellm-*`, which names the provider's `api_base`). Responses
+  are streamed. A new client route must be added there, with a test.
+- **End-user attribution:** the gateway's `lab_hooks` pre-call hook overwrites the body's
+  `user` and the request's end-user id with the key's own `user_id`. So spend logs name the
+  key's owner, whatever the caller sent.
+- **Personas:** a workspace offers only the personas in
+  `lakehouse/ai_persona_manager.py` `ALLOWED_PERSONAS` (today: the Lab Assistant).
+  `LabPersonaManager` is installed as `PersonaManagerExtension.persona_manager_class`; it
+  loads no other entry point and no `.jupyter/personas` files. So there are no
+  `jupyter_ai_acp_client` agents (claude/codex/copilot/goose/kilo/kiro/mistral-vibe/opencode:
+  their own providers) and no stock Jupyternaut (free model string and API base). Claude Code
+  in the lab is only the `lab-ai install-claude-code` CLI, pointed at the front door.
+- **Known gap: the host LAN.** `lab` is not an internal network (workspaces need internet,
+  e.g. pip), so a workspace can open any address the Docker host can route to, including a
+  model server listening on the host's LAN IP (llama-server on `:9999` on the dev host).
+  That bypasses the gateway's keys, budgets and logs. The lab cannot close this from
+  compose without taking egress away from workspaces. The owner's options, simplest first:
+  1. **Give the model server its own API key**, known only to the gateway
+     (`llama-server --api-key …`, then `LAB_AI_LOCAL_API_KEY` in `.secrets.env`). A workspace
+     that reaches the port then gets 401 for every model call.
+  2. **Host firewall, model server on the Docker host.** A container's packets to any
+     address of the host itself (its LAN IP or a bridge gateway) go through the host's
+     `INPUT` chain, not `DOCKER-USER`. So drop them there for the `lab` bridge only:
+     `iptables -I INPUT -i br-<lab-network-id> -p tcp --dport 9999 -j DROP`. The `ai` bridge
+     (the gateway) keeps access. `docker network inspect <project>_lab` gives the id; the
+     bridge is `br-` plus its first 12 characters.
+  3. **Host firewall, model server on another LAN machine.** Forwarded traffic passes
+     `DOCKER-USER`:
+     `iptables -I DOCKER-USER -i br-<lab-network-id> -d <server-ip> -p tcp --dport 9999 -j DROP`.
+  4. **Bind the model server away from the LAN** (e.g. to `127.0.0.1`). This keeps other LAN
+     machines out, but on the Docker host it also keeps the gateway out: containers reach
+     the host only through a bridge address. So it is a fit only when the lab does not use
+     that server.
+
+  Tracked as `WATCH_V3_WORKSPACE_LAN_EGRESS_BYPASSES_GATEWAY`. No test probes the owner's
+  model server.

@@ -82,6 +82,13 @@ networks:
   # guard, which is the single source of the request-body policy (bootstrap/docker_guard.py).
   docker-api:
     internal: true
+  # The AI gateway's network (Phase 5, CONTRACT "AI front door"). ai-gateway is ONLY here, so
+  # workspaces (on `lab`, pinned there by docker-guard) cannot open it; they reach it only
+  # through ai-frontdoor (bootstrap/ai_frontdoor.py: the single allowlist of user-callable
+  # gateway routes). Members: ai-gateway, ai-frontdoor and ai-keys (also on `lab`), postgres
+  # (the gateway's database), and on test installs ai-mock and the smoke driver. Not internal:
+  # the gateway needs egress to a hosted provider or the host's model server once enabled.
+  ai: {}
 
 volumes:
   caddy-data: {}       # Caddy's intermediates and leaf certificates (re-issued from the root in state/ca)

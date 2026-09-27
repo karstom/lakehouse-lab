@@ -4,15 +4,28 @@ The lab's model gateway: one place that holds provider keys and per-user budgets
 and workspaces never see a provider key (ADR-014, OQ-7, OQ-8). Profile `full` only.
 
 ```
-workspace (user's virtual key) ──> ai-gateway:4000 (LiteLLM) ──> local | anthropic | openai | mock
-jupyterhub ──(AI_GATEWAY_HUB_TOKEN)──> ai-keys:8080 (broker) ──(master key)──> ai-gateway admin API
+workspace (user's virtual key) ──lab──> ai-frontdoor:4000 ──ai──> ai-gateway:4000 (LiteLLM) ──> local | anthropic | openai | mock
+jupyterhub ──(AI_GATEWAY_HUB_TOKEN)──> ai-keys:8080 (broker) ──(master key, ai)──> ai-gateway admin API
 ```
+
+`ai-gateway` is only on the `ai` network; workspaces are only on `lab`. The **AI front door**
+(`bootstrap/ai_frontdoor.py`, service `ai-frontdoor`) is the only path between them and the
+single source of truth for what a user key may call: `POST /v1/chat/completions`,
+`POST /chat/completions`, `POST /v1/messages[?beta=true]`, `POST /v1/messages/count_tokens[?beta=true]`,
+`POST /v1/embeddings`, `GET /v1/models`, `GET /v2/user/info` (own user, no query). Everything
+else, notably `/health*` (it would call every model), `/model/info` and `/v1/model/info` (they
+show each model's `api_base`), `/key/*`, `/user/*`, `/spend/*`, `/global/*`, `/config*` and the
+admin UI, gets 403 without reaching the gateway. It also drops every request header but
+`Authorization`, `Content-Type`, `Accept`, `User-Agent`, `anthropic-version`, `anthropic-beta`
+(so no LiteLLM control or customer-id header), returns no `x-litellm-*` response header, caps
+bodies (`LAB_AI_FRONTDOOR_MAX_BODY`, 16 MiB) and streams responses.
 
 | Piece | Where | What |
 |---|---|---|
 | `ai-gateway` | `compose/ai.yaml`, `images/ai-gateway/`, this folder | LiteLLM proxy, built from PyPI without LiteLLM's proprietary enterprise package; config rendered at start by `render_config.py`; lab hooks in `lab_hooks.py` |
 | `ai-gateway-db` | `init-db.sh` | one-shot: role + database `ai_gateway` in the shared Postgres (same pattern as `superset-db`); the gateway runs its own schema migrations |
 | `ai-keys` | `bootstrap/ai_gateway.py` | key broker; the only holder of the master key besides the gateway |
+| `ai-frontdoor` | `bootstrap/ai_frontdoor.py` | the only way workspaces reach the gateway; route allowlist |
 | `ai-mock` | `tests/ai/mock_llm/` | deterministic mock model, tests only (`install.sh --ai-mock`) |
 
 ## Providers: off by default
@@ -70,7 +83,7 @@ without a license key:
 | Internal users (`/user/new`, `/user/update`, `/user/info`, `/user/list`, `/user/delete`), role `internal_user_viewer` | per-user identity and least privilege |
 | User `max_budget` + `budget_duration`, `rpm_limit`, spend tracking | budgets and rate limits |
 | Per-deployment `input_cost_per_token`/`output_cost_per_token` | budgets on local and mock models |
-| `CustomLogger` callbacks (`async_pre_call_hook`, `async_post_call_failure_hook`) | the "not configured" and budget messages |
+| `CustomLogger` callbacks (`async_pre_call_hook`, `async_post_call_failure_hook`) | the "not configured" and budget messages; the end user of every call is set to the key's own user (a body `user` naming someone else is overwritten) |
 
 Not used (enterprise-gated or not needed): the admin UI and its SSO (`DISABLE_ADMIN_UI=True`),
 `admin_only_routes`, key-generation restrictions, guardrails, audit logs, tag/team budgets,

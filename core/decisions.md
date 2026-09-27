@@ -620,6 +620,8 @@
 **Priority:** HIGH
 **Label:** V3 Phase 5: ai-gateway = LiteLLM built from PyPI without litellm-enterprise; keys minted only via the ai-keys broker; providers off by default
 **Summary:** OQ-7: the model gateway is LiteLLM 1.102.1, but NOT the upstream image: it ships enterprise/ and the proprietary litellm-enterprise package (no redistribution, production needs a subscription), and our images are public. images/ai-gateway installs a GENERATED full lock (relock.sh drops litellm-enterprise, fails on any other proprietary license) with --no-deps; verify.py fails the build if a proprietary package/module is present; Prisma client/engines generated at build, PRISMA_OFFLINE_MODE at runtime; cost map/beta headers/presets local (no GitHub fetch). Only ai-gateway and ai-keys (bootstrap/ai_gateway.py) hold the master key; JupyterHub mints/rotates/revokes per-user keys through ai-keys with AI_GATEWAY_HUB_TOKEN. Users are role internal_user_viewer with a per-USER budget (rotation never resets spend). Providers exist only when enabled in .env/.secrets.env (render_config.py); none -> empty model list + 'AI isn't configured; ask your lab admin.' (503) from a CustomLogger pre-call hook. Never call the gateway's /health (it calls every model) — use /health/liveliness.
+
+ Follow-up (2026-09-27): the gateway is no longer reachable by users directly. It lives only on the `ai` network, and user keys reach it only through ai-frontdoor, whose ROUTES are the single allowlist of user-callable routes (INV_V3_AI_FRONTDOOR_ONLY_USER_PATH). lab_hooks' pre-call hook sets the end user of every call to the key's own user_id (REG_V3_AI_END_USER_SPOOFABLE_IN_SPEND_LOGS).
 **Tags:** v3, ai, gateway, litellm, license, budget, phase5
 **Edges:**
 - RELATES_TO → DEC_V3_AI_ASSIST_MCP_GATEWAY: implements the gateway half of ADR-014
@@ -638,6 +640,8 @@
 **Priority:** HIGH
 **Label:** V3 Phase 5 workspace AI: Jupyternaut-based "Lab Assistant" persona, per-spawn gateway key via ai-keys broker, tutor mode from pristine tutor.md
 **Summary:** Jupyter AI v3 is installed with the [jupyternaut] extra (LiteLLM+LangChain+MCP) and a lab persona lakehouse.ai_persona:LabAssistant (entry point via a hand-written dist-info in /opt/lakehouse/python) is the default persona; it only ever calls the lab gateway (openai/<LAB_AI_MODEL>, api_base LAB_AI_GATEWAY_URL/v1, the user's LAB_AI_KEY) and answers "AI isn't configured; ask your lab admin." without a key. JupyterHub mints a NEW key at every spawn through the ai-keys broker (AI_GATEWAY_HUB_TOKEN; never the master key) and revokes it on stop; the key reaches the workspace only as container Env (LAB_AI_*, OPENAI_*), so docker-guard's create allowlist needed no change (Env is NAME=value only). Tutor mode (default on, `lab-ai tutor off` in ~/.lakehouse/ai.json) puts the module's PRISTINE /opt/lakehouse/tracks/.../tutor.md into the system prompt and restricts tools to read-only notebook tools + the lab's stdio MCP servers. Claude Code is never in the image: `lab-ai install-claude-code` downloads the pinned version, checks its sha256 pin (versions.env), installs into ~/.local with a wrapper pointing at the gateway.
+
+ Follow-up (2026-09-27): only gateway-routed personas are offered. lakehouse/ai_persona_manager.py LabPersonaManager (PersonaManagerExtension.persona_manager_class) loads only ALLOWED_PERSONAS {lab-assistant: lakehouse.ai_persona:LabAssistant}, matched by name and object reference, and no .jupyter/personas files. It drops the jupyter_ai_acp_client ACP agents (claude/codex/copilot/goose/kilo/kiro/mistral-vibe/opencode), which talk to their own providers, and the stock Jupyternaut, whose model string and api_base are free. The Claude ACP persona was not kept because it needs claude-agent-acp and is not wired to the gateway. Claude Code = the lab-ai CLI pointed at the front door. Workspace env LAB_AI_GATEWAY_URL/OPENAI_BASE_URL = http://ai-frontdoor:4000.
 **Tags:** v3, phase5, ai, jupyter-ai, tutor, gateway, claude-code, mcp
 **Edges:**
 - RELATES_TO → DEC_V3_AI_ASSIST_MCP_GATEWAY: implements the workspace side
@@ -678,6 +682,10 @@
 **Priority:** MEDIUM
 **Label:** V3 Phase 5 integration: ai profile wiring, mock-only tests, no bootstrap step for the gateway
 **Summary:** compose.yaml includes compose/ai.yaml (ai-gateway-db, ai-gateway, ai-keys in [full]; ai-mock in its own profile ai-mock, added by lab_compose only when .env has LAB_AI_MOCK=true). Pins (LiteLLM, Prisma, dbt-mcp, MCP SDK, sqlglot, Claude Code version+sha256) promoted to versions.env; .pins/ removed. bootstrap/__main__.py gets no AI step: the gateway DB is a postgres-image one-shot and the admin side is the long-lived ai-keys broker. Workspace image merges WORKSPACE-AI (Jupyter AI persona, Claude Code pin) with MCP+TESTS (separate MCP venv); Airflow lab_auth plugin mounted into airflow-api only. install.sh --non-interactive never enables a provider; tests configure only the mock.
+
+ Follow-up (2026-09-27): new `ai` network (compose.yaml; members ai-gateway only there, ai-frontdoor/ai-keys also on lab, postgres, test-only ai-mock and smoke). Adding it to postgres recreates postgres once on upgrade (dependents restart via depends_on restart:true, REG_V3_POSTGRES_RECREATE_BREAKS_DB_CLIENTS_ON_UPGRADE). New [full] service ai-frontdoor on the bootstrap image. Smoke check 18 now also asserts the front door from inside alice's workspace and the persona list; run.sh mounts tests/workspace at /opt/tests-workspace.
+
+Repair round (2026-09-27): tests/ai/gateway-e2e.sh never configures the `local` provider by default; its local-via-mock step is opt-in (LAB_E2E_LOCAL_VIA_MOCK=1, for hosts with no real model server such as CI), and it refuses to run unless the gateway's rendered providers are exactly [mock] (REG_V3_GATEWAY_E2E_CONFIGURES_LOCAL_PROVIDER_BY_DEFAULT).
 **Tags:** v3, phase5, ai, gateway, integration, compose, profiles
 **Edges:**
 - RELATES_TO → DEC_V3_AI_GATEWAY_LITELLM_OSS_BUILD: gateway image and broker wired here
@@ -689,4 +697,22 @@
 **Evidence:** v3-p1 upgrade: ./install.sh --non-interactive rc 0, then ./lab ai status models [] and tests/smoke/ai-no-provider.sh PASS; compose-check core/engineer/full OK
 **LastVerified:** 2026-09-27
 **Commit:** bb0cd2f
+**LastUpdated:** 2026-09-27
+
+---
+
+## NODE: DEC_V3_AI_FRONTDOOR_ALLOWLIST_PROXY
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3 Phase 5 follow-up: stdlib ai-frontdoor proxy with an exact route allowlist between workspaces and LiteLLM
+**Summary:** LiteLLM's MIT build has no admin_only_routes, and a user key could call GET /health (fans out real requests to every model, no budget charge) and /model/info, /v1/model/info (each deployment's api_base). Chosen: a small stdlib proxy on the bootstrap image (like docker-guard), not Caddy, because it also needs per-route query rules, a Bearer-key requirement, header allowlists in both directions (drops x-litellm-* response headers that name api_base, and LiteLLM customer-id/control request headers), body caps and SSE streaming. It matches (method, path) exactly and case-sensitively, refuses %-encoding/dot segments/`//` rather than normalizing, rebuilds the query, and forwards the canonical target. The gateway moved to a new `ai` network (with postgres, ai-keys, ai-frontdoor, test-only ai-mock/smoke). Budget display in lab-ai uses GET /v2/user/info (own user, no keys) instead of /user/info or /key/info.
+**Tags:** v3, ai, gateway, proxy, allowlist, decision, phase5
+**Edges:**
+- ESTABLISHES → INV_V3_AI_FRONTDOOR_ONLY_USER_PATH: front door = single source of truth for user-callable routes
+- FIXES → REG_V3_AI_GATEWAY_USER_KEY_REACHES_ADMIN_ROUTES
+- RELATES_TO → DEC_V3_DOCKER_GUARD_PARSE_VALIDATE_RESERIALIZE: same pattern (validate, forward only canonical values)
+- RELATES_TO → DEC_V3_AI_GATEWAY_LITELLM_OSS_BUILD
+**Files:** `v3/bootstrap/ai_frontdoor.py`, `v3/compose/ai.yaml`, `v3/compose.yaml`, `v3/compose/identity.yaml`, `v3/compose/test.yaml`, `v3/images/workspace/lakehouse/ai_cli.py`
+**LastVerified:** 2026-09-27
+**Commit:** 0dc8f05
 **LastUpdated:** 2026-09-27

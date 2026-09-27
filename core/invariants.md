@@ -129,3 +129,21 @@
 **LastVerified:** 2026-09-27
 **Commit:** 6202fd0
 **LastUpdated:** 2026-09-27
+
+---
+
+## NODE: INV_V3_AI_FRONTDOOR_ONLY_USER_PATH
+**Type:** Invariant
+**Priority:** HIGH
+**Label:** V3: workspaces reach the AI gateway only through ai-frontdoor, whose ROUTES is the single list of user-callable gateway routes
+**Summary:** ai-gateway (LiteLLM) is only on the `ai` network; workspaces are only on `lab` (pinned by docker-guard). The only bridge is ai-frontdoor (bootstrap/ai_frontdoor.py, lab+ai). Its ROUTES dict (POST /v1/chat/completions, /chat/completions, /v1/messages[?beta=true], /v1/messages/count_tokens[?beta=true], /v1/embeddings; GET /v1/models, /v2/user/info without query) is the single source of truth for what a user key may call; everything else (/health*, /model/info, /v1/model/info, /key/*, /user/*, /spend/*, admin UI) is 403 before the gateway. The broker (ai-keys) hands out the front door URL (AI_GATEWAY_CLIENT_URL) as base_url. Never put ai-gateway on `lab`, never give a workspace the gateway URL, and add a new client route only in ROUTES with a test.
+**Tags:** v3, ai, gateway, litellm, network, allowlist, security, phase5
+**Edges:**
+- VIOLATED_BY → REG_V3_AI_GATEWAY_USER_KEY_REACHES_ADMIN_ROUTES: workspaces called LiteLLM directly (Phase 5 integration)
+- RELATES_TO → WATCH_V3_WORKSPACE_LAN_EGRESS_BYPASSES_GATEWAY: the one path around it the lab cannot close from compose
+**Files:** `v3/bootstrap/ai_frontdoor.py`, `v3/compose/ai.yaml`, `v3/compose.yaml`, `v3/bootstrap/ai_gateway.py`, `v3/tests/ai/test_ai_frontdoor.py`, `v3/tests/ai/gateway_e2e.py`, `v3/tests/smoke/ai_check.py`
+**Symbols:** `ai_frontdoor.ROUTES`, `ai_frontdoor.decide`, `ai_gateway.CLIENT_URL`, `ai_cli.BUDGET_PATH`
+**Evidence:** 2026-09-27 dev host (mock only): v3-p1 upgrade + v3-p5h clean room: LAB_SMOKE_LONG=1 ./lab test --tracks all SMOKE PASS 18/18 with check 18 ev.frontdoor all true (workspace: ai-gateway by name gaierror, by IP timeout; /health,/model/info,/v1/model/info 403; persona list [LabAssistant]); tests/ai/gateway-e2e.sh PASS (18 forbidden routes + 10 path tricks 403, spoofed user -> key owner, 1b network isolation); unit tests/ai/test_ai_frontdoor.py 15 OK
+**LastVerified:** 2026-09-27
+**Commit:** 0dc8f05
+**LastUpdated:** 2026-09-27

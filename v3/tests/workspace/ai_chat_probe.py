@@ -8,6 +8,8 @@ Runs anywhere that reaches the server; in the lab, inside the user's own workspa
   python3 ai_chat_probe.py --base "http://127.0.0.1:8888${JUPYTERHUB_SERVICE_PREFIX}" \
       --token "$JUPYTERHUB_API_TOKEN" --chat tracks/analyst/A1-sql-basics/probe.chat \
       --message "Why can't I create a table in samples?"
+`personas` in the output are the persona users the chat document lists; a .chat file keeps
+every user that ever joined it, so use a new chat file to see the personas offered now.
 Needs `websocket-client` (in the workspace image). Test tool: it never calls a model itself;
 whatever answers is the gateway's (use the mock model).
 """

@@ -346,6 +346,26 @@ class CheckEvaluation(unittest.TestCase):
         import ai_check
         self.c = ai_check
 
+    def test_frontdoor_evaluation(self):
+        good = {"LAB_AI_GATEWAY_URL": "http://ai-frontdoor:4000", "OPENAI_BASE_URL": "http://ai-frontdoor:4000/v1",
+                "direct_gateway_by_name": "gaierror: [Errno -2] Name or service not known",
+                "direct_gateway_by_ip": "TimeoutError: timed out", "gateway_ip": "172.30.0.5",
+                "frontdoor_tcp": "connected",
+                "status": {"/health": 403, "/model/info": 403, "/v1/model/info": 403, "/v1/models": 200},
+                "chat": {"ok": True, "sender": self.c.PERSONA_ID, "reply": "mock reply 1",
+                         "personas": [self.c.PERSONA_ID]}}
+        ok, ev = self.c.evaluate_frontdoor(good)
+        self.assertTrue(ok, ev["checks"])
+        for bad in ({"direct_gateway_by_name": "connected"}, {"direct_gateway_by_ip": "connected"},
+                    {"LAB_AI_GATEWAY_URL": "http://ai-gateway:4000"},
+                    {"status": dict(good["status"], **{"/health": 200})},
+                    {"chat": dict(good["chat"], personas=[self.c.PERSONA_ID,
+                                                          "jupyter-ai-personas::jupyter_ai_acp_client::CodexAcpPersona"])},
+                    {"chat": dict(good["chat"], reply="Error: ai-frontdoor: not an AI route")}):
+            with self.subTest(bad=bad):
+                self.assertFalse(self.c.evaluate_frontdoor(dict(good, **bad))[0])
+        self.assertFalse(self.c.evaluate_frontdoor(None)[0])
+
     def test_dt_normalizes(self):
         a = self.c._dt("2026-09-27T03:00:00.123000+00:00")
         b = self.c._dt(datetime.datetime(2026, 9, 27, 3, 0, 0, 123000, tzinfo=datetime.timezone.utc))

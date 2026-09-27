@@ -469,3 +469,58 @@
 **LastVerified:** 2026-09-27
 **Commit:** bb0cd2f
 **LastUpdated:** 2026-09-27
+
+---
+
+## NODE: REG_V3_AI_GATEWAY_USER_KEY_REACHES_ADMIN_ROUTES
+**Type:** Regression
+**Priority:** HIGH
+**Label:** V3 Phase 5: workspaces talked to LiteLLM directly; a user key could call /health (fan-out to every model) and /model/info (api_base leak)
+**Summary:** Phase 5 put ai-gateway on `lab` and gave workspaces http://ai-gateway:4000. LiteLLM's MIT build lets any virtual key call GET /health (a real request to every configured model, no budget charge: free load on the owner's GPU server) and /model/info, /v1/model/info (each deployment's api_base, e.g. the model server's host:port); x-litellm-model-api-base response headers leaked it too. Root cause: no single place decided which gateway routes users may call (LiteLLM's route checks are role-based and open for inference-adjacent routes). Fix: gateway only on the new `ai` network; ai-frontdoor (bootstrap/ai_frontdoor.py) is the only path and its ROUTES the only allowlist; broker hands out the front door URL.
+**Tags:** v3, ai, gateway, litellm, health, model-info, api-base, leak, network
+**REGRESSED_N_TIMES:** 1
+**Edges:**
+- RELATED_TO → DEC_V3_AI_GATEWAY_LITELLM_OSS_BUILD: gateway build that exposed the routes
+- RELATED_TO → REG_V3_DOCKER_PROXY_BODY_REGEX_BYPASS: same class (a policy that depended on the upstream's own checks)
+**Files:** `v3/compose/ai.yaml`, `v3/compose.yaml`, `v3/bootstrap/ai_frontdoor.py`, `v3/bootstrap/ai_gateway.py`, `v3/images/workspace/lakehouse/ai_cli.py`, `v3/tests/ai/test_ai_frontdoor.py`, `v3/tests/ai/gateway_e2e.py`, `v3/tests/smoke/ai_check.py`
+**Symbols:** `ai_gateway.mint`, `ai_frontdoor.decide`
+**Evidence:** v3-p1 upgrade + v3-p5h clean room (2026-09-27): ai-gateway only on <project>_ai; from a lab-only container ai-gateway:4000 fails (gaierror by name, timeout by IP); user key via ai-frontdoor: /health, /model/info, /v1/model/info 403, no x-litellm-* response header; smoke 18/18 PASS
+**LastVerified:** 2026-09-27
+**Commit:** 0dc8f05
+**LastUpdated:** 2026-09-27
+
+---
+
+## NODE: REG_V3_AI_END_USER_SPOOFABLE_IN_SPEND_LOGS
+**Type:** Regression
+**Priority:** MEDIUM
+**Label:** V3 Phase 5: a request body `user` (or customer-id header) set the spend-log end user to anyone
+**Summary:** LiteLLM derives the end user from the body `user` (and x-litellm customer-id headers) and records it in SpendLogs.end_user and end-user spend, so alice's key could attribute calls to 'victor'. lab_hooks only checked configuration. Fix: config/ai/lab_hooks.py attribute_to_key_owner (async_pre_call_hook, which runs after add_litellm_data_to_request) OVERWRITES data['user'], user_api_key_dict.end_user_id and metadata/litellm_metadata user_api_key_end_user_id (+ the user_api_key_auth copy) with the key's user_id; a key without user drops it. The front door also drops customer-id headers. Tested: unit (test_render_config Hooks) and gateway_e2e spoofed_user_check (spend log end_user == key owner).
+**Tags:** v3, ai, gateway, litellm, spend, attribution, end-user
+**REGRESSED_N_TIMES:** 1
+**Edges:**
+- RELATED_TO → REG_V3_AI_GATEWAY_USER_KEY_REACHES_ADMIN_ROUTES: found in the same review
+**Files:** `v3/config/ai/lab_hooks.py`, `v3/tests/ai/test_render_config.py`, `v3/tests/ai/gateway_e2e.py`
+**Symbols:** `lab_hooks.attribute_to_key_owner`, `LabHooks.async_pre_call_hook`
+**Evidence:** tests/ai/gateway-e2e.sh on v3-p1 and v3-p5h: chat via ai-frontdoor with user='e2e-spoof-victim' -> /spend/logs row user=end_user=<key owner>; spend_log_end_users == [owner]
+**LastVerified:** 2026-09-27
+**Commit:** 0dc8f05
+**LastUpdated:** 2026-09-27
+
+---
+
+## NODE: REG_V3_GATEWAY_E2E_CONFIGURES_LOCAL_PROVIDER_BY_DEFAULT
+**Type:** Regression
+**Priority:** MEDIUM
+**Label:** V3 Phase 5: tests/ai/gateway-e2e.sh always configured the `local` provider (pointed at the mock), breaking the dev-host quiet-hours rule
+**Summary:** gateway-e2e.sh step 3 (local-via-mock) always recreated ai-gateway with LAB_AI_LOCAL_URL=http://ai-mock:8000/v1, so every run configured the `local` provider, which the owner's quiet-hours rule forbids on the dev host (a real llama-server listens there). No request reached llama-server, but the Phase 5 follow-up record wrongly said LAB_AI_LOCAL_URL stayed empty (it ran on v3-p5, v3-p1 at 09:59 UTC and v3-p5h). Fix at the root, in the script: step 3 is opt-in (LAB_E2E_LOCAL_VIA_MOCK=1, anything but 0/1 refused), and the script stops before any request unless the gateway's rendered state.json has providers exactly [mock] (steps 1 and 4 run with the lab's own settings). tests/ai/test_gateway_e2e_script.py runs the script against a fake docker and asserts every compose up has an empty LAB_AI_LOCAL_URL by default.
+**Tags:** v3, ai, gateway, tests, quiet-hours, local-provider, mock
+**Edges:**
+- RELATED_TO → DEC_V3_PHASE5_INTEGRATION_WIRING: tests use the mock model only; now the local-provider path is opt-in too
+- RELATED_TO → REG_V3_AI_GATEWAY_USER_KEY_REACHES_ADMIN_ROUTES: found in the same follow-up's verification
+**Files:** `v3/tests/ai/gateway-e2e.sh`, `v3/tests/ai/test_gateway_e2e_script.py`, `v3/PHASE5_RESULTS.md`, `v3/CONTRACT.md`
+**Evidence:** python3 -m unittest v3/tests/ai/test_gateway_e2e_script.py -> 4 OK (mutation: forcing step 3 on fails test_default_never_configures_the_local_provider); v3-p1 run 2026-09-27 12:46-12:51 UTC: '3. local provider path: SKIPPED', AI GATEWAY E2E: PASS, gateway env LAB_AI_LOCAL_URL empty, out/ai-e2e has no recreate-local.log
+**LastVerified:** 2026-09-27
+**Commit:** 0dc8f05
+**LastUpdated:** 2026-09-27
+**Author:** claude-code

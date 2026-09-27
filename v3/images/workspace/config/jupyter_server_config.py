@@ -23,15 +23,20 @@ c.ServerApp.root_dir = "/home/jovyan"
 
 
 # ---------------------------------------------------------------------------- Jupyter AI
-# (CONTRACT Phase 5; lakehouse/ai.py.) The default persona is the lab's "Lab Assistant"
-# (lakehouse/ai_persona.py): the lab's AI gateway with the user's own key (LAB_AI_*, minted by
-# JupyterHub at spawn), the lab's system prompt and tutor mode, and the lab's MCP servers.
-# Jupyter AI's stock Jupyternaut stays available and also defaults to the gateway. Nothing
-# here ever calls a model; with no usable gateway the assistant says "AI isn't configured".
+# (CONTRACT Phase 5; lakehouse/ai.py.) The only persona is the lab's "Lab Assistant"
+# (lakehouse/ai_persona.py): the lab's AI gateway (through the AI front door) with the user's
+# own key (LAB_AI_*, minted by JupyterHub at spawn), the lab's system prompt and tutor mode,
+# and the lab's MCP servers. LabPersonaManager (lakehouse/ai_persona_manager.py) offers only
+# the personas in its ALLOWED_PERSONAS: not the ACP agents of jupyter_ai_acp_client (their own
+# providers), not the stock Jupyternaut (any model string and API base), not `.jupyter/personas`.
+# Nothing here ever calls a model; with no usable gateway the assistant says "AI isn't
+# configured".
 def _jupyter_ai(c):
     from lakehouse import ai
 
-    c.PersonaManager.default_persona_id = ai.PERSONA_ID
+    # A string, so the persona machinery is imported only when the extension loads it. Its
+    # default_persona_id is ai.PERSONA_ID (also what the frontend pre-selects).
+    c.PersonaManagerExtension.persona_manager_class = "lakehouse.ai_persona_manager.LabPersonaManager"
     # Setting builtin_mcp_servers replaces Jupyter AI's default list, so keep its own
     # in-server MCP server (jupyter_server_mcp, localhost only) first, then the lab's
     # servers (stdio, started as the user, with the user's hub token in memory only).

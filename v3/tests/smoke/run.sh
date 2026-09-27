@@ -133,7 +133,7 @@ echo "== 2-5, 7-10, 12-18. browser login, Trino, PyIceberg, viewer denial, group
 # Check 18 (AI): settings for the gateway rules, passed through only when set. The gateway's
 # admin key is read from .secrets.env by name (never printed); the rest are test overrides.
 ai_env=()
-for v in LAB_SMOKE_AI_GATEWAY_URL LAB_SMOKE_AI_MOCK_URL LAB_SMOKE_AI_KEYS; do
+for v in LAB_SMOKE_AI_GATEWAY_URL LAB_SMOKE_AI_FRONTDOOR_URL LAB_SMOKE_AI_MOCK_URL LAB_SMOKE_AI_KEYS; do
   [ -n "${!v:-}" ] && ai_env+=(-e "$v=${!v}")
 done
 ai_master=$(env_get "$SECRETS_FILE" AI_GATEWAY_MASTER_KEY)
@@ -149,7 +149,8 @@ if LAB_SMOKE_OUT="$out" "${DC[@]}" --profile test run --rm ${build[@]+"${build[@
      -e LAB_SMOKE_ONLY="${LAB_SMOKE_ONLY:-}" -e LAB_SMOKE_LONG="$LAB_SMOKE_LONG" \
      -e LAB_SMOKE_TRACKS="$LAB_SMOKE_TRACKS" \
      ${ai_env[@]+"${ai_env[@]}"} \
-     -v "$V3/tracks:/opt/tracks:ro" -v "$V3/tests/tracks:/opt/tracks-tests:ro" smoke; then
+     -v "$V3/tracks:/opt/tracks:ro" -v "$V3/tests/tracks:/opt/tracks-tests:ro" \
+     -v "$V3/tests/workspace:/opt/tests-workspace:ro" smoke; then
   :
 else
   FAILED+=("in-container checks (see [FAIL] lines above, $out/results.json)")

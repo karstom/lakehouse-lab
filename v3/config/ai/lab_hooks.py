@@ -1,14 +1,18 @@
 """LiteLLM proxy hooks for the lab (a CustomLogger callback: an open-source LiteLLM feature).
 
 Loaded by the gateway through `litellm_settings.callbacks: [lab_hooks.proxy_handler_instance]`
-(render_config.py). Two jobs, both about giving users a clear message instead of a stack of
-provider jargon:
+(render_config.py). Three jobs:
 
 1. No provider enabled -> every model call is refused BEFORE routing with
    "AI isn't configured; ask your lab admin." (HTTP 503, type `ai_not_configured`). The model
    list is empty then, so there is also nothing to route to (no outbound AI call).
 2. A user past their budget -> LiteLLM's "ExceededBudget: User=... over budget. Spend=...,
    Budget=..." becomes a plain sentence with the numbers (HTTP 400, same status as LiteLLM's).
+3. Attribution: the end user of every call is the KEY'S OWN user. LiteLLM takes the "end
+   user" from the request body (`user`, or customer-id headers, which the AI front door
+   drops) and records it in the spend logs; a user could name anyone there. The pre-call hook
+   OVERWRITES the body's `user` and the end-user id in the request metadata with the key's
+   user_id (key without a user, i.e. the admin: removed), so spend logs attribute correctly.
 
 The state (configured or not) comes from state.json, written next to this file by
 render_config.py at container start.
@@ -60,6 +64,27 @@ def budget_message(exc):
             " It resets at the start of the next budget period; ask your lab admin if you need more.")
 
 
+def attribute_to_key_owner(data, user_api_key_dict):
+    """The request's end user := the key's own user_id, whatever the caller sent. LiteLLM
+    puts the end user into the request metadata (`metadata` or, on /v1/messages,
+    `litellm_metadata`) as `user_api_key_end_user_id`, which the spend log records."""
+    owner = getattr(user_api_key_dict, "user_id", None) or None
+    if owner:
+        data["user"] = owner
+    else:
+        data.pop("user", None)
+    user_api_key_dict.end_user_id = owner
+    for slot in ("metadata", "litellm_metadata"):
+        meta = data.get(slot)
+        if not isinstance(meta, dict):
+            continue
+        meta["user_api_key_end_user_id"] = owner
+        auth = meta.get("user_api_key_auth")
+        if auth is not None and hasattr(auth, "end_user_id"):
+            auth.end_user_id = owner
+    return data
+
+
 class LabHooks(CustomLogger):
     def __init__(self):
         super().__init__()
@@ -69,7 +94,7 @@ class LabHooks(CustomLogger):
         if not self.state.get("configured"):
             raise HTTPException(status_code=503, detail={
                 "error": {"message": NOT_CONFIGURED, "type": "ai_not_configured", "code": 503}})
-        return data
+        return attribute_to_key_owner(data, user_api_key_dict)
 
     async def async_post_call_failure_hook(self, request_data, original_exception,
                                            user_api_key_dict, traceback_str=None):

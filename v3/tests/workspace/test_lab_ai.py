@@ -27,7 +27,7 @@ from lakehouse import ai, ai_cli  # noqa: E402
 
 HUB = os.path.join(V3, "config", "jupyterhub", "jupyterhub_config.py")
 TUTOR_MD = "# A1 tutor notes\n\n## Common mistakes\n| wrote into samples | hint: which schema is yours? |\n"
-GW_ENV = {"LAB_AI_GATEWAY_URL": "http://ai-gateway:4000/", "LAB_AI_KEY": "sk-test-user-key",
+GW_ENV = {"LAB_AI_GATEWAY_URL": "http://ai-frontdoor:4000/", "LAB_AI_KEY": "sk-test-user-key",
           "LAB_AI_MODEL": "lab-default", "LAB_AI_STATUS": "ok"}
 
 
@@ -88,8 +88,8 @@ class Gateway(Base):
     def test_ok(self):
         gw = ai.gateway(GW_ENV)
         self.assertTrue(gw["ok"])
-        self.assertEqual(gw["url"], "http://ai-gateway:4000")
-        self.assertEqual(gw["base_url"], "http://ai-gateway:4000/v1")
+        self.assertEqual(gw["url"], "http://ai-frontdoor:4000")
+        self.assertEqual(gw["base_url"], "http://ai-frontdoor:4000/v1")
 
     def test_missing_is_not_configured(self):
         gw = ai.gateway({})
@@ -459,8 +459,8 @@ def load_hub_minting():
     return ns
 
 
-BROKER_OK = {"user": "alice", "key": "sk-new", "base_url": "http://ai-gateway:4000",
-             "openai_base_url": "http://ai-gateway:4000/v1", "model": "lab-default",
+BROKER_OK = {"user": "alice", "key": "sk-new", "base_url": "http://ai-frontdoor:4000",
+             "openai_base_url": "http://ai-frontdoor:4000/v1", "model": "lab-default",
              "models": ["lab-default"], "configured": True, "message": None,
              "max_budget": 5.0, "budget_duration": "30d", "rpm_limit": 30, "key_expires": "30d"}
 
@@ -491,10 +491,10 @@ class HubMinting(unittest.TestCase):
         self.assertEqual(b.calls, [("POST", "/v1/keys/mint", {"user": "alice"})])
         self.assertEqual(env["LAB_AI_STATUS"], "ok")
         self.assertEqual(env["LAB_AI_KEY"], "sk-new")
-        self.assertEqual(env["LAB_AI_GATEWAY_URL"], "http://ai-gateway:4000")
+        self.assertEqual(env["LAB_AI_GATEWAY_URL"], "http://ai-frontdoor:4000")
         self.assertEqual(env["LAB_AI_MODEL"], "lab-default")
-        self.assertEqual(env["OPENAI_BASE_URL"], "http://ai-gateway:4000/v1")
-        self.assertEqual(env["OPENAI_API_BASE"], "http://ai-gateway:4000/v1")
+        self.assertEqual(env["OPENAI_BASE_URL"], "http://ai-frontdoor:4000/v1")
+        self.assertEqual(env["OPENAI_API_BASE"], "http://ai-frontdoor:4000/v1")
         self.assertEqual(env["OPENAI_API_KEY"], "sk-new")
         self.assertEqual(env["LAB_AI_BUDGET_USD"], "5.0")
         # every value is a string (it becomes a container Env entry NAME=value)
@@ -532,3 +532,100 @@ class HubMinting(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ------------------------------------------------------------------ persona allowlist (FIX 3)
+class _EP:
+    def __init__(self, name, value):
+        self.name, self.value, self.loaded = name, value, False
+
+    def load(self):
+        self.loaded = True
+        return f"class:{self.value}"
+
+
+class PersonaAllowlist(unittest.TestCase):
+    """lakehouse/ai_persona_manager.py with Jupyter AI's modules stubbed (no Jupyter AI here):
+    only ALLOWED_PERSONAS load; ACP agents, stock Jupyternaut, a look-alike and local persona
+    files never do. The live check is smoke check 18 (persona list in a spawned workspace)."""
+
+    EPS = [_EP("lab-assistant", "lakehouse.ai_persona:LabAssistant"),
+           _EP("claude-acp", "jupyter_ai_acp_client.acp_personas.claude:ClaudeAcpPersona"),
+           _EP("codex-acp", "jupyter_ai_acp_client.acp_personas.codex:CodexAcpPersona"),
+           _EP("copilot-acp", "jupyter_ai_acp_client.acp_personas.copilot:CopilotAcpPersona"),
+           _EP("goose-acp", "jupyter_ai_acp_client.acp_personas.goose:GooseAcpPersona"),
+           _EP("jupyternaut", "jupyter_ai_jupyternaut.jupyternaut.jupyternaut:JupyternautPersona"),
+           _EP("lab-assistant", "evil_pkg.persona:LabAssistant")]
+
+    def setUp(self):
+        import types
+        eps = self.EPS
+        im = types.ModuleType("importlib_metadata")
+
+        class _All:
+            def select(self, group):
+                return eps if group == "jupyter_ai.personas" else []
+        im.entry_points = lambda: _All()
+        pm_pkg = types.ModuleType("jupyter_ai_persona_manager")
+        pm = types.ModuleType("jupyter_ai_persona_manager.persona_manager")
+        pm.EPG_NAME = "jupyter_ai.personas"
+
+        class PersonaManager:
+            _ep_persona_classes = None
+            log = mock.MagicMock()
+        pm.PersonaManager = PersonaManager
+        tl = types.ModuleType("traitlets")
+        tl.Unicode = lambda default_value=None, **kw: default_value
+        self.patch = mock.patch.dict(sys.modules, {
+            "importlib_metadata": im, "jupyter_ai_persona_manager": pm_pkg,
+            "jupyter_ai_persona_manager.persona_manager": pm, "traitlets": tl})
+        self.patch.start()
+        sys.modules.pop("lakehouse.ai_persona_manager", None)
+        import importlib
+        self.mod, self.base = importlib.import_module("lakehouse.ai_persona_manager"), PersonaManager
+
+    def tearDown(self):
+        self.patch.stop()
+        sys.modules.pop("lakehouse.ai_persona_manager", None)
+        import lakehouse
+        lakehouse.__dict__.pop("ai_persona_manager", None)
+
+    def test_only_the_gateway_persona_loads(self):
+        m = self.mod.LabPersonaManager()
+        m._init_ep_persona_classes()
+        got = self.base._ep_persona_classes
+        self.assertEqual([c["module"] for c in got], ["lab-assistant"])
+        self.assertEqual(got[0]["persona_class"], "class:lakehouse.ai_persona:LabAssistant")
+        self.assertEqual([e.name for e in self.EPS if e.loaded], ["lab-assistant"])
+        self.assertFalse(self.EPS[-1].loaded)          # the look-alike name is never imported
+
+    def test_no_local_personas_and_lab_default(self):
+        m = self.mod.LabPersonaManager()
+        m._init_local_persona_classes()
+        self.assertEqual(m._local_persona_classes, [])
+        self.assertEqual(self.mod.LabPersonaManager.default_persona_id, ai.PERSONA_ID)
+        self.assertEqual(self.mod.ALLOWED_PERSONAS, {"lab-assistant": "lakehouse.ai_persona:LabAssistant"})
+
+    def test_server_config_installs_it(self):
+        with open(os.path.join(V3, "images", "workspace", "config", "jupyter_server_config.py")) as f:
+            src = f.read()
+        self.assertIn('c.PersonaManagerExtension.persona_manager_class = '
+                      '"lakehouse.ai_persona_manager.LabPersonaManager"', src)
+
+
+class BudgetRoute(unittest.TestCase):
+    def test_budget_uses_only_the_front_door_route(self):
+        seen = []
+
+        def fake_get(gw, path, timeout=5):
+            seen.append(path)
+            return {"user_id": "alice", "spend": 1.5, "max_budget": 5.0, "budget_reset_at": "x",
+                    "metadata": {}}
+        with mock.patch.object(ai_cli, "_gateway_get", fake_get):
+            out = ai_cli.budget(ai.gateway(GW_ENV))
+        self.assertEqual(seen, ["/v2/user/info"])
+        self.assertEqual(out, {"spend": 1.5, "max_budget": 5.0, "budget_reset_at": "x"})
+        sys.path.insert(0, V3)
+        from bootstrap import ai_frontdoor
+        self.assertIn(("GET", ai_cli.BUDGET_PATH), ai_frontdoor.ROUTES)
+        self.assertIn(("GET", "/v1/models"), ai_frontdoor.ROUTES)

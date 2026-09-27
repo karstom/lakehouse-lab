@@ -237,3 +237,18 @@
 **Commit:** 3e6f45c
 **LastUpdated:** 2026-09-26
 **Author:** integrator
+
+---
+
+## NODE: WATCH_V3_WORKSPACE_LAN_EGRESS_BYPASSES_GATEWAY
+**Type:** Watchlist
+**Priority:** HIGH
+**Label:** V3: a workspace can reach a model server on the Docker host's LAN IP directly (the `lab` network is not internal)
+**Summary:** Workspaces need internet egress, so `lab` is not internal: a workspace can open any address the host can route to, e.g. llama-server on the dev host's LAN IP :9999, bypassing the gateway's keys, budgets and logs (ai-frontdoor cannot help: the traffic never touches it). Not closable from compose without removing workspace egress. Owner options (CONTRACT Phase 5 "Known gap: the host LAN"): give the model server its own API key known only to the gateway (LAB_AI_LOCAL_API_KEY); on the same host an INPUT-chain rule dropping br-<lab> -> :port (container->host traffic is INPUT, not DOCKER-USER); for another LAN machine a DOCKER-USER rule; binding the server to 127.0.0.1 also locks out the gateway. Never probe the owner's :9999 to demonstrate it.
+**Tags:** v3, ai, network, egress, lan, llama-server, security, known-gap
+**Edges:**
+- RELATES_TO → DEC_V3_AI_GATEWAY_LITELLM_OSS_BUILD: the local provider is the model server this bypasses
+**Files:** `v3/compose.yaml`, `v3/compose/ai.yaml`, `v3/CONTRACT.md`
+**LastVerified:** 2026-09-27
+**Commit:** 0dc8f05
+**LastUpdated:** 2026-09-27

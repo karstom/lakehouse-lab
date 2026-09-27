@@ -110,6 +110,12 @@ class Operations(unittest.TestCase):
         self.assertIsNone(out["message"])
         self.assertEqual(out["model"], "lab-default")
 
+    def test_mint_points_workspaces_at_the_front_door_not_the_gateway(self):
+        out = ai_gateway.mint(self.gw, "alice", CFG)
+        self.assertEqual(out["base_url"], "http://ai-frontdoor:4000")
+        self.assertEqual(out["openai_base_url"], "http://ai-frontdoor:4000/v1")
+        self.assertNotIn("ai-gateway", json.dumps(out))
+
     def test_mint_rotates_one_live_key_and_keeps_spend(self):
         a = ai_gateway.mint(self.gw, "alice", CFG)
         self.fake.users["alice"]["spend"] = 1.25
