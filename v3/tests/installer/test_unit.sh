@@ -33,8 +33,10 @@ V3_DIR="$WORK/libtree"; mkdir -p "$V3_DIR"
 . "$SRC/installer/secrets.sh"
 # shellcheck source=../../installer/ca.sh
 . "$SRC/installer/ca.sh"
+# shellcheck source=../../installer/ai.sh
+. "$SRC/installer/ai.sh"
 
-CONTRACT_SECRETS="POSTGRES_PASSWORD KEYCLOAK_DB_PASSWORD LAKEKEEPER_DB_PASSWORD KC_ADMIN_USER KC_ADMIN_PASSWORD LAB_ADMIN_USER LAB_ADMIN_PASSWORD SEAWEEDFS_ADMIN_ACCESS_KEY SEAWEEDFS_ADMIN_SECRET_KEY SEAWEEDFS_STS_SIGNING_KEY LAKEKEEPER_PG_ENCRYPTION_KEY OIDC_CLIENT_SECRET_TRINO OIDC_CLIENT_SECRET_LAKEKEEPER OIDC_CLIENT_SECRET_CONSOLE OIDC_CLIENT_SECRET_SYNC OIDC_CLIENT_SECRET_JUPYTERHUB JUPYTERHUB_CRYPT_KEY TRINO_INTERNAL_SECRET LAB_TEST_USER_PASSWORD OIDC_CLIENT_SECRET_AIRFLOW OIDC_CLIENT_SECRET_BATCH AIRFLOW_DB_PASSWORD AIRFLOW_FERNET_KEY AIRFLOW_JWT_SECRET OIDC_CLIENT_SECRET_SUPERSET SUPERSET_SECRET_KEY SUPERSET_DB_PASSWORD CONSOLE_COOKIE_SECRET"
+CONTRACT_SECRETS="POSTGRES_PASSWORD KEYCLOAK_DB_PASSWORD LAKEKEEPER_DB_PASSWORD KC_ADMIN_USER KC_ADMIN_PASSWORD LAB_ADMIN_USER LAB_ADMIN_PASSWORD SEAWEEDFS_ADMIN_ACCESS_KEY SEAWEEDFS_ADMIN_SECRET_KEY SEAWEEDFS_STS_SIGNING_KEY LAKEKEEPER_PG_ENCRYPTION_KEY OIDC_CLIENT_SECRET_TRINO OIDC_CLIENT_SECRET_LAKEKEEPER OIDC_CLIENT_SECRET_CONSOLE OIDC_CLIENT_SECRET_SYNC OIDC_CLIENT_SECRET_JUPYTERHUB JUPYTERHUB_CRYPT_KEY TRINO_INTERNAL_SECRET LAB_TEST_USER_PASSWORD OIDC_CLIENT_SECRET_AIRFLOW OIDC_CLIENT_SECRET_BATCH AIRFLOW_DB_PASSWORD AIRFLOW_FERNET_KEY AIRFLOW_JWT_SECRET OIDC_CLIENT_SECRET_SUPERSET SUPERSET_SECRET_KEY SUPERSET_DB_PASSWORD CONSOLE_COOKIE_SECRET AI_GATEWAY_MASTER_KEY AI_GATEWAY_SALT_KEY AI_GATEWAY_DB_PASSWORD AI_GATEWAY_HUB_TOKEN"
 CONTRACT_ENV="COMPOSE_PROJECT_NAME LAB_DOMAIN LAB_HTTPS_PORT LAB_HTTP_PORT LAB_PROFILE LAB_STATE_DIR LAB_TZ"
 mode_of() { stat -c '%a' "$1"; }
 sha() { sha256sum "$1" | cut -d' ' -f1; }
@@ -118,6 +120,9 @@ assert_match "DB password length" '^[0-9a-f]{48}$' "$(env_get "$s" POSTGRES_PASS
 assert_match "admin password strength" '^[A-Za-z0-9]{20}$' "$(env_get "$s" LAB_ADMIN_PASSWORD)"
 # JupyterHub needs a 32-byte key, hex-encoded (enable_auth_state).
 assert_match "JUPYTERHUB_CRYPT_KEY is 32 bytes hex" '^[0-9a-f]{64}$' "$(env_get "$s" JUPYTERHUB_CRYPT_KEY)"
+# LiteLLM requires its master key to start with "sk-" (ai-gateway, Phase 5).
+assert_match "AI_GATEWAY_MASTER_KEY is sk- + 32 bytes hex" '^sk-[0-9a-f]{64}$' "$(env_get "$s" AI_GATEWAY_MASTER_KEY)"
+assert_match "AI_GATEWAY_HUB_TOKEN is 32 bytes hex" '^[0-9a-f]{64}$' "$(env_get "$s" AI_GATEWAY_HUB_TOKEN)"
 h1=$(sha "$s"); ensure_secrets "$s" >/dev/null
 assert_eq "re-run changes nothing" "$h1" "$(sha "$s")"
 pg=$(env_get "$s" POSTGRES_PASSWORD)
@@ -500,6 +505,80 @@ for pair in edge.yaml:CADDY engines.yaml:TRINO storage.yaml:SEAWEEDFS workspace.
     grep -qF "lab.config-hash: \${LAB_CONFIG_HASH_${pair#*:}:-}" "$SRC/compose/${pair%%:*}"
 done
 rm -rf "$T4"
+
+echo "== AI assist settings (Phase 5, GATEWAY)"
+t_begin ai
+TA="$WORK/tree-ai"; make_tree "$TA"
+: >"$SHIM_LOG"
+# Port 9 (discard) on loopback: nothing answers, so the metadata probe fails fast; the tests
+# never point at a real model server.
+out=$("$TA/install.sh" --non-interactive --domain lab.localhost --project-name v3-p5-ai \
+  --https-port 18543 --http-port 18180 --profile full 2>&1); rc=$?
+assert_eq "install full without AI flags exit 0" 0 "$rc"
+assert_not "no local URL by default" env_has "$TA/.env" LAB_AI_LOCAL_URL
+assert_not "no hosted key by default" grep -qE 'LAB_AI_(ANTHROPIC|OPENAI)_API_KEY' "$TA/.secrets.env"
+assert_contains "summary says not configured" "AI assist: not configured" "$out"
+assert_not "no ai-mock profile by default" grep -q 'ai-mock' "$SHIM_LOG"
+out=$("$TA/install.sh" --non-interactive --ai-local-url http://127.0.0.1:9 --ai-local-model qwen-test --no-start 2>&1); rc=$?
+assert_eq "--ai-local-url exit 0 (unreachable server is a warning)" 0 "$rc"
+assert_eq "localhost rewritten for the container" "http://host.docker.internal:9/v1" "$(env_get "$TA/.env" LAB_AI_LOCAL_URL)"
+assert_eq "local model saved" qwen-test "$(env_get "$TA/.env" LAB_AI_LOCAL_MODEL)"
+assert_contains "probe is metadata only (says so)" "checked only /health and /v1/models" "$out"
+assert_not "bad URL refused" "$TA/install.sh" --non-interactive --no-start --ai-local-url 'http://u:p@h/v1'
+assert_not "non-http URL refused" "$TA/install.sh" --non-interactive --no-start --ai-local-url 'file:///etc/passwd'
+assert_not "model without URL refused" "$TA/install.sh" --non-interactive --no-start --ai-local-model x
+"$TA/install.sh" --non-interactive --ai-local-url none --no-start >/dev/null 2>&1
+assert_not "--ai-local-url none clears it" env_has "$TA/.env" LAB_AI_LOCAL_URL
+assert "--ai-local-url none is remembered (no question on re-run)" grep -q '^LAB_AI_LOCAL_URL=$' "$TA/.env"
+: >"$SHIM_LOG"
+"$TA/install.sh" --non-interactive --ai-mock >/dev/null 2>&1
+assert_eq "--ai-mock sets LAB_AI_MOCK" true "$(env_get "$TA/.env" LAB_AI_MOCK)"
+assert_contains "--ai-mock adds the ai-mock profile" "--profile full --profile ai-mock up -d --wait --remove-orphans --build" "$(cat "$SHIM_LOG")"
+: >"$SHIM_LOG"
+"$TA/install.sh" --non-interactive --no-ai-mock >/dev/null 2>&1
+assert_eq "--no-ai-mock" false "$(env_get "$TA/.env" LAB_AI_MOCK)"
+assert_contains "--no-ai-mock removes the mock container" "--profile full --profile ai-mock rm -sf ai-mock" "$(cat "$SHIM_LOG")"
+assert_contains "--no-ai-mock: stack started without the mock profile" "--profile full up -d --wait --remove-orphans --build" "$(cat "$SHIM_LOG")"
+# A stray shell variable must never turn a provider on.
+: >"$SHIM_LOG"
+LAB_AI_MOCK=true LAB_AI_LOCAL_URL=http://evil:1/v1 "$TA/lab" up >/dev/null 2>&1
+assert_not "shell LAB_AI_MOCK ignored" grep -q 'ai-mock' "$SHIM_LOG"
+# Hosted providers: admin-only, key from a file, never printed, only in .secrets.env.
+KEY=sk-ant-unittest0000000000000000000000000000
+printf '%s\n' "$KEY" >"$WORK/anthropic.key"; chmod 600 "$WORK/anthropic.key"
+assert_not "enable-hosted without --yes on no terminal refused" "$TA/lab" ai enable-hosted --provider anthropic --key-file "$WORK/anthropic.key" </dev/null
+assert_not "refused enable wrote no key" grep -q LAB_AI_ANTHROPIC_API_KEY "$TA/.secrets.env"
+out=$("$TA/lab" ai enable-hosted --provider anthropic --key-file "$WORK/anthropic.key" --model claude-test --yes 2>&1); rc=$?
+assert_eq "enable-hosted exit 0" 0 "$rc"
+assert_eq "key in .secrets.env" "$KEY" "$(env_get "$TA/.secrets.env" LAB_AI_ANTHROPIC_API_KEY)"
+assert_eq ".secrets.env still 600" 600 "$(mode_of "$TA/.secrets.env")"
+assert_not "key not in .env" grep -qF "$KEY" "$TA/.env"
+assert_not "key never printed" grep -qF "$KEY" <<<"$out"
+assert_eq "model override in .env" claude-test "$(env_get "$TA/.env" LAB_AI_ANTHROPIC_MODEL)"
+assert_contains "warns what enabling means" "sends what users ask the AI assistant" "$out"
+out=$("$TA/lab" ai status 2>&1)
+assert_contains "status: anthropic on" "anthropic  on (key in .secrets.env; model claude-test)" "$out"
+assert_contains "status: openai off" "openai     off" "$out"
+assert_not "status never prints the key" grep -qF "$KEY" <<<"$out"
+printf 'two\nlines\n' >"$WORK/bad.key"
+assert_not "multi-line key file refused" "$TA/lab" ai enable-hosted --provider openai --key-file "$WORK/bad.key" --yes
+assert_not "unknown provider refused" "$TA/lab" ai enable-hosted --provider acme --key-file "$WORK/anthropic.key" --yes
+assert_not "missing key file refused" "$TA/lab" ai enable-hosted --provider openai --key-file "$WORK/nope.key" --yes
+out=$("$TA/lab" ai disable-hosted --provider all 2>&1); rc=$?
+assert_eq "disable-hosted exit 0" 0 "$rc"
+assert_not "disable-hosted removes the key" grep -q LAB_AI_ANTHROPIC_API_KEY "$TA/.secrets.env"
+out=$("$TA/lab" ai status 2>&1)
+assert_contains "status: nothing enabled -> no outbound AI calls" "the lab makes no outbound AI calls" "$out"
+out=$("$TA/lab" ai set-local http://localhost:9 --model m1 2>&1); rc=$?
+assert_eq "lab ai set-local exit 0" 0 "$rc"
+assert_eq "set-local saved" "http://host.docker.internal:9/v1" "$(env_get "$TA/.env" LAB_AI_LOCAL_URL)"
+"$TA/lab" ai set-local none >/dev/null 2>&1
+assert_not "set-local none" env_has "$TA/.env" LAB_AI_LOCAL_URL
+assert "profile_includes full ai" profile_includes full ai
+assert_not "profile_includes engineer ai is false" profile_includes engineer ai
+for u in "http://h:8080|http://h:8080/v1" "https://x.y/v1/|https://x.y/v1" "http://localhost:11434|http://host.docker.internal:11434/v1"; do
+  assert_eq "normalize ${u%%|*}" "${u#*|}" "$(ai_normalize_url "${u%%|*}")"
+done
 
 echo "== repo hygiene (public repo)"
 t_begin hygiene

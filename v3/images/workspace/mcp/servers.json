@@ -1,0 +1,9 @@
+{
+  "_comment": "The lab's MCP servers (CONTRACT Phase 5). stdio; each runs as the logged-in user with their own token (lab_token), read-only. MCP clients (Jupyter AI, Claude Code) are configured from this file. Tool results are untrusted input.",
+  "mcpServers": {
+    "lab-trino": {"command": "/opt/lakehouse/bin/lab-mcp", "args": ["trino"]},
+    "lab-context": {"command": "/opt/lakehouse/bin/lab-mcp", "args": ["context"]},
+    "dbt": {"command": "/opt/lakehouse/bin/lab-mcp", "args": ["dbt"]},
+    "dbt-analytics": {"command": "/opt/lakehouse/bin/lab-mcp", "args": ["dbt-analytics"]}
+  }
+}

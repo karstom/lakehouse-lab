@@ -51,7 +51,11 @@ jobs:
         if: ${{ !cancelled() }}
         run: python3 -m unittest discover -s v3/tests/smoke -p 'test_*.py' -v
 
-      - name: lab-tracks unit tests (copy-on-upgrade, reset with backup, checkpoint protocol; no lab)
+      - name: AI gateway unit tests (provider config, key broker, mock model, egress probe; no lab)
+        if: ${{ !cancelled() }}
+        run: python3 -m unittest discover -s v3/tests/ai -v
+
+      - name: Workspace unit tests (lab-tracks, lab-ai, tutor prompt; no lab)
         if: ${{ !cancelled() }}
         run: python3 -m unittest discover -s v3/tests/workspace -v
 

@@ -450,3 +450,22 @@
 **LastVerified:** 2026-09-26
 **Commit:** 3e6f45c
 **LastUpdated:** 2026-09-27
+
+---
+
+## NODE: REG_V3_AI_CHECK18_SPEND_RESTORE_RACE
+**Type:** Regression
+**Priority:** MEDIUM
+**Label:** V3 smoke check 18 left users over their AI budget (restore raced LiteLLM's batched spend writes)
+**Summary:** Check 18 lifts a test user's gateway budget, runs the ~100k-token mock loop, then restores budget and spend. LiteLLM writes spend to Postgres in batches (~10 s), so the loop's last batch landed after the restore: victor ended at 18.69 (v3-p1) / 10.15 (clean room) of 5 USD and his next real persona request was refused. Fixed: Gateway.settle_spend waits until spend is unchanged for 25 s before restoring, and the restore reports the spend read back. Same integration run: the persona's friendly_error did not recognise the lab gateway's 'budget ... used up' wording (written against a stand-in gateway); mapping and unit test fixed.
+**Tags:** v3, phase5, ai, gateway, budget, litellm, smoke, race
+**REGRESSED_N_TIMES:** 1
+**Edges:**
+- RELATES_TO → DEC_V3_AI_GATEWAY_LITELLM_OSS_BUILD: spend is batched by LiteLLM
+- RELATES_TO → DEC_V3_WORKSPACE_AI_PERSONA_KEY_PER_SPAWN: persona error mapping
+**Files:** `v3/tests/smoke/ai_check.py`, `v3/images/workspace/lakehouse/ai.py`, `v3/tests/workspace/test_lab_ai.py`
+**Symbols:** `Gateway.restore_budget`, `Gateway.settle_spend`, `friendly_error`
+**Evidence:** LAB_SMOKE_ONLY=18 ./lab test on v3-p1 and v3-p5 -> '[info] victor's AI budget restored: HTTP 200, spend now 0.0 (was 0)'; persona with victor budget 1e-6 -> 'You have used up your AI budget for now...'
+**LastVerified:** 2026-09-27
+**Commit:** bb0cd2f
+**LastUpdated:** 2026-09-27

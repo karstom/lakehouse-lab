@@ -24,10 +24,11 @@ LAB_AVAILABLE_PROFILES="core engineer full"
 # airflow. and spark. with engineer/full, superset. with full since Phase 3).
 LAB_PUBLIC_SERVICES="console auth trino catalog jupyter"
 
-# profile_includes PROFILE FEATURE -> 0 if PROFILE runs FEATURE (spark, airflow, superset).
+# profile_includes PROFILE FEATURE -> 0 if PROFILE runs FEATURE (spark, airflow, superset, ai).
+# `ai` = the AI gateway (Phase 5): part of profile full only.
 profile_includes() {
   case "$2:$1" in
-    spark:engineer|spark:full|airflow:engineer|airflow:full|superset:full) return 0 ;;
+    spark:engineer|spark:full|airflow:engineer|airflow:full|superset:full|ai:full) return 0 ;;
   esac
   return 1
 }
@@ -144,7 +145,10 @@ load_env() {
 # compose at another project or domain.
 lab_settings() {
   local k
-  for k in COMPOSE_PROJECT_NAME LAB_DOMAIN LAB_HTTPS_PORT LAB_HTTP_PORT LAB_PROFILE LAB_STATE_DIR; do
+  # The AI provider switches too (Phase 5): a stray LAB_AI_* in the shell must never turn a
+  # provider on (compose would prefer it over .env/.secrets.env); only the lab's files do.
+  for k in COMPOSE_PROJECT_NAME LAB_DOMAIN LAB_HTTPS_PORT LAB_HTTP_PORT LAB_PROFILE LAB_STATE_DIR \
+           LAB_AI_MOCK LAB_AI_LOCAL_URL LAB_AI_LOCAL_API_KEY LAB_AI_ANTHROPIC_API_KEY LAB_AI_OPENAI_API_KEY; do
     unset "$k"
   done
   load_env "$LAB_ENV_FILE"
@@ -190,6 +194,9 @@ lab_config_hashes() {
   LAB_CONFIG_HASH_AIRFLOW=$(config_hash config/airflow)
   LAB_CONFIG_HASH_SUPERSET=$(config_hash config/superset)
   LAB_CONFIG_HASH_CONSOLE=$(config_hash config/console)
+  # Phase 5: the test-only mock model (tests/ai/mock_llm, bind-mounted into ai-mock).
+  LAB_CONFIG_HASH_AI_MOCK=$(config_hash tests/ai/mock_llm)
+  export LAB_CONFIG_HASH_AI_MOCK
   export LAB_CONFIG_HASH_CADDY LAB_CONFIG_HASH_TRINO LAB_CONFIG_HASH_SEAWEEDFS \
     LAB_CONFIG_HASH_JUPYTERHUB LAB_CONFIG_HASH_SPARK LAB_CONFIG_HASH_AIRFLOW \
     LAB_CONFIG_HASH_SUPERSET LAB_CONFIG_HASH_CONSOLE
@@ -212,10 +219,14 @@ ca_dir() { printf '%s/ca\n' "$(state_dir_abs)"; }
 # COMPOSE_PROJECT_NAME comes from .env (exported by lab_settings as well, so a stale
 # shell variable can never point compose at another project).
 # LAB_DRY_RUN=1 prints the command instead of running it (tests).
+# LAB_AI_MOCK=true in .env (test installs, install.sh --ai-mock) also enables profile
+# `ai-mock`: the deterministic mock model the gateway then routes to (tests/ai/mock_llm).
 lab_compose() {
+  local -a profiles=(--profile "$LAB_PROFILE")
+  [ "${LAB_AI_MOCK:-false}" != true ] || profiles+=(--profile ai-mock)
   local -a cmd=(docker compose --project-directory "$V3_DIR"
     --env-file "$LAB_VERSIONS_FILE" --env-file "$LAB_ENV_FILE"
-    --profile "$LAB_PROFILE" "$@")
+    "${profiles[@]}" "$@")
   if [ "${LAB_DRY_RUN:-0}" = 1 ]; then
     printf '%s\n' "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME} ${cmd[*]}"
     return 0

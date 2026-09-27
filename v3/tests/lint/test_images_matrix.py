@@ -115,6 +115,9 @@ class Matrix(unittest.TestCase):
         data = {"services": {
             "superset": {"build": {"context": str(real_v3 / "images" / "superset"),
                                    "additional_contexts": {"config": "../../config/superset"}}},
+            # Phase 5 (profile full): the gateway image COPYs its start/render/hooks from config/ai.
+            "ai-gateway": {"build": {"context": str(real_v3 / "images" / "ai-gateway"),
+                                     "additional_contexts": {"config": "../../config/ai"}}},
             "workspace-image": {"build": {"context": str(real_v3 / "images" / "workspace"),
                                           "additional_contexts": {"starter": "../../starter",
                                                                   "tracks": "../../tracks"}}}}}

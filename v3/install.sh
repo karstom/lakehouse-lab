@@ -21,6 +21,8 @@ V3_DIR=$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 . "$V3_DIR/installer/ca.sh"
 # shellcheck source=installer/trust.sh
 . "$V3_DIR/installer/trust.sh"
+# shellcheck source=installer/ai.sh
+. "$V3_DIR/installer/ai.sh"
 
 usage() {
   cat <<EOF
@@ -44,6 +46,14 @@ Usage: ./install.sh [options]
                           (printed at the end). A first GitHub login gets NO group: an admin
                           adds it to a group in Keycloak before it can reach anything.
   --no-github             turn GitHub login off again (removes both from .secrets.env)
+  --ai-local-url URL      AI assist (profile full): a local OpenAI-compatible model server,
+                          e.g. llama.cpp llama-server, Ollama or vLLM (http://<host>:<port>/v1).
+                          Only /health and /v1/models are called to check it. 'none' turns it
+                          off. Asked interactively on profile full; default: none. Hosted
+                          providers are off unless an admin runs './lab ai enable-hosted'.
+  --ai-local-model NAME   the model id that server expects (default: the first it lists)
+  --ai-mock               test installs: route AI to the deterministic mock model
+                          (tests/ai/mock_llm); --no-ai-mock turns it off
   --reconfigure           allow changing the domain or project name of an existing install
   --no-start              write configuration only; do not start the stack
   -h, --help              this help
@@ -57,6 +67,7 @@ RECONFIGURE=0
 NO_START=0
 OPT_DOMAIN="" OPT_HTTPS="" OPT_HTTP="" OPT_PROJECT="" OPT_PROFILE="" OPT_SEED=""
 OPT_GH_ID="" OPT_GH_SECRET="" OPT_NO_GH=0
+OPT_AI_URL="" OPT_AI_MODEL="" OPT_AI_MOCK=""
 need_arg() { [ $# -ge 2 ] && [ -n "$2" ] || die "$1 needs a value"; }
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -80,6 +91,12 @@ while [ $# -gt 0 ]; do
     --github-client-secret) need_arg "$@"; OPT_GH_SECRET=$2; shift ;;
     --github-client-secret=*) OPT_GH_SECRET=${1#*=} ;;
     --no-github) OPT_NO_GH=1 ;;
+    --ai-local-url) need_arg "$@"; OPT_AI_URL=$2; shift ;;
+    --ai-local-url=*) OPT_AI_URL=${1#*=} ;;
+    --ai-local-model) need_arg "$@"; OPT_AI_MODEL=$2; shift ;;
+    --ai-local-model=*) OPT_AI_MODEL=${1#*=} ;;
+    --ai-mock) OPT_AI_MOCK=true ;;
+    --no-ai-mock) OPT_AI_MOCK=false ;;
     --reconfigure) RECONFIGURE=1 ;;
     --no-start) NO_START=1 ;;
     -h|--help) usage; exit 0 ;;
@@ -100,6 +117,15 @@ if [ -n "$OPT_GH_ID" ] && ! valid_github_client_id "$OPT_GH_ID"; then
 fi
 if [ -n "$OPT_GH_SECRET" ] && ! valid_github_client_secret "$OPT_GH_SECRET"; then
   die "--github-client-secret: expected a GitHub OAuth App client secret (letters, digits, '_' or '-'; 20-128 characters)"
+fi
+if [ -n "$OPT_AI_URL" ] && [ "$OPT_AI_URL" != none ] && ! ai_normalize_url "$OPT_AI_URL" >/dev/null; then
+  die "--ai-local-url: expected http(s)://host[:port][/path] (no credentials), or 'none'"
+fi
+if [ -n "$OPT_AI_MODEL" ] && ! valid_ai_model "$OPT_AI_MODEL"; then
+  die "--ai-local-model: invalid model name '$OPT_AI_MODEL'"
+fi
+if [ -n "$OPT_AI_MODEL" ] && [ -z "$OPT_AI_URL" ]; then
+  die "--ai-local-model needs --ai-local-url"
 fi
 if [ -n "$OPT_GH_ID$OPT_GH_SECRET" ]; then
   # Checked before anything is written: the result must be both keys or neither.
@@ -148,6 +174,7 @@ cur_profile=$(env_get "$LAB_ENV_FILE" LAB_PROFILE)
 cur_state=$(env_get "$LAB_ENV_FILE" LAB_STATE_DIR)
 cur_tz=$(env_get "$LAB_ENV_FILE" LAB_TZ)
 cur_seed=$(env_get "$LAB_ENV_FILE" LAB_SEED_TEST_USERS)
+cur_ai_mock=$(env_get "$LAB_ENV_FILE" LAB_AI_MOCK)
 
 # Project name
 project=$(pick "$OPT_PROJECT" "$cur_project" "$LAB_DEFAULT_PROJECT")
@@ -219,6 +246,7 @@ env_set "$LAB_ENV_FILE" LAB_PROFILE "$profile"
 env_set "$LAB_ENV_FILE" LAB_STATE_DIR "$state_dir"
 env_set "$LAB_ENV_FILE" LAB_TZ "$tz"
 env_set "$LAB_ENV_FILE" LAB_SEED_TEST_USERS "$seed"
+[ -z "$OPT_AI_MOCK" ] || env_set "$LAB_ENV_FILE" LAB_AI_MOCK "$OPT_AI_MOCK"
 if [ "$existing_env" = 1 ]; then ok "Updated $LAB_ENV_FILE (kept your other settings)"; else ok "Wrote $LAB_ENV_FILE"; fi
 lab_settings
 info "  project=$COMPOSE_PROJECT_NAME domain=$LAB_DOMAIN https=$LAB_HTTPS_PORT http=$LAB_HTTP_PORT profile=$LAB_PROFILE test-users=$seed"
@@ -226,6 +254,22 @@ info "  project=$COMPOSE_PROJECT_NAME domain=$LAB_DOMAIN https=$LAB_HTTPS_PORT h
 hdr "Secrets"
 ensure_secrets "$LAB_SECRETS_FILE"
 apply_github_login "$LAB_SECRETS_FILE" "$OPT_GH_ID" "$OPT_GH_SECRET" "$OPT_NO_GH"
+
+# AI assist (Phase 5, profile full). Off unless chosen: the local model server is asked once
+# (an empty answer is stored, so a re-run does not ask again); hosted providers only through
+# './lab ai enable-hosted' by an admin.
+if [ -n "$OPT_AI_URL" ]; then
+  hdr "AI assist"
+  ai_set_local "$OPT_AI_URL" "$OPT_AI_MODEL"
+elif [ "$NON_INTERACTIVE" != 1 ] && profile_includes "$LAB_PROFILE" ai &&
+     ! grep -q '^LAB_AI_LOCAL_URL=' "$LAB_ENV_FILE"; then
+  hdr "AI assist"
+  info "The lab's AI assistant can use a local OpenAI-compatible model server (llama.cpp"
+  info "llama-server, Ollama, vLLM). Hosted providers stay off unless you enable one later with"
+  info "'./lab ai enable-hosted'. Leave empty for none (AI features then say they are not configured)."
+  read -r -p "Local model server URL, e.g. http://<host>:8080/v1 [none]: " ai_url || ai_url=""
+  ai_set_local "${ai_url:-none}"
+fi
 
 hdr "Lab certificate authority"
 mkdir -p "$(state_dir_abs)"
@@ -257,6 +301,12 @@ if [ -n "$cur_profile" ] && [ "$cur_profile" != "$LAB_PROFILE" ]; then
   lab_compose down --remove-orphans || die "could not stop the lab."
 fi
 
+if [ "$cur_ai_mock" = true ] && [ "${LAB_AI_MOCK:-false}" != true ]; then
+  # --no-ai-mock: the mock's profile is no longer passed, so compose would leave it running.
+  info "Removing the AI mock model (--no-ai-mock)"
+  LAB_AI_MOCK=true lab_compose rm -sf ai-mock >/dev/null 2>&1 || warn "could not remove the ai-mock container"
+fi
+
 hdr "Starting the lab (profile $LAB_PROFILE); first start builds/pulls images and can take several minutes"
 t0=$(date +%s)
 # --build: local images (bootstrap, smoke) are rebuilt from the checked-out code on every
@@ -283,8 +333,12 @@ else
 fi
 [ "${LAB_SEED_TEST_USERS:-false}" != true ] || info "Test users alice/eddie/anna/victor: password LAB_TEST_USER_PASSWORD in $LAB_SECRETS_FILE"
 print_github_login "$LAB_SECRETS_FILE"
+if profile_includes "$LAB_PROFILE" ai; then
+  ai_on=$(ai_enabled_providers)
+  info "AI assist: ${ai_on:-not configured (no provider; the lab makes no outbound AI calls)}. See '$V3_DIR/lab ai status'."
+fi
 info ""
 hdr "Trust the lab CA"
 print_trust_instructions "$(ca_dir)/root.crt"
 info ""
-info "Manage the lab with $V3_DIR/lab (up | down | status | urls | logs | reset | test | ca)."
+info "Manage the lab with $V3_DIR/lab (up | down | status | urls | logs | reset | test | ca | ai)."

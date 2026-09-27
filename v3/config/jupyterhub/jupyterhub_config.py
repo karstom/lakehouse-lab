@@ -10,6 +10,9 @@
   Every workspace container and home volume carries the compose project label plus
   `lab.role=workspace` and the `${COMPOSE_PROJECT_NAME}-ws-` / `-home-` name prefixes, joins
   only the `lab` network, and has WORKSPACE_MEM / WORKSPACE_CPUS limits.
+* AI assist (Phase 5): every start mints the user's own AI-gateway key through the key broker
+  and injects it as LAB_AI_* environment (`mint_ai_key`; environment only, so docker-guard's
+  container-create allowlist is unchanged).
 
 Public URLs are never rebuilt from LAB_DOMAIN/LAB_HTTPS_PORT here: the port suffix is taken
 from LAB_AUTH_URL, the single derived origin (installer/lib.sh, INV_V3_PUBLIC_ORIGIN_SINGLE_SOURCE).
@@ -18,6 +21,7 @@ import base64
 import inspect
 import json
 import os
+import socket
 import time
 import urllib.parse
 
@@ -218,6 +222,80 @@ def ensure_user_dag_folder(root, name, uid=WORKSPACE_UID, gid=WORKSPACE_GID):
     return path
 
 
+# AI assist (CONTRACT Phase 5, ADR-014). At every spawn the hub gives the user's workspace a
+# NEW key on the AI gateway (LiteLLM, compose/ai.yaml; profile full). The hub never holds the
+# gateway's master key: it asks the key broker `ai-keys` (bootstrap/ai_gateway.py) with its own
+# credential AI_GATEWAY_HUB_TOKEN, and the broker can only mint (= rotate: the user's previous
+# lab keys are deleted), revoke and report. The budget belongs to the gateway USER, so a new
+# key per spawn never resets it; the key is revoked again when the server stops. Users never
+# see a provider key. Anything that goes wrong only sets LAB_AI_STATUS (the workspace then
+# says "AI isn't configured"); a spawn never fails because of AI, and the key is never logged.
+AI_KEYS_URL = os.environ.get("LAB_AI_KEYS_URL", "").strip().rstrip("/")
+AI_HUB_TOKEN = os.environ.get("AI_GATEWAY_HUB_TOKEN", "").strip()
+AI_TIMEOUT = float(os.environ.get("LAB_AI_HUB_TIMEOUT", "20"))
+
+
+async def mint_ai_key(call, username):
+    """The workspace's AI environment. `call(method, path, body)` is an async HTTP call to the
+    key broker returning (status, json); it raises socket.gaierror when the broker's name does
+    not resolve (a profile without the gateway) and OSError when it is unreachable.
+    -> LAB_AI_* (and OpenAI-compatible) variables for the workspace."""
+    def status(st, reason):
+        return {"LAB_AI_STATUS": st, "LAB_AI_STATUS_REASON": reason}
+
+    try:
+        code, data = await call("POST", "/v1/keys/mint", {"user": username})
+    except socket.gaierror:     # the broker's name does not resolve: no gateway in this lab
+        return status("not-configured", "this lab has no AI gateway")
+    except (OSError, ValueError) as e:
+        return status("unavailable", f"AI key broker unreachable ({type(e).__name__})")
+    key = data.get("key") if isinstance(data, dict) else None
+    if code != 200 or not key or not data.get("base_url") or not data.get("model"):
+        return status("unavailable", f"AI key broker refused (HTTP {code})")
+    env = status("ok", "") if data.get("configured") else \
+        status("not-configured", data.get("message") or "no AI provider is enabled in this lab")
+    base = data.get("openai_base_url") or data["base_url"].rstrip("/") + "/v1"
+    env.update({
+        "LAB_AI_GATEWAY_URL": data["base_url"].rstrip("/"), "LAB_AI_MODEL": data["model"],
+        "LAB_AI_KEY": key,
+        # Generic OpenAI-compatible clients (litellm, the openai SDK, Jupyternaut) default to
+        # the gateway with the user's key, never to a provider on the internet.
+        "OPENAI_API_KEY": key, "OPENAI_BASE_URL": base, "OPENAI_API_BASE": base})
+    if data.get("max_budget") is not None:
+        env["LAB_AI_BUDGET_USD"] = str(data["max_budget"])
+    if data.get("budget_duration"):
+        env["LAB_AI_BUDGET_DURATION"] = str(data["budget_duration"])
+    return env
+
+
+def _ai_keys_call(timeout=None):
+    """call(method, path, body) -> (status, json) against the key broker, with the hub's
+    token. Raises socket.gaierror / OSError when the broker cannot be reached."""
+    from tornado.httpclient import AsyncHTTPClient, HTTPClientError
+
+    async def call(method, path, body):
+        req = {"method": method, "request_timeout": timeout or AI_TIMEOUT,
+               "connect_timeout": timeout or AI_TIMEOUT,
+               "headers": {"Authorization": f"Bearer {AI_HUB_TOKEN}",
+                           "Content-Type": "application/json"},
+               "body": json.dumps(body)}
+        try:
+            r = await AsyncHTTPClient().fetch(AI_KEYS_URL + path, raise_error=False, **req)
+        except HTTPClientError as e:        # tornado's own timeout (599)
+            raise OSError(str(e)) from None
+        if r.code == 599:
+            if isinstance(r.error, socket.gaierror):
+                raise r.error
+            raise OSError(str(r.error))
+        try:
+            data = json.loads(r.body or b"null")
+        except ValueError:
+            data = None
+        return r.code, data
+
+    return call
+
+
 class LabSpawner(DockerSpawner):
     """DockerSpawner that
     * addresses its container by NAME, never by id, so docker-guard can confine every
@@ -248,7 +326,39 @@ class LabSpawner(DockerSpawner):
             await self.docker("create_volume", name, labels=dict(LABELS))
             self.log.info("created home volume %s", name)
         self.volumes = await self._workspace_volumes()
+        self._ai_env = await self._ai_environment()
         return await super().start()
+
+    async def _ai_environment(self):
+        """LAB_AI_* for this start (a new key every start; mint_ai_key)."""
+        if not (AI_KEYS_URL and AI_HUB_TOKEN):
+            return {"LAB_AI_STATUS": "not-configured",
+                    "LAB_AI_STATUS_REASON": "this lab has no AI gateway"}
+        env = await mint_ai_key(_ai_keys_call(), self.user.name)
+        if env.get("LAB_AI_KEY") and os.environ.get("LAB_AI_CONTEXT_TOKENS"):
+            env["LAB_AI_CONTEXT_TOKENS"] = os.environ["LAB_AI_CONTEXT_TOKENS"]
+        self.log.info("AI for %s: %s %s", self.user.name, env.get("LAB_AI_STATUS"),
+                      env.get("LAB_AI_STATUS_REASON", ""))
+        return env
+
+    def get_env(self):
+        env = super().get_env()
+        env.update(getattr(self, "_ai_env", None) or {})
+        return env
+
+    async def stop(self, now=False):
+        try:
+            return await super().stop(now=now)
+        finally:
+            self._ai_env = None
+            if AI_KEYS_URL and AI_HUB_TOKEN:
+                try:        # the stopped workspace's key must not stay valid
+                    code, _ = await _ai_keys_call()("POST", "/v1/keys/revoke",
+                                                    {"user": self.user.name})
+                    if code != 200:
+                        self.log.warning("AI key of %s not revoked: HTTP %s", self.user.name, code)
+                except OSError as e:     # includes gaierror: no gateway in this profile
+                    self.log.info("AI key of %s not revoked: %s", self.user.name, e)
 
     async def _workspace_volumes(self):
         """The volumes of this start (and self.mounts: the user's DAG folder, or none).

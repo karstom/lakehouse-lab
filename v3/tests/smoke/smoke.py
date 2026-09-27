@@ -1,7 +1,8 @@
 """Lakehouse Lab V3 smoke test, in-container part (CONTRACT.md "Test contract", checks 2-5
 and 7; Phase 2 checks 8-10, the workspace, driven by workspace.py + kernel_probe.py; Phase 3
 checks 12-16, Airflow, Superset, Console, Spark UI and the external IdP, in phase3.py; Phase 4
-check 17, the learning tracks' solutions, checkpoints and resets, in tracks.py).
+check 17, the learning tracks' solutions, checkpoints and resets, in tracks.py; Phase 5
+check 18, the AI assist agent loop through the gateway and the MCP servers, in ai_check.py).
 
 Runs on the `lab` network and talks to the public URLs https://<svc>.<LAB_DOMAIN>:<port>
 through Caddy, trusting only the lab CA. Checks 1 and 6 need the Docker host and live in
@@ -421,6 +422,10 @@ def main():
     if want(17):
         import tracks
         guarded(tracks.C17, lambda: tracks.check_tracks(sys.modules[__name__]))
+    # Phase 5 (18): AI assist, a scripted agent loop through the gateway (mock model) and the
+    # MCP servers, as alice and as victor (ai_check.py; profile full).
+    import ai_check
+    ai_check.run(sys.modules[__name__], want)
     failed = [k for k, v in RESULTS.items() if v["pass"] is False]
     skipped = [k for k, v in RESULTS.items() if v.get("skipped")]
     passed = [k for k, v in RESULTS.items() if v["pass"] is True]

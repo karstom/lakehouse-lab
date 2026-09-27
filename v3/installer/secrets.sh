@@ -5,6 +5,11 @@
 #   URL unescaped (INV_DB_PASSWORDS_URL_SAFE). The STS signing key (base64) and Airflow's
 #   Fernet key (URL-safe base64) are base64 by format and are never used in a URL.
 # - CONSOLE_COOKIE_SECRET must be exactly 32 characters (oauth2-proxy uses it as an AES key).
+# - AI gateway (Phase 5): AI_GATEWAY_MASTER_KEY (LiteLLM admin, "sk-" + hex; only the gateway
+#   and the ai-keys broker get it), AI_GATEWAY_SALT_KEY (LiteLLM's credential encryption key;
+#   never rotate it), AI_GATEWAY_DB_PASSWORD, AI_GATEWAY_HUB_TOKEN (JupyterHub's credential
+#   for the ai-keys broker). Hosted-provider API keys are user-supplied and never generated
+#   (installer/ai.sh, `lab ai enable-hosted`).
 # - Existing values are never changed: re-running only fills in missing keys, because
 #   databases and Keycloak keep the password they were first initialised with.
 
@@ -70,6 +75,10 @@ OIDC_CLIENT_SECRET_SUPERSET alnum32
 SUPERSET_SECRET_KEY alnum40
 SUPERSET_DB_PASSWORD hex24
 CONSOLE_COOKIE_SECRET alnum32
+AI_GATEWAY_MASTER_KEY sk_hex32
+AI_GATEWAY_SALT_KEY hex32
+AI_GATEWAY_DB_PASSWORD hex24
+AI_GATEWAY_HUB_TOKEN hex32
 EOF
 }
 
@@ -85,6 +94,8 @@ gen_value() {
     b64_32)    rand_b64 32 ;;
     # Airflow's Fernet key: 32 random bytes as URL-safe base64 (the Fernet key format).
     fernet)    rand_b64 32 | tr '+/' '-_' ;;
+    # LiteLLM master key (ai-gateway, Phase 5): LiteLLM requires the "sk-" prefix.
+    sk_hex32)  printf 'sk-%s\n' "$(rand_hex 32)" ;;
     accesskey) printf 'LAB%s\n' "$(rand_alnum 17 | tr '[:lower:]' '[:upper:]')" ;;
     # Usernames, not secrets. Overridable with --admin-user (LAB_ADMIN_USER).
     kcadmin)   printf '%s\n' "kcadmin" ;;

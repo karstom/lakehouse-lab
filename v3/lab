@@ -14,6 +14,8 @@ V3_DIR=$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 . "$V3_DIR/installer/ca.sh"
 # shellcheck source=installer/trust.sh
 . "$V3_DIR/installer/trust.sh"
+# shellcheck source=installer/ai.sh
+. "$V3_DIR/installer/ai.sh"
 
 usage() {
   cat <<'EOF'
@@ -35,6 +37,16 @@ Usage: ./lab <command> [args]
                       run the end-to-end smoke test (tests/smoke/run.sh); --long adds the
                       slow ADR-017 check (a >= 5 min Spark batch past its token lifetime)
   ca                  print the lab CA's path and how to trust it
+  ai status           AI assist: enabled providers, per-user budget, and (when the gateway
+                      runs, profile full) the models it serves
+  ai set-local URL|none [--model NAME] [--no-probe]
+                      use a local OpenAI-compatible model server (llama.cpp llama-server,
+                      Ollama, vLLM); checked with GET /health and /v1/models only
+  ai enable-hosted --provider anthropic|openai --key-file FILE [--model NAME] [--yes]
+                      admin: turn on a hosted provider with its API key (stored in
+                      .secrets.env, given only to the ai-gateway). Lab data is then sent to it.
+  ai disable-hosted --provider anthropic|openai|all
+                      remove a hosted provider's key
 EOF
 }
 
@@ -203,6 +215,94 @@ cmd_ca() {
   print_trust_instructions "$crt"
 }
 
+# ai_apply -> recreate the gateway with the new settings when it is running (profile full).
+ai_apply() {
+  if ! profile_includes "$LAB_PROFILE" ai; then
+    info "Saved. The AI gateway runs on profile full (this lab: $LAB_PROFILE)."
+    return 0
+  fi
+  if [ -z "$(lab_compose ps -q ai-gateway 2>/dev/null)" ]; then
+    info "Saved. It applies at the next '$V3_DIR/lab up'."
+    return 0
+  fi
+  info "Applying: recreating the AI gateway"
+  lab_compose up -d --wait ai-gateway ai-keys || die "the AI gateway did not become healthy; see '$V3_DIR/lab logs ai-gateway'."
+  ok "AI gateway updated"
+}
+
+cmd_ai() {
+  local sub=${1:-status} a url="" model="" probe=1 provider="" keyfile="" yes=0
+  [ $# -eq 0 ] || shift
+  require_install
+  case "$sub" in
+    status)
+      [ $# -eq 0 ] || die "usage: lab ai status"
+      info "AI assist (project $COMPOSE_PROJECT_NAME, profile $LAB_PROFILE)"
+      ai_print_config
+      if profile_includes "$LAB_PROFILE" ai && [ -n "$(lab_compose ps -q --status running ai-keys 2>/dev/null)" ]; then
+        info "Gateway (live):"
+        # Metadata only (the gateway's model list); never a model call.
+        lab_compose exec -T ai-keys python3 -m bootstrap.ai_gateway status | sed 's/^/  /' ||
+          warn "could not query the ai-keys service"
+      elif profile_includes "$LAB_PROFILE" ai; then
+        info "Gateway: not running (start the lab with '$V3_DIR/lab up')."
+      fi ;;
+    set-local)
+      [ $# -ge 1 ] || die "usage: lab ai set-local URL|none [--model NAME] [--no-probe]"
+      url=$1; shift
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --model) [ $# -ge 2 ] || die "--model needs a value"; model=$2; shift ;;
+          --model=*) model=${1#*=} ;;
+          --no-probe) probe=0 ;;
+          *) die "usage: lab ai set-local URL|none [--model NAME] [--no-probe]" ;;
+        esac
+        shift
+      done
+      ai_set_local "$url" "$model" "$probe"
+      ai_apply ;;
+    enable-hosted)
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --provider) [ $# -ge 2 ] || die "--provider needs a value"; provider=$2; shift ;;
+          --provider=*) provider=${1#*=} ;;
+          --key-file) [ $# -ge 2 ] || die "--key-file needs a value"; keyfile=$2; shift ;;
+          --key-file=*) keyfile=${1#*=} ;;
+          --model) [ $# -ge 2 ] || die "--model needs a value"; model=$2; shift ;;
+          --model=*) model=${1#*=} ;;
+          --yes|-y) yes=1 ;;
+          *) die "usage: lab ai enable-hosted --provider anthropic|openai --key-file FILE [--model NAME] [--yes]" ;;
+        esac
+        shift
+      done
+      [ -n "$provider" ] && [ -n "$keyfile" ] || die "usage: lab ai enable-hosted --provider anthropic|openai --key-file FILE [--model NAME] [--yes]"
+      ai_key_var "$provider" >/dev/null || die "unknown provider '$provider' (use: $LAB_AI_PROVIDERS_HOSTED)"
+      require_stack_files
+      info "Enabling $provider sends what users ask the AI assistant (and the lab data its tools"
+      info "return: table names, query results, lessons) to $provider, billed to this key."
+      if [ "$yes" != 1 ]; then
+        confirm "Enable hosted provider $provider for every user of this lab?" || die "not confirmed; nothing changed (non-interactive: pass --yes)."
+      fi
+      ai_enable_hosted "$provider" "$keyfile" "$model"
+      ai_apply ;;
+    disable-hosted)
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --provider) [ $# -ge 2 ] || die "--provider needs a value"; provider=$2; shift ;;
+          --provider=*) provider=${1#*=} ;;
+          *) die "usage: lab ai disable-hosted --provider anthropic|openai|all" ;;
+        esac
+        shift
+      done
+      [ -n "$provider" ] || die "usage: lab ai disable-hosted --provider anthropic|openai|all"
+      require_stack_files
+      ai_disable_hosted "$provider"
+      ai_apply ;;
+    -h|--help|help) usage ;;
+    *) die "unknown 'lab ai' command: $sub (status | set-local | enable-hosted | disable-hosted)" ;;
+  esac
+}
+
 [ $# -gt 0 ] || { usage; exit 1; }
 sub=$1; shift
 case "$sub" in
@@ -215,6 +315,7 @@ case "$sub" in
   sync) cmd_sync "$@" ;;
   test) cmd_test "$@" ;;
   ca) cmd_ca "$@" ;;
+  ai) cmd_ai "$@" ;;
   -h|--help|help) usage ;;
   *) usage >&2; die "unknown command: $sub" ;;
 esac

@@ -1,0 +1,6 @@
+# Top-level packages of the ai-gateway image, for relock.sh ONLY: the image installs the
+# GENERATED lock/requirements.txt with --no-deps, so nothing is resolved at build time.
+# `litellm[proxy]` names the proxy's dependencies with LiteLLM's own version ranges; relock.sh
+# drops `litellm-enterprise` (proprietary) from the resolved set. Pins: versions.env only.
+litellm[proxy]==${LITELLM_VERSION}
+prisma==${PRISMA_PYTHON_VERSION}

@@ -9,8 +9,10 @@
 #
 # The core services carry no `profiles:` key, so every profile (core and later ones) includes
 # them. Profiled services: `smoke` (profile `test`); Spark and Airflow (profiles `engineer` and
-# `full`); Superset (profile `full`). `full` = engineer + Superset, so every engineer service
-# lists both profiles (compose has no profile inheritance).
+# `full`); Superset and the AI gateway (profile `full`; Phase 5); the mock model (profile
+# `ai-mock`, test installs only: install.sh --ai-mock, ./lab adds the profile). `full` =
+# engineer + Superset + AI, so every engineer service lists both profiles (compose has no
+# profile inheritance).
 #
 # Resources declared here, once (INV_VOLUME_NAMES_SINGLE_SOURCE): the networks and every
 # named volume. Compose prefixes them with COMPOSE_PROJECT_NAME. No `external: true`.
@@ -51,6 +53,9 @@ include:
     project_directory: .
     env_file: [.secrets.env]
   - path: compose/superset.yaml      # profile full: Superset (Phase 3)
+    project_directory: .
+    env_file: [.secrets.env]
+  - path: compose/ai.yaml           # profile full: AI gateway, key broker; profile ai-mock: mock model (Phase 5)
     project_directory: .
     env_file: [.secrets.env]
   - path: compose/test.yaml

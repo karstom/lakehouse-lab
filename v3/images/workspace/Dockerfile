@@ -22,12 +22,23 @@ ARG TRINO_PYTHON_VERSION
 ARG DBT_CORE_VERSION
 ARG DBT_TRINO_VERSION
 ARG CODE_SERVER_VERSION
+# Claude Code is NOT installed here (proprietary; the image is public). Only its pin is baked
+# in, for the user-initiated `lab-ai install-claude-code` (CONTRACT Phase 5).
+ARG CLAUDE_CODE_VERSION
+ARG CLAUDE_CODE_SHA256_LINUX_X64
+ARG CLAUDE_CODE_SHA256_LINUX_ARM64
+# MCP servers (Phase 5, mcp/): the official dbt-mcp, the MCP SDK and the SQL parser.
+ARG DBT_MCP_VERSION
+ARG MCP_SDK_VERSION
+ARG SQLGLOT_VERSION
 
 ENV NB_USER=jovyan NB_UID=1000 NB_GID=100 \
     PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 \
     DUCKDB_EXT_DIR=/opt/duckdb/extensions \
     SHELL=/bin/bash \
-    DBT_SEND_ANONYMOUS_USAGE_STATS=false DO_NOT_TRACK=1
+    DBT_SEND_ANONYMOUS_USAGE_STATS=false DO_NOT_TRACK=1 \
+    LITELLM_LOCAL_MODEL_COST_MAP=True LITELLM_TELEMETRY=False \
+    LANGCHAIN_TRACING_V2=false LANGSMITH_TRACING=false
 
 RUN --mount=type=bind,source=scripts/install-os.sh,target=/tmp/install-os.sh \
     bash /tmp/install-os.sh
@@ -53,6 +64,9 @@ RUN python /usr/local/lib/lakehouse/install-duckdb-extensions.py
 # PyIceberg reads /etc/lakehouse/pyiceberg/.pyiceberg.yaml.
 COPY lakehouse/ /opt/lakehouse/python/lakehouse/
 COPY bin/ /opt/lakehouse/bin/
+# Entry point `jupyter_ai.personas` -> lakehouse.ai_persona:LabAssistant (the package itself is
+# not pip-installed; importlib.metadata finds this dist-info on PYTHONPATH).
+COPY dist-info/ /opt/lakehouse/python/
 COPY etc/pyiceberg/ /etc/lakehouse/pyiceberg/
 # Login shells (JupyterLab terminals run `bash -l`): /etc/profile resets PATH, so this puts
 # /opt/lakehouse/bin first again (the ENV PATH below only reaches non-login processes).
@@ -65,13 +79,21 @@ COPY --from=starter . /opt/lakehouse/starter/
 # copies what is new into ~/tracks without overwriting the learner's edits (`lab-tracks sync`,
 # lakehouse/tracks.py); `lab-tracks reset` restores a module from here.
 COPY --from=tracks . /opt/lakehouse/tracks/
-RUN chmod 0755 /opt/lakehouse/bin/* /usr/local/bin/start-workspace.sh \
+RUN mkdir -p /opt/lakehouse/etc \
+ && python -c 'import json, os, sys; json.dump({"claude_code": {"version": os.environ["CLAUDE_CODE_VERSION"], "sha256": {"linux-x64": os.environ["CLAUDE_CODE_SHA256_LINUX_X64"], "linux-arm64": os.environ["CLAUDE_CODE_SHA256_LINUX_ARM64"]}}}, sys.stdout, indent=1)' >/opt/lakehouse/etc/ai.json \
+ && chmod 0755 /opt/lakehouse/bin/* /usr/local/bin/start-workspace.sh \
  && chmod 0644 /etc/profile.d/lakehouse.sh \
  && chmod -R a+rX,go-w /opt/lakehouse/tracks \
  && python -m compileall -q /opt/lakehouse/python
 
+# The lab's MCP servers (CONTRACT Phase 5; mcp/README.md): lab-trino, lab-context and dbt-mcp,
+# started by `lab-mcp` as the user. Their own venv (/opt/lakehouse/mcp/venv), so dbt-mcp's exact
+# pins never change the notebook environment. Versions: build args (versions.env).
+RUN --mount=type=bind,source=mcp,target=/tmp/mcp \
+    bash /tmp/mcp/install.sh
+
 ENV PYTHONPATH=/opt/lakehouse/python \
-    PATH=/opt/lakehouse/bin:$PATH \
+    PATH=/opt/lakehouse/bin:$PATH:/home/jovyan/.local/bin \
     PYICEBERG_HOME=/etc/lakehouse/pyiceberg
 
 USER ${NB_UID}

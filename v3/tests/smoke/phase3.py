@@ -63,7 +63,7 @@ def includes(profile, feature):
     """Same table as installer/lib.sh profile_includes."""
     return (feature, profile) in {("spark", "engineer"), ("spark", "full"),
                                   ("airflow", "engineer"), ("airflow", "full"),
-                                  ("superset", "full")}
+                                  ("superset", "full"), ("ai", "full")}
 
 
 def plan(profile, long_on):

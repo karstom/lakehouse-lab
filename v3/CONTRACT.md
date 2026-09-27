@@ -98,6 +98,9 @@ URL-safe (INV_DB_PASSWORDS_URL_SAFE).
 | `SUPERSET_DB_PASSWORD` | Superset metadata DB role `superset` (Phase 3; re-synced by the `superset-db` one-shot) |
 | `CONSOLE_COOKIE_SECRET` | oauth2-proxy session cookie key, exactly 32 chars (Phase 3) |
 | `OIDC_CLIENT_ID_GITHUB`, `OIDC_CLIENT_SECRET_GITHUB` | **optional**, user-supplied, never generated: GitHub OAuth App (installer `--github-client-id/--github-client-secret`, both or neither; `--no-github` removes them). Absent = GitHub login off, and bootstrap removes the IdP (ADR-016, Phase 3) |
+| `AI_GATEWAY_MASTER_KEY`, `AI_GATEWAY_SALT_KEY`, `AI_GATEWAY_DB_PASSWORD` | ai-gateway (LiteLLM admin key, credential encryption, DB role `ai_gateway`); the master key also goes to ai-keys (Phase 5) |
+| `AI_GATEWAY_HUB_TOKEN` | JupyterHub credential for the ai-keys broker (Phase 5) |
+| `LAB_AI_ANTHROPIC_API_KEY`, `LAB_AI_OPENAI_API_KEY`, `LAB_AI_LOCAL_API_KEY` | **optional**, user-supplied, never generated; `./lab ai enable-hosted` / `set-local` (Phase 5) |
 
 Test users (`alice` lab-admin, `eddie` engineer, `anna` analyst, `victor` viewer) are created
 **only** when `LAB_SEED_TEST_USERS=true` (CI and dev). Their password is
@@ -701,3 +704,29 @@ one real-model check after 07:00 America/New_York (11:00 UTC).
 
 The integrator owns `bootstrap/__main__.py`, `compose.yaml`, `versions.env` and this
 contract.
+
+## Conventions added at Phase 5 integration
+
+- **Profiles:** the AI gateway services (`ai-gateway-db`, `ai-gateway`, `ai-keys`) are `[full]`.
+  The deterministic mock model `ai-mock` has its own profile `ai-mock`, added by `./lab` (and
+  `lab_compose`) only when `.env` has `LAB_AI_MOCK=true` (`install.sh --ai-mock`; test installs
+  and CI only). `compose.yaml` includes `compose/ai.yaml` before `compose/test.yaml`.
+- **Providers are decided only by the lab's own files** (`.env`, `.secrets.env`): `lab_settings`
+  unsets a stray `LAB_AI_MOCK`, `LAB_AI_LOCAL_URL` or `LAB_AI_*_API_KEY` from the caller's
+  shell. `install.sh --non-interactive` never enables a provider; interactively, on `full`, it
+  asks once for a local URL (default none).
+- **Keys:** JupyterHub never holds the gateway master key. It mints a per-user key at every
+  spawn through `ai-keys` with `AI_GATEWAY_HUB_TOKEN`, injects it only as container
+  environment (`LAB_AI_*`, `OPENAI_*`), and revokes it at stop. docker-guard's allowlist is
+  unchanged (Env entries are `NAME=value`); smoke check 11 stays at 54 cases.
+- **Never call the gateway's `/health`** (it sends a request to every model). Liveness is
+  `/health/liveliness`. The gateway has no retries and no background health checks.
+- **MCP servers** live in their own venv (`/opt/lakehouse/mcp/venv`); pins `DBT_MCP_VERSION`,
+  `MCP_SDK_VERSION`, `SQLGLOT_VERSION`. The registry is `/opt/lakehouse/mcp/servers.json`
+  (`mcpServers` format). Airflow's plugin `config/airflow/plugins/lab_auth.py` (mounted into
+  `airflow-api` only) exchanges a `jupyterhub`-azp Keycloak token for an Airflow API token
+  that carries it; Keycloak UMA still decides every request.
+- **Claude Code** is only pinned (`CLAUDE_CODE_VERSION` + per-platform sha256 in
+  `versions.env`); the image carries the pin, never the binary.
+- **Tests use the mock model only.** Smoke check 18 (profile `full`) always requests model
+  `mock`; `tests/ai/gateway-e2e.sh` and `tests/smoke/ai-no-provider.sh` run in the nightly.

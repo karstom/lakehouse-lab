@@ -58,7 +58,7 @@ class Gating(unittest.TestCase):
             src = f.read()
         body = re.search(r"profile_includes\(\) \{(.*?)\n\}", src, re.S).group(1)
         pairs = set(re.findall(r"(\w+):(\w+)", body))
-        want = {(f, p) for f in ("spark", "airflow", "superset")
+        want = {(f, p) for f in ("spark", "airflow", "superset", "ai")
                 for p in ("core", "engineer", "full") if phase3.includes(p, f)}
         self.assertEqual(pairs, want)
 

@@ -7,7 +7,7 @@ ipykernel==${IPYKERNEL_VERSION}
 jupysql==${JUPYSQL_VERSION}
 jupyterlab-git==${JUPYTERLAB_GIT_VERSION}
 jupyter-server-proxy==${JUPYTER_SERVER_PROXY_VERSION}
-jupyter-ai==${JUPYTER_AI_VERSION}
+jupyter-ai[jupyternaut]==${JUPYTER_AI_VERSION}
 pyspark-client==${PYSPARK_VERSION}
 duckdb==${DUCKDB_VERSION}
 pyiceberg[pyarrow,duckdb]==${PYICEBERG_VERSION}

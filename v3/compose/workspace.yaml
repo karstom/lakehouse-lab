@@ -44,6 +44,14 @@ services:
         DBT_CORE_VERSION: ${DBT_CORE_VERSION}
         DBT_TRINO_VERSION: ${DBT_TRINO_VERSION}
         CODE_SERVER_VERSION: ${CODE_SERVER_VERSION}
+        # Phase 5: only the PIN of Claude Code (never the binary) for `lab-ai install-claude-code`.
+        CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION}
+        CLAUDE_CODE_SHA256_LINUX_X64: ${CLAUDE_CODE_SHA256_LINUX_X64}
+        CLAUDE_CODE_SHA256_LINUX_ARM64: ${CLAUDE_CODE_SHA256_LINUX_ARM64}
+        # MCP servers (Phase 5, images/workspace/mcp)
+        DBT_MCP_VERSION: ${DBT_MCP_VERSION}
+        MCP_SDK_VERSION: ${MCP_SDK_VERSION}
+        SQLGLOT_VERSION: ${SQLGLOT_VERSION}
     image: *workspace-image
     command: ["python", "-c", "import lakehouse"]
     network_mode: none
@@ -123,6 +131,13 @@ services:
       LAB_WORKSPACE_IMAGE: *workspace-image
       LAB_TOKEN_MIN_TTL: ${LAB_TOKEN_MIN_TTL:-2700}
       LAB_SPARK_REMOTE: ${LAB_SPARK_REMOTE:-sc://spark-connect:15002}
+      # AI assist (Phase 5): at every spawn the hub mints the user's own gateway key through
+      # the ai-keys broker (compose/ai.yaml, profile full) with this credential; the hub never
+      # holds the gateway's master key. On core/engineer the broker does not exist and
+      # workspaces get LAB_AI_STATUS=not-configured.
+      LAB_AI_KEYS_URL: ${LAB_AI_KEYS_URL:-http://ai-keys:8080}
+      AI_GATEWAY_HUB_TOKEN: ${AI_GATEWAY_HUB_TOKEN:-}
+      LAB_AI_CONTEXT_TOKENS: ${LAB_AI_CONTEXT_TOKENS:-}
       TZ: ${LAB_TZ:-UTC}
     volumes:
       - ./config/jupyterhub/jupyterhub_config.py:/etc/jupyterhub/jupyterhub_config.py:ro

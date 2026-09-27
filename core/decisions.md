@@ -612,3 +612,81 @@
 **LastVerified:** 2026-09-26
 **Commit:** 3e6f45c
 **LastUpdated:** 2026-09-27
+
+---
+
+## NODE: DEC_V3_AI_GATEWAY_LITELLM_OSS_BUILD
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3 Phase 5: ai-gateway = LiteLLM built from PyPI without litellm-enterprise; keys minted only via the ai-keys broker; providers off by default
+**Summary:** OQ-7: the model gateway is LiteLLM 1.102.1, but NOT the upstream image: it ships enterprise/ and the proprietary litellm-enterprise package (no redistribution, production needs a subscription), and our images are public. images/ai-gateway installs a GENERATED full lock (relock.sh drops litellm-enterprise, fails on any other proprietary license) with --no-deps; verify.py fails the build if a proprietary package/module is present; Prisma client/engines generated at build, PRISMA_OFFLINE_MODE at runtime; cost map/beta headers/presets local (no GitHub fetch). Only ai-gateway and ai-keys (bootstrap/ai_gateway.py) hold the master key; JupyterHub mints/rotates/revokes per-user keys through ai-keys with AI_GATEWAY_HUB_TOKEN. Users are role internal_user_viewer with a per-USER budget (rotation never resets spend). Providers exist only when enabled in .env/.secrets.env (render_config.py); none -> empty model list + 'AI isn't configured; ask your lab admin.' (503) from a CustomLogger pre-call hook. Never call the gateway's /health (it calls every model) — use /health/liveliness.
+**Tags:** v3, ai, gateway, litellm, license, budget, phase5
+**Edges:**
+- RELATES_TO → DEC_V3_AI_ASSIST_MCP_GATEWAY: implements the gateway half of ADR-014
+**Files:** `v3/images/ai-gateway/Dockerfile`, `v3/images/ai-gateway/relock.sh`, `v3/images/ai-gateway/verify.py`, `v3/config/ai/render_config.py`, `v3/config/ai/lab_hooks.py`, `v3/bootstrap/ai_gateway.py`, `v3/compose/ai.yaml`, `v3/installer/ai.sh`
+**Symbols:** `render`, `LabHooks`, `mint`, `Gateway`
+**Evidence:** python3 -m unittest discover -s v3/tests/ai -> OK; v3/tests/ai/gateway-e2e.sh on a --ai-mock full lab -> AI GATEWAY E2E: PASS
+**LastVerified:** 2026-09-27
+**Commit:** bb0cd2f
+**LastUpdated:** 2026-09-27
+**Author:** GATEWAY workstream
+
+---
+
+## NODE: DEC_V3_WORKSPACE_AI_PERSONA_KEY_PER_SPAWN
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3 Phase 5 workspace AI: Jupyternaut-based "Lab Assistant" persona, per-spawn gateway key via ai-keys broker, tutor mode from pristine tutor.md
+**Summary:** Jupyter AI v3 is installed with the [jupyternaut] extra (LiteLLM+LangChain+MCP) and a lab persona lakehouse.ai_persona:LabAssistant (entry point via a hand-written dist-info in /opt/lakehouse/python) is the default persona; it only ever calls the lab gateway (openai/<LAB_AI_MODEL>, api_base LAB_AI_GATEWAY_URL/v1, the user's LAB_AI_KEY) and answers "AI isn't configured; ask your lab admin." without a key. JupyterHub mints a NEW key at every spawn through the ai-keys broker (AI_GATEWAY_HUB_TOKEN; never the master key) and revokes it on stop; the key reaches the workspace only as container Env (LAB_AI_*, OPENAI_*), so docker-guard's create allowlist needed no change (Env is NAME=value only). Tutor mode (default on, `lab-ai tutor off` in ~/.lakehouse/ai.json) puts the module's PRISTINE /opt/lakehouse/tracks/.../tutor.md into the system prompt and restricts tools to read-only notebook tools + the lab's stdio MCP servers. Claude Code is never in the image: `lab-ai install-claude-code` downloads the pinned version, checks its sha256 pin (versions.env), installs into ~/.local with a wrapper pointing at the gateway.
+**Tags:** v3, phase5, ai, jupyter-ai, tutor, gateway, claude-code, mcp
+**Edges:**
+- RELATES_TO → DEC_V3_AI_ASSIST_MCP_GATEWAY: implements the workspace side
+- RELATES_TO → INV_V3_DOCKER_PROXY_PROJECT_SCOPE: AI key injected as Env only; guard unchanged
+- RELATES_TO → DEC_V3_WORKSPACE_TOKEN_VIA_HUB_AUTH_STATE: MCP stdio servers get JUPYTERHUB_* in memory so lab_token() works
+**Files:** `v3/config/jupyterhub/jupyterhub_config.py`, `v3/images/workspace/lakehouse/ai.py`, `v3/images/workspace/lakehouse/ai_persona.py`, `v3/images/workspace/lakehouse/ai_cli.py`, `v3/images/workspace/config/jupyter_server_config.py`, `v3/images/workspace/Dockerfile`, `v3/images/workspace/requirements.in`, `v3/tests/workspace/test_lab_ai.py`, `v3/tests/workspace/ai_chat_probe.py`
+**Symbols:** `mint_ai_key`, `LabSpawner.get_env`, `LabSpawner.stop`, `LabAssistant`, `current_module`, `system_prompt`, `cmd_install_claude_code`
+**Evidence:** v3-p5-wsai (full, mock gateway): wsai_test.sh 0 failures (chat round-trip, tutor.md verbatim in the mock's recorded system prompt, tutor off removes it, victor own key); stop->revoke, start->new key; unittest tests/workspace/test_lab_ai.py 39 OK
+**LastVerified:** 2026-09-27
+**Commit:** bb0cd2f
+**LastUpdated:** 2026-09-27
+**Author:** WORKSPACE-AI
+
+---
+
+## NODE: DEC_V3_MCP_SERVERS_AS_USER
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3 Phase 5: workspace MCP servers act as the user (lab_token per call), read-only; OQ-9 = own thin Trino wrapper
+**Summary:** The assistant's MCP servers run in the user's workspace over stdio (images/workspace/mcp, `lab-mcp`, registry /opt/lakehouse/mcp/servers.json) in their own venv (dbt-mcp pins mcp==1.26.0; the notebook env has mcp 1.30.0). Each tool call fetches a fresh token from lab_token(); outputs are scrubbed of token-shaped strings; Trino tool is SELECT/SHOW/DESCRIBE/EXPLAIN only (sqlglot AST), <=200 rows, <=30 s via Trino query_max_run_time. OQ-9: community Trino MCP servers rejected (tuannvm: service identity + impersonation; weijie-tan3/mcp-trino-python: no bearer passthrough; akko-mcp-trino: JWT fixed at process start, no refresh). dbt-mcp 2.4.0 runs with an allowlist (list, parse, get_lineage_dev, get_node_details_dev) and every dbt-Platform feature off; verified working with --network none. airflow_runs needs an Airflow plugin (lab_auth: POST /lab-auth/token exchanges a jupyterhub-azp Keycloak token for an Airflow API JWT carrying it) because the Keycloak auth manager mints API tokens only from passwords.
+**Tags:** v3, phase5, mcp, ai, trino, dbt, oq-9, identity
+**Edges:**
+- RELATES_TO → DEC_V3_AI_ASSIST_MCP_GATEWAY: implements the MCP half of ADR-014
+- RELATES_TO → DEC_V3_WORKSPACE_TOKEN_VIA_HUB_AUTH_STATE: every tool gets its token from lab_token()
+- RELATES_TO → DEC_V3_SUPERSET_API_BEARER_KEYCLOAK: superset_dashboard_datasets uses the same bearer path
+**Files:** `v3/images/workspace/mcp/lab_mcp/common.py`, `v3/images/workspace/mcp/lab_mcp/trino_client.py`, `v3/images/workspace/mcp/lab_mcp/sqlguard.py`, `v3/images/workspace/mcp/lab_mcp/context.py`, `v3/images/workspace/mcp/lab_mcp/dbt_launcher.py`, `v3/images/workspace/mcp/README.md`, `v3/tests/smoke/ai_check.py`, `v3/tests/smoke/ai_agent_probe.py`
+**Symbols:** `trino_client.run`, `sqlguard.check`, `common.scrub`, `context.airflow_runs`, `dbt_launcher.server_env`
+**Evidence:** v3-p5-mcp (full, --ai-mock): LAB_SMOKE_ONLY=18 ./lab test -> alice: 8 Iceberg tables from Superset + dbt lineage, load times == Trino $snapshots; victor: private draft dashboard refused, write refused, system.runtime.queries of alice = 0; no JWT/key in outputs; mock-only (ai-mock saw only model mock-model)
+**LastVerified:** 2026-09-27
+**Commit:** bb0cd2f
+**LastUpdated:** 2026-09-27
+**Author:** MCP+TESTS (Phase 5)
+
+---
+
+## NODE: DEC_V3_PHASE5_INTEGRATION_WIRING
+**Type:** Decision
+**Priority:** MEDIUM
+**Label:** V3 Phase 5 integration: ai profile wiring, mock-only tests, no bootstrap step for the gateway
+**Summary:** compose.yaml includes compose/ai.yaml (ai-gateway-db, ai-gateway, ai-keys in [full]; ai-mock in its own profile ai-mock, added by lab_compose only when .env has LAB_AI_MOCK=true). Pins (LiteLLM, Prisma, dbt-mcp, MCP SDK, sqlglot, Claude Code version+sha256) promoted to versions.env; .pins/ removed. bootstrap/__main__.py gets no AI step: the gateway DB is a postgres-image one-shot and the admin side is the long-lived ai-keys broker. Workspace image merges WORKSPACE-AI (Jupyter AI persona, Claude Code pin) with MCP+TESTS (separate MCP venv); Airflow lab_auth plugin mounted into airflow-api only. install.sh --non-interactive never enables a provider; tests configure only the mock.
+**Tags:** v3, phase5, ai, gateway, integration, compose, profiles
+**Edges:**
+- RELATES_TO → DEC_V3_AI_GATEWAY_LITELLM_OSS_BUILD: gateway image and broker wired here
+- RELATES_TO → DEC_V3_MCP_SERVERS_AS_USER: MCP venv and lab_auth plugin wired here
+- RELATES_TO → DEC_V3_WORKSPACE_AI_PERSONA_KEY_PER_SPAWN: hub env LAB_AI_KEYS_URL/AI_GATEWAY_HUB_TOKEN wired here
+- RELATES_TO → INV_V3_DOCKER_PROXY_PROJECT_SCOPE: key injected as Env only; guard allowlist unchanged, check 11 stays 54 cases
+- RELATES_TO → INV_V3_PUBLIC_ORIGIN_SINGLE_SOURCE: ai-no-provider.sh now sources lib.sh lab_settings for LAB_AUTH_URL
+**Files:** `v3/compose.yaml`, `v3/compose/ai.yaml`, `v3/compose/workspace.yaml`, `v3/compose/airflow.yaml`, `v3/versions.env`, `v3/images/workspace/Dockerfile`, `v3/config/airflow/plugins/lab_auth.py`, `v3/tests/smoke/ai-no-provider.sh`, `v3/tools/compose-check.sh`, `v3/tests/lint/test_images_matrix.py`, `.github/workflows/v3-ci.yml`, `.github/workflows/v3-nightly.yml`, `.github/workflows/v3-images.yml`
+**Evidence:** v3-p1 upgrade: ./install.sh --non-interactive rc 0, then ./lab ai status models [] and tests/smoke/ai-no-provider.sh PASS; compose-check core/engineer/full OK
+**LastVerified:** 2026-09-27
+**Commit:** bb0cd2f
+**LastUpdated:** 2026-09-27

@@ -3,6 +3,12 @@
 Idempotent: every step checks current state first, and a second run reports "unchanged"
 everywhere. Exits non-zero on the first failure, so `up --wait` fails loudly instead of
 starting Trino against a half-configured catalog.
+
+Phase 5 (AI assist) adds no step here on purpose: the gateway's database is created by the
+`ai-gateway-db` one-shot (the bootstrap image has no Postgres driver), and its admin side runs
+as the long-lived key broker `ai-keys` (`python3 -m bootstrap.ai_gateway serve`, same image),
+which reconciles every lab user's budget when it starts. Keycloak needs no new client: the MCP
+servers and the Airflow `lab_auth` plugin reuse the `jupyterhub` client's user tokens.
 """
 import os
 import sys

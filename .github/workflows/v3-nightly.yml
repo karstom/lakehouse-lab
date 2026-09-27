@@ -2,8 +2,12 @@
 # (v3-ci.yml: core, engineer) leaves out to keep PR runtime reasonable. One job:
 #   install --profile full -> smoke with LAB_SMOKE_LONG=1 (all checks, incl. the chain
 #   ingest -> dbt -> "Revenue by region" dashboard (12, 14), the ADR-017 long run (13) and
-#   every learning-track module's solution -> checkpoint -> reset (17, LAB_SMOKE_TRACKS=all))
-#   -> idempotent re-install -> lab reset leaves nothing behind.
+#   every learning-track module's solution -> checkpoint -> reset (17, LAB_SMOKE_TRACKS=all)
+#   and the AI assist agent loop through the gateway and the MCP servers (18))
+#   -> idempotent re-install -> AI with no provider enabled (18, no outbound call)
+#   -> lab reset leaves nothing behind.
+# AI: ONLY the deterministic mock model (install --ai-mock, tests/ai/mock_llm). No local or
+# hosted provider is ever configured in CI, so no test can reach a real model.
 # It also MEASURES memory (tests/smoke/mem-sample.sh: host used + this lab's containers,
 # every 10 s) and writes the peaks to the job summary, to answer "does full fit a 16 GB
 # runner?" with numbers. Dispatch it for another profile or without the long check to compare.
@@ -84,8 +88,11 @@ jobs:
       - name: Start memory sampling
         run: v3/tests/smoke/mem-sample.sh start "$RUNNER_TEMP/mem"
 
-      - name: Install (${{ env.LAB_PROFILE_UNDER_TEST }} profile, test users)
-        run: v3/install.sh --non-interactive --seed-test-users --domain lab.localhost --profile "$LAB_PROFILE_UNDER_TEST"
+      - name: Install (${{ env.LAB_PROFILE_UNDER_TEST }} profile, test users, mock AI model only)
+        run: |
+          ai=()
+          [ "$LAB_PROFILE_UNDER_TEST" = full ] && ai=(--ai-mock --ai-local-url none)
+          v3/install.sh --non-interactive --seed-test-users --domain lab.localhost --profile "$LAB_PROFILE_UNDER_TEST" "${ai[@]}"
 
       - name: Smoke test (LAB_SMOKE_LONG=${{ env.LAB_SMOKE_LONG }}, LAB_SMOKE_TRACKS=${{ env.LAB_SMOKE_TRACKS }})
         run: v3/lab test
@@ -96,8 +103,21 @@ jobs:
           LAB_PROFILE: ${{ env.LAB_PROFILE_UNDER_TEST }}
         run: v3/tests/smoke/mem-sample.sh stop "$RUNNER_TEMP/mem"
 
+      # AI gateway end to end (Phase 5), mock model only: broker mint/rotate/revoke, budgets,
+      # no-provider answer with a socket watch for egress, and the local-provider path pointed
+      # at the mock. Restores the gateway with the lab's own settings afterwards.
+      - name: AI gateway end to end (full only, mock model)
+        if: ${{ env.LAB_PROFILE_UNDER_TEST == 'full' }}
+        run: v3/tests/ai/gateway-e2e.sh
+
       - name: Re-install on the running stack (idempotent upgrade path)
         run: v3/install.sh --non-interactive && v3/lab status
+
+      # CONTRACT Phase 5 exit 3: with no provider enabled the gateway answers "AI isn't
+      # configured" and makes no outbound AI call. Turns the mock off (the only provider).
+      - name: AI with no provider enabled (full only)
+        if: ${{ env.LAB_PROFILE_UNDER_TEST == 'full' }}
+        run: v3/install.sh --non-interactive --no-ai-mock && v3/tests/smoke/ai-no-provider.sh
 
       - name: lab reset removes this project's containers and volumes, per-user homes included
         run: v3/tests/smoke/check-reset.sh

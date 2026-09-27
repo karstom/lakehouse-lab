@@ -136,6 +136,9 @@ services:
     volumes:
       - trust:/trust:ro
       - airflow-data:/opt/lab/data
+      # Plugin lab_auth (Phase 5): POST /lab-auth/token exchanges a workspace user's own
+      # Keycloak token for an Airflow API token that carries it (the MCP tool airflow_runs).
+      - ./config/airflow/plugins:/opt/airflow/plugins:ro
     networks: [lab]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/api/v2/monitor/health"]

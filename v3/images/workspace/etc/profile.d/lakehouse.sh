@@ -14,5 +14,8 @@ for _lab_d in $PATH; do
 done
 IFS=$_lab_ifs
 PATH="/opt/lakehouse/bin${_lab_rest:+:$_lab_rest}"
+# User-installed tools (`lab-ai install-claude-code` puts `claude` there) come LAST, so they
+# never shadow the lab's commands or the dbt shim.
+case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$PATH:$HOME/.local/bin" ;; esac
 export PATH
 unset _lab_rest _lab_ifs _lab_d
