@@ -82,6 +82,21 @@ minutes, and CI shows it green.
 **Exit:** a new user completes module 1 of each track with no out-of-band help (tested
 with at least two real beginners).
 
+> **Phase 4 status (2026-09-27): built and independently verified; waiting on the owner's
+> beginner sessions.**
+> - **Tracks:** all 8 modules (E1–E4, A1–A4) pass their checkpoints as the seeded users,
+>   inside their own workspaces, and reset correctly on the upgraded install and on a clean
+>   one. The verifier followed E1 and A1 literally as a beginner.
+> - **Also fixed on the way:**
+>   - the intermittent notebook failures: ipykernel 7 stalls on its first message, so the
+>     image pins 6.31.0, with 0 failures in 120 loop runs;
+>   - a Docker-proxy body-policy bypass: replaced with a parse-validate-reserialize guard,
+>     which refused 394 attack cases;
+>   - JupyterLab terminal PATH.
+> - **Exit criterion 3** (two real beginners finish module 1 without help) is owner-run:
+>   see `v3/tracks/FACILITATOR.md` and `FEEDBACK.md`.
+> - Details: [`v3/PHASE4_RESULTS.md`](../../v3/PHASE4_RESULTS.md).
+
 ## Phase 5: AI assist (ADR-014)
 
 - Model gateway; Jupyter AI v3 configured to use it; Claude Code available in workspaces

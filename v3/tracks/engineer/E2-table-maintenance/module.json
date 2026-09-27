@@ -1,0 +1,24 @@
+{
+  "id": "E2",
+  "track": "engineer",
+  "title": "Table maintenance: snapshots and compaction",
+  "minutes": 45,
+  "profile": "engineer",
+  "groups": ["engineer", "lab-admin"],
+  "requires": [],
+  "lesson": "README.md",
+  "tutor": "tutor.md",
+  "start": "notebook.ipynb",
+  "checkpoint": "checkpoint.py",
+  "reset": {
+    "tables": ["lakehouse.{ns}.readings", "lakehouse.{ns}.readings_first_batch"],
+    "drop_namespace_if_empty": true,
+    "dag_files": [],
+    "generated": []
+  },
+  "solution": {
+    "run": "solve.py",
+    "timeout_s": 900,
+    "trigger_dags": []
+  }
+}

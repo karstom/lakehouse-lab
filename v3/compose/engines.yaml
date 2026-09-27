@@ -21,7 +21,8 @@ services:
       - ./config/trino/jvm.config:/etc/trino/jvm.config:ro
       - ./config/trino/access-control.properties:/etc/trino/access-control.properties:ro
       - ./config/trino/group-provider.properties:/etc/trino/group-provider.properties:ro
-      - ./config/trino/rules.json:/etc/trino/rules.json:ro
+      # Access rules: GENERATED into trino-groups/rules.json by bootstrap/identity-sync from
+      # config/trino/rules.json + each analyst's own dbt_<user> schema (Phase 4).
       - ./config/trino/catalog:/etc/trino/catalog:ro
       - trust:/trust:ro
       - trino-groups:/var/lib/lab/trino-groups:ro

@@ -3,6 +3,8 @@
 1. Role `lab_data` (superset_config.LAB_DATA_ROLE): lets the Gamma-based roles open datasets
    and databases. What a person can actually read is still decided by Trino, which runs every
    query as that person (lab_trino.py).
+   Role `lab_author` (superset_config.LAB_AUTHOR_ROLE; analysts and engineers): may add
+   datasets, which Gamma may not (analyst track A4). Owners-only edits are Superset's own rule.
 2. The bundled dashboard "Revenue by region" (dashboards/: a Superset v1 export over
    lakehouse.analytics.{fct_orders,dim_customers,revenue_by_region}), imported with no user
    session, like Superset's own example loader (ignore_permissions):
@@ -42,6 +44,27 @@ def ensure_data_role(sm, name):
         if pv is None:
             sm.add_permission_view_menu(perm, perm)
             pv = sm.find_permission_view_menu(perm, perm)
+        if pv not in role.permissions:
+            sm.add_permission_role(role, pv)
+            changed = True
+    return changed
+
+
+AUTHOR_PERMISSIONS = (("can_write", "Dataset"),)
+
+
+def ensure_role_permissions(sm, name, perms):
+    """Role `name` with at least the (permission, view) pairs in `perms`. True if changed."""
+    changed = False
+    role = sm.find_role(name)
+    if role is None:
+        role = sm.add_role(name)
+        changed = True
+    for perm, view in perms:
+        pv = sm.find_permission_view_menu(perm, view)
+        if pv is None:
+            sm.add_permission_view_menu(perm, view)
+            pv = sm.find_permission_view_menu(perm, view)
         if pv not in role.permissions:
             sm.add_permission_role(role, pv)
             changed = True
@@ -117,11 +140,14 @@ def main():
         import lab_trino
         role = app.config["LAB_DATA_ROLE"]
         role_changed = ensure_data_role(security_manager, role)
+        author = app.config["LAB_AUTHOR_ROLE"]
+        author_changed = ensure_role_permissions(security_manager, author, AUTHOR_PERMISSIONS)
         host, port = lab_trino.trino_endpoint()
         uri = f"trino://{lab_trino.SERVICE_USER}@{host}:{port}/lakehouse"
         created = import_bundle(load_bundle(BUNDLE), uri)
         db.session.commit()
-    print(f"[lab_init] role {role}: {'updated' if role_changed else 'unchanged'}; bundle: "
+    print(f"[lab_init] role {role}: {'updated' if role_changed else 'unchanged'}; role "
+          f"{author}: {'updated' if author_changed else 'unchanged'}; bundle: "
           f"{'created ' + ', '.join(created) if created else 'unchanged'} "
           f"({time.time() - t0:.1f}s)", flush=True)
 

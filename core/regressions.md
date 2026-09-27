@@ -353,3 +353,100 @@
 **LastVerified:** 2026-09-26
 **Commit:** 3b5516e
 **LastUpdated:** 2026-09-26
+
+---
+
+## NODE: REG_V3_TRINO_CURRENT_USER_IN_AGGREGATE
+**Type:** Regression
+**Priority:** LOW
+**Label:** Trino 483 fails on current_user in a GROUP BY select list (E3 job)
+**Summary:** The E3 job's CREATE OR REPLACE TABLE ... SELECT ..., current_user AS written_by ... GROUP BY failed in Airflow with GENERIC_INTERNAL_ERROR "aggregation analysis not yet implemented for: io.trino.sql.tree.CurrentUser". Fixed by reading SELECT current_user first and binding it as a parameter. current_user in an outer non-aggregating SELECT over a grouped subquery (E4 notebook) works.
+**Tags:** v3, trino, sql, tracks, e3
+**REGRESSED_N_TIMES:** 1
+**Edges:** _(none)_
+**Files:** `v3/tracks/engineer/E3-your-first-dag/jobs/orders_summary.py`
+**Symbols:** `build`
+**Evidence:** task log dag_id=u_eddie_orders_summary scheduled__2026-09-26 build_summary: TrinoQueryError INTERNAL_ERROR; after fix manual run success, check E3 PASSED
+**LastVerified:** 2026-09-26
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-26
+**Author:** engineer-track
+
+---
+
+## NODE: REG_V3_WORKSPACE_KERNEL_FIRST_MESSAGE_STALL
+**Type:** Regression
+**Priority:** HIGH
+**Label:** V3 workspace kernel ignored its first execute (ipykernel 7.x shell-thread missed wakeup): smoke 'kernel timeout / HTTP 403'
+**Summary:** Intermittent workspace-kernel failures (Phase 3 alice 'HTTP 403 / no result' on checks 8/10; Phase 4 loop kernel_timeout) were one bug: ipykernel 7.x (7.3.0) sometimes leaves a shell message that arrives right after kernel start unread on its shell socket; the kernel stays idle and processes it only when a NEW zmq peer sends a shell message (not a control message, not a second message from the same peer). A learner sees a first cell that never runs. The 'HTTP 403' was secondary: workspace.py's stack-dump fetch sent no X-XSRFToken, which JupyterHub >= 4.1 requires on non-navigation GETs. Fix: workspace image holds ipykernel at 6.31.0 (IPYKERNEL_VERSION, v3/.pins/tooling.env, requirements.in, relocked); harness read_file sends the XSRF header. Not an external cause, so no retries.
+**Tags:** v3, workspace, jupyter, ipykernel, flaky, kernel, xsrf, smoke
+**REGRESSED_N_TIMES:** 1
+**Edges:**
+- RELATED_TO → WATCH_V3_SPARK_CONNECT_INTERMITTENT_HANG: same signature is the likely explanation of that 'hang after refusal' (the refusal was logged when the stalled request ran at teardown)
+- RELATED_TO → DEC_V3_WORKSPACE_JUPYTERHUB_CODESERVER_DBT: workspace image dependency pin
+**Files:** `v3/images/workspace/requirements.in`, `v3/images/workspace/Dockerfile`, `v3/images/workspace/lock/constraints.txt`, `v3/versions.env`, `v3/compose/workspace.yaml`, `v3/tests/smoke/workspace.py`, `v3/tests/smoke/kernel_probe.py`, `v3/tests/smoke/kernel_loop.py`, `v3/tests/smoke/kernel-loop.sh`, `v3/tools/kernel_ws_race.py`
+**Symbols:** `KERNEL_EXEC_JS`, `Workspace.read_file`, `Workspace.run_probe`, `probe`
+**Evidence:** Dev host, project v3-p4-tooling (engineer), tests/smoke/kernel-loop.sh (login->spawn->kernel->Trino+Spark->stop): before the fix 3/120 kernel_timeout (eddie, anna, victor; plus 1/26 in the interrupted baseline), every one with kernel execution_state=idle after 300 s, 3 nudge status msgs and 0 msgs for our execute, and ~/.smoke-progress.txt showing the probe started only at websocket close. With ipykernel 6.31.0: 0/120 kernel failures (1 unrelated stop_failed: Caddy->CHP keep-alive 502 on DELETE). Lab-less repro v3/tools/kernel_ws_race.py on the image's Jupyter stack: 7.3.0 lost 43/400 (execute sent on open) and 6/80 kernel_info handshakes (JupyterLab style), each released only by a shell message from a second websocket; 6.31.0 lost 0/400 at normal load (1/300 more during a concurrent image build had state 'starting' after 10 s: a slow start, not this signature).
+ Integrated tree (IPYKERNEL_VERSION promoted to versions.env, Caddy keepalive 4s): project v3-p4 (full), kernel-loop.sh --iterations 30 -> 120/120 ok (30 per user), 0 failures, median 22.5 s (dev host ~/lakehouse-v3/p4-integ-loop2). An earlier integrated loop had 85/85 ok before a hypervisor shutdown of the host.
+**LastVerified:** 2026-09-26
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-26
+**Author:** tooling-ci
+
+---
+
+## NODE: REG_V3_USER_DAG_FOLDERS_WRITABLE_BY_ALL_ENGINEERS
+**Type:** Regression
+**Priority:** HIGH
+**Label:** V3 Phase 4: any engineer could write another user's DAG folder (whole dags-user volume mounted rw)
+**Summary:** Phase 4 verification: as eddie, mkdir ~/airflow-dags/alice and a file with dag_id u_alice_planted_by_eddie was accepted by Airflow (owner alice, tag user:alice) and ran to success; eddie could also edit or delete alice's DAGs. Cause: every workspace runs as uid 1000 and the whole <project>_dags-user volume was mounted rw, so the DAG-id policy (which cannot know who wrote a file) was the only separation. Fix: each engineer/lab-admin workspace mounts only its own folder (volume Mount, Subpath=<username>, at ~/airflow-dags/<username>); the hub creates the folder in its own mount of the volume; the Docker proxy allows exactly that one Mounts entry and no bind of the volume. Smoke check 17 now asserts, as eddie, one mount under ~/airflow-dags, own write ok, neighbour mkdir EACCES; as anna, no mount.
+**Tags:** v3, phase4, airflow, user-dags, isolation, docker-proxy, jupyterhub
+**REGRESSED_N_TIMES:** 1
+**Edges:**
+- RELATES_TO → DEC_V3_USER_DAGS_SHARED_VOLUME: the decision's first design; fixed by per-user subpath mounts
+- RELATES_TO → INV_V3_DOCKER_PROXY_PROJECT_SCOPE: the allowlist gained one exact Mounts shape
+**Files:** `v3/config/jupyterhub/jupyterhub_config.py`, `v3/config/jupyterhub/docker-proxy.cfg`, `v3/compose/workspace.yaml`, `v3/config/airflow/dags-user-init.sh`, `v3/tests/smoke/tracks.py`, `v3/tests/smoke/proxy_probe.py`
+**Symbols:** `LabSpawner._workspace_volumes`, `ensure_user_dag_folder`, `dags_isolation_code`
+**Evidence:** v3-p4r (full) check 17: dags_isolation_eddie {mounts:[/home/jovyan/airflow-dags/eddie root .../v3-p4r_dags-user/_data/eddie], listing:[eddie], own_write: ok, neighbour_write: EACCES}; dags_isolation_anna {mounts: []}; check 11 {"cases": 30, "unexpected": []}
+**LastVerified:** 2026-09-26
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-26
+
+---
+
+## NODE: REG_V3_DOCKER_PROXY_BODY_REGEX_BYPASS
+**Type:** Regression
+**Priority:** HIGH
+**Label:** V3 Docker socket proxy body regexes bypassed (Docker decodes JSON case-insensitively, \u escapes, last duplicate wins)
+**Summary:** The docker-socket-proxy validated container-create bodies with HAProxy regexes over raw JSON. Three rounds found holes in the same class: Phase 2 follow-up (foreign volumes via Binds/Mounts/VolumesFrom/endpoints were not scoped), Phase 4 repair (the DAG Mounts shape; a second Mounts key), and the Phase 4 follow-up verifier's proven 201 creates mounting another project's postgres-data volume with a lowercase "binds", an escaped "Mounts", and a second escaped Mounts key after the allowed DAG mount. Fixed at the root: a stdlib docker-guard service (bootstrap/docker_guard.py) between JupyterHub and the proxy parses bodies strictly (UTF-8, no duplicate keys, no NaN, no lone surrogates), requires every key to be one exact canonical spelling, validates every value, and forwards only its own json.dumps re-serialization; the proxy keeps only its method/path allowlist and its body ACLs were removed.
+**Tags:** v3, docker, security, jupyterhub, socket-proxy, json, parser-differential
+**REGRESSED_N_TIMES:** 3
+**RootCause:** (1) Source of truth: the request body AS DOCKER DECODES IT (Go encoding/json: keys matched to struct fields case-insensitively, \u escapes decoded, the last of duplicate keys wins, unknown keys ignored). The proxy never read that; it pattern-matched the raw bytes, a different language than the one Docker executes. (2) Invariant violated: INV_V3_DOCKER_PROXY_PROJECT_SCOPE (a workspace container may use only this user's home, the trust volume, its own DAG folder and the lab network). (3) Why prior fixes were symptomatic: each round (Phase 2 follow-up allowlist regexes, Phase 4 Mounts-shape regex with a named group and a 'second Mounts key' regex) added another regex for the spelling that had just been shown to work, so every fix covered one encoding of the attack while any other encoding (other case, escapes, duplicates, key order) still meant the same thing to Docker. The fix removes the mismatch instead: the guard decodes with a strict JSON parser, refuses anything whose meaning could differ between decoders (duplicates, non-canonical keys, invalid UTF-8, surrogates), validates the decoded structure against an exact allowlist, and forwards only bytes it serialized itself, so Docker and the policy read the same object.
+**Edges:**
+- VIOLATED_BY → INV_V3_DOCKER_PROXY_PROJECT_SCOPE: bodies Docker decoded differently from the regexes mounted foreign volumes
+- RELATES_TO → DEC_V3_DOCKER_PROXY_NAME_ALLOWLIST: the path/name allowlist stays in the proxy; bodies moved to docker-guard
+- RELATES_TO → REG_V3_USER_DAG_FOLDERS_WRITABLE_BY_ALL_ENGINEERS: the Phase 4 repair added the Mounts regex this class then bypassed
+**Files:** `v3/bootstrap/docker_guard.py`, `v3/config/jupyterhub/docker-proxy.cfg`, `v3/compose/workspace.yaml`, `v3/compose.yaml`, `v3/tests/bootstrap/test_docker_guard.py`, `v3/tests/smoke/proxy_probe.py`, `v3/tests/smoke/run.sh`
+**Symbols:** `decide`, `validate_create`, `validate_volume_create`, `strict_loads`, `canonical`
+**Evidence:** python3 -m unittest discover -s v3/tests/bootstrap (test_docker_guard: the verifier's three bypasses + case variants, escapes, duplicates, unknown keys, nested tricks all Reject); smoke check 11 → {"cases": 54, "unexpected": []} and the guard log holds the canonical body's sha256
+**LastVerified:** 2026-09-26
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-27
+
+---
+
+## NODE: REG_V3_WORKSPACE_LOGIN_SHELL_LOSES_LAB_PATH
+**Type:** Regression
+**Priority:** HIGH
+**Label:** V3 workspace: JupyterLab terminals (bash -l) lost /opt/lakehouse/bin: lab-tracks not found, dbt without its token shim
+**Summary:** JupyterLab terminals run `bash -l`; Debian's /etc/profile resets PATH, so the image's ENV PATH entry /opt/lakehouse/bin was dropped: `lab-tracks: command not found`, and `dbt` resolved to /usr/local/bin/dbt without the token shim, so A3 failed entirely for a beginner. Every smoke check ran commands from kernels (non-login subprocesses), so none saw it. Fix: /etc/profile.d/lakehouse.sh in the workspace image puts /opt/lakehouse/bin first again (idempotent: removes any existing entry, then prepends); PYTHONPATH/JUPYTERHUB_USER are inherited and verified. Smoke check 17 now opens a REAL JupyterLab terminal (POST api/terminals + terminals websocket) once per run and requires `command -v lab-tracks dbt lab-token` under /opt/lakehouse/bin, JUPYTERHUB_USER, PYTHONPATH, `import lakehouse`, and a `lab-tracks check A1` run there. A3 README/tutor common-mistakes rows updated.
+**Tags:** v3, workspace, terminal, path, tracks, dbt, beginner
+**REGRESSED_N_TIMES:** 1
+**Edges:**
+- RELATES_TO → DEC_V3_WORKSPACE_TOKEN_VIA_HUB_AUTH_STATE: the dbt shim that adds the token lives in /opt/lakehouse/bin
+**Files:** `v3/images/workspace/etc/profile.d/lakehouse.sh`, `v3/images/workspace/Dockerfile`, `v3/tests/smoke/workspace.py`, `v3/tests/smoke/tracks.py`, `v3/tests/smoke/test_tracks_unit.py`, `v3/tracks/analyst/A3-first-dbt-model/README.md`, `v3/tracks/analyst/A3-first-dbt-model/tutor.md`
+**Symbols:** `terminal_check`, `parse_terminal`, `Workspace.terminal`
+**Evidence:** LAB_SMOKE_LONG=1 ./lab test --tracks all on upgraded v3-p1 and clean room v3-p4g → 17/17; '[info] 17 anna terminal ok=True' (real JupyterLab terminal: lab-tracks, dbt, lab-token under /opt/lakehouse/bin; lab-tracks check A1 rc=1)
+**LastVerified:** 2026-09-26
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-27

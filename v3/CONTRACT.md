@@ -254,6 +254,61 @@ template: the realm is imported on first start only, so existing installs would 
 - On the dev host: never list, stop or remove anything outside `v3-`-prefixed projects. The
   verifier audits this with `docker ps -a` and `docker volume ls` before and after.
 
+### Docker access design: the guard (amended after Phase 4)
+
+> Added by the Phase 4 follow-up. The socket proxy's HAProxy regexes over raw request bodies
+> were bypassable (a lowercase `"binds"`, an escaped `"Mounts"`, a second escaped
+> `Mounts` key after the allowed DAG mount): Docker decodes JSON with Go's `encoding/json`,
+> which matches keys case-insensitively, decodes `\u` escapes and keeps the last duplicate.
+> The source of truth is the JSON **as Docker decodes it**, so the body policy now decodes it
+> too (REG_V3_DOCKER_PROXY_BODY_REGEX_BYPASS).
+
+```
+jupyterhub --hub-docker--> docker-guard --docker-api--> docker-proxy --> /var/run/docker.sock
+```
+
+- **Topology.** `hub-docker` (internal) has only `jupyterhub` and `docker-guard`;
+  `docker-api` (internal) has only `docker-guard` and `docker-proxy`. Only `docker-proxy`
+  mounts the socket. JupyterHub's `DOCKER_HOST` is `tcp://docker-guard:2375`; it cannot reach
+  the proxy directly (smoke check 11 tests this).
+- **`docker-proxy`** (pinned `tecnativa/docker-socket-proxy`, `config/jupyterhub/docker-proxy.cfg`)
+  keeps a METHOD + PATH allowlist only (paths are not JSON): no body rules.
+- **`docker-guard`** (`bootstrap/docker_guard.py`, Python stdlib, runs on the bootstrap image,
+  which is pinned by tag and digest) is the **single source of the request-body policy**:
+  - forwards only the calls DockerSpawner makes (captured from real traffic): `GET /version`,
+    `/_ping`; `GET` of the workspace image, of a `<project>-home-<user>` volume and of a
+    `<project>-ws-<user>` container; `POST /containers/create?name=<project>-ws-<user>`;
+    `start`, `stop` (`t` ≤ 600) and `DELETE` (`v` only; no `force`, no `link`) of that
+    container; `POST /volumes/create`. `<user>` is DockerSpawner's escaped name
+    (`[a-z0-9]` or `-` + two hex digits).
+  - parses each body **strictly**: UTF-8 only, duplicate keys at any level refused, no
+    NaN/Infinity, no lone surrogates or NUL, ≤ 256 KiB, no chunked bodies;
+  - requires every key at every level to be **exactly** one allowlisted canonical spelling for
+    that object (unknown or differently-cased keys are refused), then checks the values:
+    `Image` = the workspace image; `Labels` = exactly the project labels;
+    `HostConfig.Binds` = exactly `<project>-home-<user>:/home/jovyan:rw` and
+    `<project>_trust:/trust:ro`; `HostConfig.Mounts` = nothing or exactly the user's own
+    folder of `<project>_dags-user` (type volume, `VolumeOptions.Subpath` = the raw username
+    whose escaped form is `<user>`, target `~/airflow-dags/<username>`; which users get it is
+    still the hub's group decision); `NetworkMode` = `<project>_lab`; `NetworkingConfig`
+    endpoints only `<project>_lab`; `Privileged`/`CapAdd`/`Devices`/host namespaces absent or
+    false/empty; `Memory` ≤ `WORKSPACE_MEM`, `CpuQuota`/`CpuPeriod` ≤ `WORKSPACE_CPUS`;
+    `Volumes` = exactly the bind targets. A volume create must be
+    `{Name: <project>-home-<user>, Labels: <project labels>}`;
+  - **re-serializes** the validated object (`json.dumps`, sorted keys, ASCII) and forwards
+    only those bytes with their own `Content-Length`, and a query string rebuilt from
+    validated values. Docker only ever sees bytes the guard produced;
+  - fails closed: anything else is answered 403 and logged with a short reason (never the
+    body, which holds the server's API token); a forwarded body is logged by sha256 and size.
+- **Changing what the spawner sends** (a new DockerSpawner option, a new mount) means changing
+  `validate_create` and its unit tests (`tests/bootstrap/test_docker_guard.py`) in the same
+  change. Never add body rules to the proxy again.
+- **Smoke check 11** (`tests/smoke/proxy_probe.py`, 54 cases) runs in `jupyterhub`: every
+  refused case (including the bypasses above, case variants, escapes, duplicates, unknown
+  keys) gets 403; allowed cases reach Docker, which refuses them itself (`Memory: 4` is below
+  Docker's 6 MB minimum, so nothing is ever created); one allowed body with escaped and
+  shuffled keys must appear in the guard's log as the canonical body the probe computed.
+
 ## Hostnames and resources
 
 - New public hostname: `jupyter.` (JupyterHub; workspaces are reached through the hub).
@@ -465,15 +520,23 @@ copied into homes), so learners don't see answers by default. CI runs them.
 
 ## E3 needs one piece of new infrastructure: user DAGs
 
-- A shared volume `<project>_dags-user` is mounted read-write at `~/airflow-dags` in
-  **engineer/lab-admin** workspaces only (group-based in `jupyterhub_config.py`), and
-  read-only into Airflow's dag-processor/scheduler at `dags/user/`.
-- **Each user's DAG files live in `~/airflow-dags/<username>/`.** The DAG id prefix
-  `u_<username>_` is enforced by an Airflow DAG policy; files that break it are rejected
-  with a visible import error.
-- The **Docker proxy allowlist** gains exactly `<project>_dags-user` as an allowed bind
-  (INV_V3_DOCKER_PROXY_PROJECT_SCOPE). Smoke check 11 grows a case: the volume is allowed
-  for workspaces, and other volumes are still refused.
+- A shared volume `<project>_dags-user` holds one folder per user and is mounted read-only
+  into Airflow's dag-processor/scheduler at `dags/user/`.
+- **Each user's DAG files live in `~/airflow-dags/<username>/`.** An **engineer/lab-admin**
+  workspace (group-based in `jupyterhub_config.py`) mounts **only its owner's folder**, as a
+  volume mount with subpath `<username>`, read-write at `~/airflow-dags/<username>`; the
+  hub creates the folder (owner 1000:100) in its own mount of the volume before the spawn.
+  Every workspace runs as uid 1000, so only the mount can keep engineers out of each other's
+  folders (repair round: the first design mounted the whole volume). The DAG id prefix
+  `u_<username>_` is enforced by an Airflow DAG policy (which also refuses a longer
+  username's prefix, e.g. `u_eddie_x_` in `eddie/`); files that break it are rejected with a
+  visible import error.
+- The **Docker access allowlist** (since the Phase 4 follow-up: enforced by `docker-guard`, see
+  "Docker access design: the guard") gains exactly one `Mounts` entry: type `volume`, source
+  `<project>_dags-user`, subpath one path segment equal to the target's last segment, target
+  `~/airflow-dags/<segment>` (INV_V3_DOCKER_PROXY_PROJECT_SCOPE). A bind of the whole volume,
+  any other `Mounts`, and a second `Mounts` key stay refused. Smoke check 11 covers these;
+  check 17 proves, as an engineer, that a neighbour's folder cannot be written.
 - Security note (to document): a user DAG runs with Airflow's worker identity (lab-batch
   for data access). That's acceptable because engineers are already trusted to trigger and
   edit DAGs; analysts and viewers never get the mount.
@@ -513,3 +576,31 @@ a kernel, and learners would see the same thing (a notebook that stops answering
    retry is counted and shown in the smoke evidence; it must never hide an assertion
    failure. Justify it in `PHASE4_RESULTS.md`.
 4. **Exit condition:** the 30-iteration loop runs with zero unexplained failures.
+
+## Conventions added at Phase 4 integration
+
+- **Module interface** (one for both tracks; `v3/tracks/README.md` is the reference, and
+  `tools/check_tracks.py` enforces it in CI): `module.json` (`id`, `track`, `title`,
+  `profile`, `groups`; optional `minutes`, `test_user`, `solution.timeout_s`,
+  `solution.browser_logins`, and a free-form `reset` block), `README.md`, `tutor.md`, and
+  `checkpoint.py` handling `--json` (last line `LAB_TRACKS_RESULT {...}`; exit 0 passed,
+  1 not yet, 2 could not run) and `--reset`. Track helpers live in `<track>/_shared/`;
+  solution helpers in `tests/tracks/solutions/<track>/_lib/`.
+- **The learner's own objects** (what `reset` may drop): the module's namespace
+  (`eng_<you>`), the analyst's schema `dbt_<you>` (only the module's tables), DAG files in
+  `~/airflow-dags/<you>/`, Superset objects the learner owns, and **(lead decision)** the
+  learner's production tables `lakehouse.analytics.u_<you>_*`, which their own DAGs write as
+  `lab-batch` (E3/E4). `lab-batch` cannot write `eng_<you>`, and a prefixed table in the
+  shared production schema is what a real team does.
+- **Analysts own one schema, `lakehouse.dbt_<you>`.** Trino's file rules cannot put the user
+  into a schema name, so bootstrap and identity-sync GENERATE the rules Trino reads
+  (`trino-groups/rules.json` = `config/trino/rules.json` + one user-and-schema rule pair per
+  `analyst` member; `bootstrap/trino_groups.py`). Access still comes only from the Keycloak
+  group; leaving `analyst` removes the rule on the next sync tick.
+- **Superset API as the user** (A4): Superset accepts the user's own Keycloak access token
+  (`azp` `jupyterhub` only, existing active Superset user only, roles recomputed from the
+  token's groups; `config/superset/lab_bearer.py`). Role `lab_author` (analyst, engineer) may
+  add datasets; owners-only edits stay Superset's rule.
+- **Workspace kernels:** `IPYKERNEL_VERSION` is pinned on the 6.x line
+  (REG_V3_WORKSPACE_KERNEL_FIRST_MESSAGE_STALL). Caddy drops idle upstream connections to
+  JupyterHub after 4 s, before the hub proxy's 5 s (WATCH_V3_CADDY_UPSTREAM_KEEPALIVE_502).

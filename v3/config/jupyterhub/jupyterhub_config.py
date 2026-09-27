@@ -5,7 +5,8 @@
   auth state (JUPYTERHUB_CRYPT_KEY) and refreshed by `_refresh_user_hook` below, so that the
   workspace's lab_token() always gets a token of the logged-in user with time left on it.
 * Admin: Keycloak group `lab-admin`. Allowed: the four lab groups.
-* Spawner: DockerSpawner through the docker-socket-proxy (never the Docker socket itself).
+* Spawner: DockerSpawner through docker-guard and the docker-socket-proxy (never the Docker
+  socket itself; DOCKER_HOST=tcp://docker-guard:2375, compose/workspace.yaml).
   Every workspace container and home volume carries the compose project label plus
   `lab.role=workspace` and the `${COMPOSE_PROJECT_NAME}-ws-` / `-home-` name prefixes, joins
   only the `lab` network, and has WORKSPACE_MEM / WORKSPACE_CPUS limits.
@@ -169,15 +170,63 @@ CONTAINER_NAME_TEMPLATE = f"{PROJECT}-ws-{{username}}"
 # Compose names project resources <project>_<name>.
 LAB_NETWORK = f"{PROJECT}_lab"
 TRUST_VOLUME = f"{PROJECT}_trust"
+# User DAGs (CONTRACT Phase 4, E3). Compose's shared volume <project>_dags-user holds one
+# folder per user; Airflow (profiles engineer/full) reads the whole volume read-only at
+# dags/user/, and its cluster policy (config/airflow/policy) ties folder <username>/ to dag ids
+# u_<username>_. A workspace of a member of DAGS_USER_GROUPS gets ONLY ITS OWN folder, mounted
+# read-write at ~/airflow-dags/<username> (a volume mount with a subpath). Every workspace runs
+# as the same Unix user (uid 1000), so file permissions cannot keep engineers apart; the mount
+# does: another user's folder is not in the container at all, and ~/airflow-dags itself is a
+# root-owned mount point, so nothing else can be created next to your folder.
+# Docker mounts a subpath only if it exists, so the hub creates the user's folder (owner
+# 1000:100) in its own mount of the volume (DAGS_USER_ROOT, compose/workspace.yaml) before the
+# spawn. docker-guard (bootstrap/docker_guard.py) allows exactly this one mount, and only of the
+# workspace user's own folder.
+DAGS_USER_VOLUME = f"{PROJECT}_dags-user"
+DAGS_USER_MOUNT = "/home/jovyan/airflow-dags"
+DAGS_USER_GROUPS = frozenset({"engineer", "lab-admin"})
+DAGS_USER_ROOT = "/srv/dags-user"
+# Written by the one-shot airflow-dags-user (config/airflow/dags-user-init.sh), which exists in
+# the Airflow profiles only. Without it (profile core, where compose still creates the volume
+# for the hub's mount) no workspace gets a DAG folder: nothing would read it.
+DAGS_USER_MARKER = os.path.join(DAGS_USER_ROOT, ".lab-user-dags")
+# The folder name is the username; the same rule as the Airflow policy's USERNAME_RE, and one
+# path segment only (docker-guard refuses anything else).
+DAGS_USER_NAME_RE = r"^[a-z0-9][a-z0-9._-]{0,62}$"
+WORKSPACE_UID, WORKSPACE_GID = 1000, 100      # jovyan:users (images/workspace)
+
+
+def ensure_user_dag_folder(root, name, uid=WORKSPACE_UID, gid=WORKSPACE_GID):
+    """Create <root>/<name> for a workspace (owner uid:gid, 0755) if missing. Refuses a name
+    that is not one plain path segment, and anything at that path that is not a real
+    directory (for example a symlink left in the volume by an older install, where every
+    engineer could write the volume's top level). -> path, or raise ValueError."""
+    import re
+    import stat
+    if not re.fullmatch(DAGS_USER_NAME_RE, name or ""):
+        raise ValueError(f"{name!r} is not usable as a DAG folder name")
+    path = os.path.join(root, name)
+    try:
+        os.mkdir(path, 0o755)
+    except FileExistsError:
+        pass
+    st = os.lstat(path)
+    if not stat.S_ISDIR(st.st_mode):
+        raise ValueError(f"{path} exists and is not a directory")
+    if (st.st_uid, st.st_gid) != (uid, gid):
+        os.chown(path, uid, gid, follow_symlinks=False)
+    return path
 
 
 class LabSpawner(DockerSpawner):
     """DockerSpawner that
-    * addresses its container by NAME, never by id, so the socket proxy can confine every
+    * addresses its container by NAME, never by id, so docker-guard can confine every
       container call to the `<project>-ws-` prefix (ids and id prefixes could reach any
       container on the host's daemon), and
     * creates the user's home volume itself, with the lab labels (Docker would create it
-      implicitly, unlabelled, on first mount)."""
+      implicitly, unlabelled, on first mount), and
+    * mounts the user's own folder of the user-DAG volume for engineers and lab admins
+      only, and only on the Airflow profiles (engineer/full)."""
 
     async def get_object(self):
         obj = await super().get_object()
@@ -198,13 +247,40 @@ class LabSpawner(DockerSpawner):
         except docker.errors.NotFound:
             await self.docker("create_volume", name, labels=dict(LABELS))
             self.log.info("created home volume %s", name)
+        self.volumes = await self._workspace_volumes()
         return await super().start()
+
+    async def _workspace_volumes(self):
+        """The volumes of this start (and self.mounts: the user's DAG folder, or none).
+        Decided on every start (containers are removed on stop), from the groups the hub
+        holds for the user: they are synced from Keycloak at login and on every token refresh
+        (refresh_pre_spawn), so a group change reaches the mount at the next start after the
+        next refresh."""
+        self.mounts = []
+        volumes = dict(BASE_VOLUMES)
+        groups = {g.name for g in self.user.groups}
+        if not groups & DAGS_USER_GROUPS:
+            return volumes
+        if not os.path.exists(DAGS_USER_MARKER):  # profile core: no Airflow, no user DAGs
+            return volumes
+        name = self.user.name
+        try:
+            ensure_user_dag_folder(DAGS_USER_ROOT, name)
+        except (OSError, ValueError) as e:
+            self.log.warning("no DAG folder for %s: %s", name, e)
+            return volumes
+        # docker-guard validates this exact shape (type volume, source the dags-user volume,
+        # subpath = the username, target ~/airflow-dags/<username>) and re-serializes it.
+        self.mounts = [{"target": f"{DAGS_USER_MOUNT}/{name}", "source": DAGS_USER_VOLUME,
+                        "type": "volume", "read_only": False, "subpath": name}]
+        self.log.info("mounting %s/%s at %s/%s", DAGS_USER_VOLUME, name, DAGS_USER_MOUNT, name)
+        return volumes
 
 
 c.JupyterHub.spawner_class = LabSpawner
 s = c.DockerSpawner
 s.image = need("LAB_WORKSPACE_IMAGE")
-s.pull_policy = "never"              # built by compose; the socket proxy refuses pulls anyway
+s.pull_policy = "never"              # built by compose; docker-guard refuses pulls anyway
 # The image's ENTRYPOINT (start-workspace.sh: per-home wiring, then exec) stays in place;
 # only the command is set. It must be explicit: the image's CMD is empty, and DockerSpawner
 # fails on an image without Config.Cmd. Never override the entrypoint (ADR-007 rule).
@@ -214,10 +290,12 @@ s.network_name = LAB_NETWORK
 s.use_internal_ip = True
 s.remove = True                      # containers are disposable; the home volume persists
 s.extra_create_kwargs = {"labels": dict(LABELS)}
-s.volumes = {
+BASE_VOLUMES = {
     HOME_VOLUME_TEMPLATE: "/home/jovyan",
     TRUST_VOLUME: {"bind": "/trust", "mode": "ro"},
 }
+s.volumes = dict(BASE_VOLUMES)
+s.mounts = []                        # LabSpawner.start sets the user's DAG folder per start
 s.notebook_dir = "/home/jovyan"
 # Compose-style sizes ("2g", "1536m"); DockerSpawner's byte parser wants upper-case suffixes.
 s.mem_limit = need("WORKSPACE_MEM").upper()

@@ -3,10 +3,30 @@
 Format (Trino `group-provider.name=file`): one line per group, `group:user1,user2`.
 Trino re-reads the file every `file.refresh-period`. The file only changes when membership
 changed, and is replaced atomically.
+
+Phase 4 (analyst track): every member of group `analyst` may write in ONE schema of their
+own, `lakehouse.dbt_<username>` (dbt's schema in the starter project, and where the analyst
+track's exercises save their results). Trino's file-based rules cannot tie a schema name to
+the user (no `${USER}` substitution in schema/table rules; checked on Trino 483: the rules
+file then fails to load), so the rules Trino reads are generated here, next to the group
+file, from the same membership:
+
+  * the static rules, config/trino/rules.json (mounted read-only at RULES_BASE), unchanged;
+  * plus, at the top of `schemas` and `tables`, one rule pair per analyst that matches only
+    that user AND that schema (so it shadows nothing else).
+
+Access still comes only from Keycloak groups: removing someone from `analyst` removes their
+rule on the next identity-sync tick. Trino re-reads the rules every `security.refresh-period`.
 """
+import json
 import os
 
 PATH = "/var/lib/lab/trino-groups/groups.txt"
+RULES_BASE = "/etc/lab/trino/rules.json"
+RULES_PATH = "/var/lib/lab/trino-groups/rules.json"
+USER_SCHEMA_GROUPS = ("analyst",)
+USER_SCHEMA_PREFIX = "dbt_"
+USER_SCHEMA_PRIVILEGES = ["SELECT", "INSERT", "DELETE", "UPDATE", "OWNERSHIP", "GRANT_SELECT"]
 
 
 def render(members_by_group):
@@ -18,9 +38,8 @@ def render(members_by_group):
     return "\n".join(lines) + "\n"
 
 
-def write(members_by_group, path=PATH):
-    """Returns True if the file changed."""
-    content = render(members_by_group)
+def _replace_if_changed(path, content):
+    """Atomically write `content` to `path` unless it is already there. True if written."""
     try:
         with open(path, encoding="utf-8") as f:
             if f.read() == content:
@@ -33,3 +52,44 @@ def write(members_by_group, path=PATH):
     os.chmod(tmp, 0o644)
     os.replace(tmp, path)
     return True
+
+
+def write(members_by_group, path=PATH):
+    """Returns True if the file changed."""
+    return _replace_if_changed(path, render(members_by_group))
+
+
+def java_literal(s):
+    """A Java regex matching exactly `s`: every non-alphanumeric character is backslash-
+    escaped (always literal in java.util.regex), so `.`, `-` or `@` in a username match only
+    themselves."""
+    return "".join(c if c.isascii() and c.isalnum() else "\\" + c for c in s)
+
+
+def user_schema_rules(members_by_group):
+    """(schema rules, table rules) giving each member of USER_SCHEMA_GROUPS ownership of
+    lakehouse.dbt_<username> and full table privileges inside it, and nothing else."""
+    users = sorted({u for g in USER_SCHEMA_GROUPS for u in members_by_group.get(g, ())})
+    schemas, tables = [], []
+    for u in users:
+        who = java_literal(u)
+        where = java_literal(USER_SCHEMA_PREFIX + u.lower())
+        schemas.append({"user": who, "catalog": "lakehouse", "schema": where, "owner": True})
+        tables.append({"user": who, "catalog": "lakehouse", "schema": where,
+                       "privileges": list(USER_SCHEMA_PRIVILEGES)})
+    return schemas, tables
+
+
+def render_rules(base, members_by_group):
+    rules = json.loads(json.dumps(base))  # deep copy
+    schemas, tables = user_schema_rules(members_by_group)
+    rules["schemas"] = schemas + rules.get("schemas", [])
+    rules["tables"] = tables + rules.get("tables", [])
+    return json.dumps(rules, indent=2, sort_keys=True) + "\n"
+
+
+def write_rules(members_by_group, base_path=RULES_BASE, path=RULES_PATH):
+    """Generated Trino access rules (static base + per-analyst schema). True if changed."""
+    with open(base_path, encoding="utf-8") as f:
+        base = json.load(f)
+    return _replace_if_changed(path, render_rules(base, members_by_group))

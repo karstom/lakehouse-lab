@@ -48,6 +48,11 @@ services:
     environment:
       <<: *openfga-env
       OPENFGA_DATASTORE_MAX_OPEN_CONNS: "20"
+      # OpenFGA's default 3 s request deadline failed single tuple Writes on a busy shared host
+      # (Lakekeeper then answers 503 "Authorization service is unavailable" and a learner's
+      # CREATE TABLE fails; WATCH_V3_OPENFGA_WRITE_DEADLINE_UNDER_IO_LOAD). A slow write is
+      # still a correct write: allow 10 s.
+      OPENFGA_REQUEST_TIMEOUT: ${OPENFGA_REQUEST_TIMEOUT:-10s}
     networks: [lab]
     healthcheck:
       test: ["CMD", "/usr/local/bin/grpc_health_probe", "-addr=127.0.0.1:8081"]

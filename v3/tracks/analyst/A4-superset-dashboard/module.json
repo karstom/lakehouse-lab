@@ -1,0 +1,15 @@
+{
+  "id": "A4",
+  "track": "analyst",
+  "title": "A chart and a dashboard in Superset",
+  "minutes": 45,
+  "profile": "full",
+  "groups": ["analyst", "engineer", "lab-admin"],
+  "test_user": "anna",
+  "requires": ["A3"],
+  "lesson": "README.md",
+  "tutor": "tutor.md",
+  "checkpoint": "checkpoint.py",
+  "reset": {"superset": {"dashboards": ["A4 Segment revenue"], "charts": ["A4 Revenue by segment", "A4 Revenue by year"], "datasets": ["dbt_{user}.segment_revenue"]}},
+  "solution": {"timeout_s": 600, "browser_logins": ["superset"]}
+}

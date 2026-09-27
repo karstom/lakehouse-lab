@@ -53,7 +53,14 @@ catalog.{$LAB_DOMAIN}:{$LAB_HTTPS_PORT} {
 # JupyterHub (Phase 2). Workspaces are reached through the hub's proxy; websockets pass through.
 jupyter.{$LAB_DOMAIN}:{$LAB_HTTPS_PORT} {
 	import proxy_common
-	reverse_proxy jupyterhub:8000
+	reverse_proxy jupyterhub:8000 {
+		# configurable-http-proxy (node) closes idle keep-alive connections after 5 s. Drop
+		# ours first, so a DELETE/POST is never sent on a connection it is closing (502 EOF;
+		# WATCH_V3_CADDY_UPSTREAM_KEEPALIVE_502).
+		transport http {
+			keepalive 4s
+		}
+	}
 }
 
 # Forward-auth (CONTRACT Phase 3): oauth2-proxy as the Keycloak client `console`.

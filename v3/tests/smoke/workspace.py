@@ -41,27 +41,36 @@ async ({base, code, timeoutMs}) => {
   const wsUrl = location.origin.replace(/^http/, "ws") + base + "api/kernels/" + kernel.id + "/channels?" + q;
   const res = await new Promise((resolve) => {
     let stdout = "", stderr = "", status = null, idle = false, done = false;
+    // Diagnostics for a timeout (kernel-loop root-cause work): what reached us, and when.
+    const trace = {ws_open_ms: null, msgs: 0, mine: 0, first_mine: null, last_mine: null,
+                   execute_input: false, busy: false};
     const finish = (extra) => {
       if (done) return; done = true; clearTimeout(timer);
       try { ws.close(); } catch (e) {}
-      resolve(Object.assign({stdout, stderr, status}, extra || {}));
+      resolve(Object.assign({stdout, stderr, status, trace}, extra || {}));
     };
     const timer = setTimeout(() => finish({timeout: true}), timeoutMs);
     const ws = new WebSocket(wsUrl);
     ws.onerror = () => finish({error: "websocket error (" + wsUrl.split("?")[0] + ")"});
     ws.onclose = (ev) => finish({error: "websocket closed, code " + ev.code});
-    ws.onopen = () => ws.send(JSON.stringify({
+    ws.onopen = () => { trace.ws_open_ms = Date.now() - t0; ws.send(JSON.stringify({
       header: {msg_id: msgId, username: "", session, msg_type: "execute_request",
                version: "5.3", date: new Date().toISOString()},
       parent_header: {}, metadata: {}, channel: "shell", buffers: [],
       content: {code, silent: false, store_history: false, user_expressions: {},
-                allow_stdin: false, stop_on_error: true}}));
+                allow_stdin: false, stop_on_error: true}})); };
     ws.onmessage = (ev) => {
       if (typeof ev.data !== "string") return;
+      trace.msgs += 1;
       let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
       if (!msg.parent_header || msg.parent_header.msg_id !== msgId) return;
       const t = (msg.header && msg.header.msg_type) || msg.msg_type;
       const c = msg.content || {};
+      trace.mine += 1;
+      trace.last_mine = [Date.now() - t0, t];
+      if (trace.first_mine === null) trace.first_mine = [Date.now() - t0, t];
+      if (t === "execute_input") trace.execute_input = true;
+      if (t === "status" && c.execution_state === "busy") trace.busy = true;
       if (t === "stream") { if (c.name === "stdout") stdout += c.text; else stderr += c.text; }
       else if (t === "error") { stderr += c.ename + ": " + c.evalue + "\n"; }
       else if (t === "execute_reply") { status = c.status; }
@@ -70,6 +79,13 @@ async ({base, code, timeoutMs}) => {
     };
   });
   res.kernel_seconds = Math.round((Date.now() - t0) / 100) / 10;
+  if (res.timeout || res.error) {
+    // The server's view of the kernel before we delete it: "busy" means our code is still
+    // running (a hang in user code); "idle" means the request or its output never reached us.
+    try { const k = await fetch(base + "api/kernels/" + kernel.id, {headers: hdr, credentials: "same-origin"});
+          res.kernel_state = k.ok ? (await k.json()).execution_state : ("HTTP " + k.status); }
+    catch (e) { res.kernel_state = "error: " + e; }
+  }
   try { await fetch(base + "api/kernels/" + kernel.id, {method: "DELETE", headers: hdr,
                     credentials: "same-origin"}); } catch (e) {}
   return res;
@@ -96,6 +112,55 @@ async ({user, timeoutMs}) => {
   }
   out.seconds = Math.round((Date.now() - t0) / 100) / 10;
   return out;
+}
+"""
+
+
+# Runs in the JupyterLab page: open a REAL terminal the way JupyterLab's launcher does
+# (POST api/terminals, then the terminals websocket, terminado's JSON protocol), type `command`,
+# collect the output until `doneRe` matches it, then close and delete the terminal. The server
+# starts the terminal's shell as a login shell (bash -l), like every learner's terminal.
+TERMINAL_JS = r"""
+async ({base, command, doneRe, timeoutMs}) => {
+  const m = document.cookie.match(/(?:^|;\s*)_xsrf=([^;]*)/);
+  const xsrf = m ? decodeURIComponent(m[1]) : "";
+  const hdr = {"Content-Type": "application/json"};
+  if (xsrf) hdr["X-XSRFToken"] = xsrf;
+  const t0 = Date.now();
+  const r = await fetch(base + "api/terminals", {method: "POST", headers: hdr,
+    credentials: "same-origin", body: "{}"});
+  if (!r.ok) return {error: "create terminal: HTTP " + r.status + " " + (await r.text()).slice(0, 300)};
+  const term = await r.json();
+  const q = xsrf ? "?_xsrf=" + encodeURIComponent(xsrf) : "";
+  const wsUrl = location.origin.replace(/^http/, "ws") + base + "terminals/websocket/" +
+    encodeURIComponent(term.name) + q;
+  const done = new RegExp(doneRe);
+  const res = await new Promise((resolve) => {
+    let out = "", finished = false, sent = false;
+    const finish = (extra) => {
+      if (finished) return; finished = true; clearTimeout(timer);
+      try { ws.close(); } catch (e) {}
+      resolve(Object.assign({output: out}, extra || {}));
+    };
+    const timer = setTimeout(() => finish({timeout: true}), timeoutMs);
+    const ws = new WebSocket(wsUrl);
+    const send = () => { if (!sent) { sent = true;
+      ws.send(JSON.stringify(["set_size", 40, 200, 800, 1600]));
+      ws.send(JSON.stringify(["stdin", command + "\r"])); } };
+    ws.onerror = () => finish({error: "websocket error (" + wsUrl.split("?")[0] + ")"});
+    ws.onclose = (ev) => finish({error: "websocket closed, code " + ev.code});
+    ws.onopen = () => setTimeout(send, 1500);         // let the login shell print its prompt
+    ws.onmessage = (ev) => {
+      let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
+      if (msg[0] === "stdout") { out += msg[1]; if (sent && done.test(out)) finish(); }
+      else if (msg[0] === "disconnect") finish({error: "terminal disconnected"});
+    };
+  });
+  res.name = term.name;
+  res.seconds = Math.round((Date.now() - t0) / 100) / 10;
+  try { await fetch(base + "api/terminals/" + encodeURIComponent(term.name),
+                    {method: "DELETE", headers: hdr, credentials: "same-origin"}); } catch (e) {}
+  return res;
 }
 """
 
@@ -197,6 +262,12 @@ class Workspace:
         return self.page.evaluate(KERNEL_EXEC_JS, {"base": self.base, "code": code,
                                                    "timeoutMs": int(timeout * 1000)})
 
+    def terminal(self, command, done_re, timeout=300):
+        """Type `command` into a new JupyterLab terminal (a login shell); -> {output, ...}."""
+        return self.page.evaluate(TERMINAL_JS, {"base": self.base, "command": command,
+                                                "doneRe": done_re,
+                                                "timeoutMs": int(timeout * 1000)})
+
     def run_probe(self, params, timeout=900):
         # The probe dumps all thread stacks shortly before our timeout (kernel_probe.STACK_DUMP).
         params = dict(params, dump_after_s=max(30, timeout - 45))
@@ -204,14 +275,20 @@ class Workspace:
         result = parse_probe_output(raw.get("stdout"))
         if raw.get("timeout"):
             raw["stack_dump"] = self.read_file(".smoke-stack.txt")[-4000:]
+            raw["probe_progress"] = self.read_file(".smoke-progress.txt")[-2000:]
         return result, raw
 
     def read_file(self, path):
         """A text file from the user's home, through the Jupyter contents API."""
         try:
+            # JupyterHub >= 4.1 checks XSRF on every cookie-authenticated request that is not
+            # a navigation, GETs included: without the header the server answers 403 (this
+            # is why the Phase 3 stack-dump fetch got "HTTP 403").
             return self.page.evaluate("""async ({base, path}) => {
+              const m = document.cookie.match(/(?:^|;\\s*)_xsrf=([^;]*)/);
+              const hdr = m ? {"X-XSRFToken": decodeURIComponent(m[1])} : {};
               const r = await fetch(base + "api/contents/" + path + "?content=1&type=file&format=text",
-                                    {credentials: "same-origin"});
+                                    {headers: hdr, credentials: "same-origin"});
               return r.ok ? ((await r.json()).content || "") : ("HTTP " + r.status);
             }""", {"base": self.base, "path": path}) or ""
         except Exception as e:  # noqa: BLE001 - diagnostics only

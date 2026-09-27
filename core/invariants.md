@@ -120,11 +120,12 @@
 ## NODE: INV_V3_DOCKER_PROXY_PROJECT_SCOPE
 **Type:** Invariant
 **Priority:** HIGH
-**Label:** V3: JupyterHub reaches Docker only via the proxy, scoped to this project
-**Summary:** Only the docker-socket-proxy mounts the Docker socket. Its HAProxy allowlist permits only create, start, stop and delete of `<project>-ws-*` containers by name, using only `<project>-home-*` and `<project>_trust` volumes and the `<project>_lab` network (no Mounts, VolumesFrom, extra endpoints, host paths, privileged mode or host namespaces), and only volume creation named `<project>-home-*`. The host also runs other workloads, including production, so any spawner change must keep smoke check 11 at 14/14. HAProxy expands `${LAB_PROJECT}` only inside double-quoted rules.
+**Label:** V3: JupyterHub reaches Docker only via docker-guard (parse-validate-reserialize) and the socket proxy, scoped to this project
+**Summary:** Only the docker-socket-proxy mounts the Docker socket, and only docker-guard can reach it (internal network docker-api; JupyterHub is on hub-docker with the guard only). Since the Phase 4 follow-up this is enforced by docker-guard's parse-validate-reserialize (bootstrap/docker_guard.py): it forwards only DockerSpawner's calls, by NAME in this project's scope (create/start/stop/delete of <project>-ws-<user>, inspect of that container, the workspace image and <project>-home-<user>; volume create only {Name: <project>-home-<user>, Labels}); it parses bodies strictly (UTF-8, no duplicate keys, no NaN, no lone surrogates/NUL), requires every key to be exactly one canonical spelling, validates values (Image = workspace image; Labels = project labels; Binds = exactly the user's home rw + <project>_trust ro; Mounts = nothing or the user's own <project>_dags-user subpath at ~/airflow-dags/<user>; NetworkMode <project>_lab, no other endpoints; no privileged/caps/devices/host namespaces; Memory/CPU within WORKSPACE_MEM/CPUS) and forwards only its own json.dumps bytes. The proxy's HAProxy regex body ACLs were REMOVED (bypassable: Docker decodes keys case-insensitively, decodes \u escapes, keeps the last duplicate; REG_V3_DOCKER_PROXY_BODY_REGEX_BYPASS); the proxy keeps a method/path allowlist only. The host runs production: any spawner change must update validate_create + tests/bootstrap/test_docker_guard.py and keep smoke check 11 fully passing (54 cases as of the follow-up). Never add body regexes to the proxy again.
 **Tags:** v3, docker, security, jupyterhub
 **Edges:** _(none)_
-**Files:** `v3/config/jupyterhub/docker-proxy.cfg`, `v3/config/jupyterhub/jupyterhub_config.py`, `v3/compose/workspace.yaml`, `v3/tests/smoke/proxy_probe.py`
-**Evidence:** lab test check 11 → {"cases": 14, "unexpected": []}
+**Files:** `v3/bootstrap/docker_guard.py`, `v3/tests/bootstrap/test_docker_guard.py`, `v3/config/jupyterhub/docker-proxy.cfg`, `v3/config/jupyterhub/jupyterhub_config.py`, `v3/compose/workspace.yaml`, `v3/compose.yaml`, `v3/tests/smoke/proxy_probe.py`, `v3/tests/smoke/run.sh`
+**Evidence:** ./lab test (check 11): docker exec -i <project>-jupyterhub-1 python3 - < v3/tests/smoke/proxy_probe.py → {"cases": 54, "unexpected": []} + guard log 'forwarded canonical body sha256=<probe's sha>' (v3-p1 upgraded and clean room v3-p4g, 2026-09-27); python3 -m unittest discover -s v3/tests/bootstrap → test_docker_guard OK
+**LastVerified:** 2026-09-27
 **Commit:** 6202fd0
-**LastUpdated:** 2026-09-26
+**LastUpdated:** 2026-09-27

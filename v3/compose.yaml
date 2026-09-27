@@ -69,9 +69,13 @@ networks:
   # seaweedfs (S3). CONTRACT.md Phase 3, "Networks".
   spark:
     internal: true
-  # Only docker-proxy and jupyterhub (compose/workspace.yaml). No egress, not reachable from
+  # Only jupyterhub and docker-guard (compose/workspace.yaml). No egress, not reachable from
   # `lab` or the workspaces.
   hub-docker:
+    internal: true
+  # Only docker-guard and docker-proxy: the socket proxy is reachable from nothing but the
+  # guard, which is the single source of the request-body policy (bootstrap/docker_guard.py).
+  docker-api:
     internal: true
 
 volumes:
@@ -83,3 +87,4 @@ volumes:
   trino-groups: {}     # Trino file group provider, generated from Keycloak by bootstrap (OQ-17)
   jupyterhub-data: {}  # hub database (users, servers, encrypted auth state) + cookie secret
   airflow-data: {}     # Airflow task logs + executed notebooks (profiles engineer/full)
+  dags-user: {}        # user DAGs (Phase 4, E3): one folder per user; each engineer/lab-admin workspace mounts only its own (rw), Airflow reads all at dags/user/ (ro)

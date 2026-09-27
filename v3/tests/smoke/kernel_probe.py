@@ -398,6 +398,7 @@ STEPS = {
 
 
 STACK_DUMP = "~/.smoke-stack.txt"   # read back by workspace.py if the probe times out
+PROGRESS = "~/.smoke-progress.txt"  # one line per step start/end, read back on a timeout too
 
 
 def probe(params, ns=None):
@@ -414,10 +415,26 @@ def probe(params, ns=None):
         dump.close()
 
 
+def _progress(line):
+    """Append a timestamped line to PROGRESS (evidence for a timeout: did the probe start,
+    and in which step did it stop?). Never fails the probe."""
+    try:
+        with open(os.path.expanduser(PROGRESS), "a") as f:
+            f.write(time.strftime("%Y-%m-%dT%H:%M:%SZ ", time.gmtime()) + line + "\n")
+    except OSError:
+        pass
+
+
 def _probe(params, ns):
     out = {"user_env": os.environ.get("JUPYTERHUB_USER"), "steps": {}}
+    try:
+        os.unlink(os.path.expanduser(PROGRESS))
+    except OSError:
+        pass
+    _progress(f"probe start pid={os.getpid()} steps={','.join(params['steps'])}")
     for name in params["steps"]:
         t0 = time.time()
+        _progress(f"step {name} start")
         try:
             if name == "duckdb_attach":
                 prev = out["steps"].get("trino_samples", {})
@@ -427,5 +444,7 @@ def _probe(params, ns):
         except Exception as e:  # noqa: BLE001
             res = {"ok": False, "error": _short(e), "trace": traceback.format_exc()[-1200:]}
         res.setdefault("seconds", round(time.time() - t0, 1))
+        _progress(f"step {name} end ok={res.get('ok')} {res['seconds']}s")
         out["steps"][name] = res
+    _progress("probe end")
     return out

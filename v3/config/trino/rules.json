@@ -31,6 +31,11 @@
       "allow": "all"
     },
     {
+      "group": "analyst",
+      "catalog": "lakehouse",
+      "allow": "all"
+    },
+    {
       "group": "analyst|viewer",
       "catalog": "lakehouse|tpch",
       "allow": "read-only"
@@ -141,6 +146,14 @@
         "DELETE",
         "UPDATE",
         "OWNERSHIP",
+        "GRANT_SELECT"
+      ]
+    },
+    {
+      "group": "analyst",
+      "catalog": "lakehouse",
+      "privileges": [
+        "SELECT",
         "GRANT_SELECT"
       ]
     },

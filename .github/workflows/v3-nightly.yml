@@ -1,7 +1,8 @@
 # V3 nightly: the `full` profile end to end (CONTRACT Phase 3 exit 5), which the PR matrix
 # (v3-ci.yml: core, engineer) leaves out to keep PR runtime reasonable. One job:
 #   install --profile full -> smoke with LAB_SMOKE_LONG=1 (all checks, incl. the chain
-#   ingest -> dbt -> "Revenue by region" dashboard (12, 14) and the ADR-017 long run (13))
+#   ingest -> dbt -> "Revenue by region" dashboard (12, 14), the ADR-017 long run (13) and
+#   every learning-track module's solution -> checkpoint -> reset (17, LAB_SMOKE_TRACKS=all))
 #   -> idempotent re-install -> lab reset leaves nothing behind.
 # It also MEASURES memory (tests/smoke/mem-sample.sh: host used + this lab's containers,
 # every 10 s) and writes the peaks to the job summary, to answer "does full fit a 16 GB
@@ -30,6 +31,10 @@ on:
         description: Run the slow ADR-017 check (13)
         type: boolean
         default: true
+      tracks:
+        description: Learning-track modules for check 17 (all, first, none, or ids like E1,A3)
+        type: string
+        default: all
 
 permissions:
   contents: read
@@ -46,6 +51,7 @@ jobs:
       PYTHONDONTWRITEBYTECODE: "1"
       LAB_PROFILE_UNDER_TEST: ${{ inputs.profile || 'full' }}
       LAB_SMOKE_LONG: ${{ (github.event_name != 'workflow_dispatch' || inputs.long) && '1' || '0' }}
+      LAB_SMOKE_TRACKS: ${{ inputs.tracks || 'all' }}
       # CI-sized limits, as in v3-ci.yml (shell variables win over compose defaults because
       # .env does not set them). Limits are ceilings; the measured use is in the summary.
       WORKSPACE_MEM: 1536M
@@ -81,7 +87,7 @@ jobs:
       - name: Install (${{ env.LAB_PROFILE_UNDER_TEST }} profile, test users)
         run: v3/install.sh --non-interactive --seed-test-users --domain lab.localhost --profile "$LAB_PROFILE_UNDER_TEST"
 
-      - name: Smoke test (LAB_SMOKE_LONG=${{ env.LAB_SMOKE_LONG }})
+      - name: Smoke test (LAB_SMOKE_LONG=${{ env.LAB_SMOKE_LONG }}, LAB_SMOKE_TRACKS=${{ env.LAB_SMOKE_TRACKS }})
         run: v3/lab test
 
       - name: Memory peaks

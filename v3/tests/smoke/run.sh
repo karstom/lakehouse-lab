@@ -8,7 +8,8 @@
 #      denied on a sibling prefix
 #   5. victor (viewer) is denied a write in Trino
 #   6. no static S3 key in Trino's config or environment                (here, on the host)
-#  11. the Docker socket proxy refuses out-of-scope requests (in the jupyterhub container)
+#  11. JupyterHub's Docker access (docker-guard + socket proxy) refuses out-of-scope requests,
+#      including JSON-decoding tricks, and forwards only canonical bodies (in jupyterhub)
 #   7. a group change made through the Keycloak admin API (as in the Keycloak UI) reaches
 #      Trino automatically via identity-sync, granting and then revoking (OQ-20)
 #   8. alice logs into jupyter. in the browser, her workspace spawns, and INSIDE it (her
@@ -26,24 +27,34 @@
 #  15. Console tiles differ for alice and victor; Spark UI 200 for alice, 403 for victor
 #  16. external IdP (mock realm as alias github-mock): first login has no group and is
 #      refused; access follows an admin's group change; no linking by e-mail
-# Checks 2-5, 7-10 and 12-16 run in the `smoke` container (profile test) on the lab network:
+#  17. learning tracks (tracks.py): per selected module, as its seeded test user in their own
+#      workspace, the reference solution passes the checkpoint and `lab-tracks reset` brings
+#      back the start state (LAB_SMOKE_TRACKS: first (default) | all | none | E1,A3)
+# Checks 2-5, 7-10 and 12-17 run in the `smoke` container (profile test) on the lab network:
 # smoke.py, with workspace.py driving the workspace and kernel_probe.py running inside it.
 #
-# Usage: tests/smoke/run.sh [--no-build] [--long]
+# Usage: tests/smoke/run.sh [--no-build] [--long] [--tracks SPEC]
 # Env:   LAB_SMOKE_OUT  where screenshots/results.json go (default: tests/smoke/out)
 #        LAB_SMOKE_ONLY debugging only: comma list of in-container checks to run (e.g. 8,9)
 #        LAB_SMOKE_LONG=1 same as --long (nightly CI)
+#        LAB_SMOKE_TRACKS same as --tracks: modules for check 17 (first | all | none | E1,A3)
 set -uo pipefail
 
 build=(--build)
 LAB_SMOKE_LONG=${LAB_SMOKE_LONG:-}
-for a in "$@"; do
-  case "$a" in
+LAB_SMOKE_TRACKS=${LAB_SMOKE_TRACKS:-first}
+usage="usage: tests/smoke/run.sh [--no-build] [--long] [--tracks first|all|none|ID,...]"
+while [ $# -gt 0 ]; do
+  case "$1" in
     --no-build) build=() ;;
     --long) LAB_SMOKE_LONG=1 ;;
-    *) echo "usage: tests/smoke/run.sh [--no-build] [--long]" >&2; exit 2 ;;
+    --tracks) [ $# -ge 2 ] || { echo "$usage" >&2; exit 2; }; LAB_SMOKE_TRACKS=$2; shift ;;
+    --tracks=*) LAB_SMOKE_TRACKS=${1#--tracks=} ;;
+    *) echo "$usage" >&2; exit 2 ;;
   esac
+  shift
 done
+[[ "$LAB_SMOKE_TRACKS" =~ ^[A-Za-z0-9,_-]+$ ]] || { echo "run.sh: bad --tracks '$LAB_SMOKE_TRACKS'" >&2; exit 2; }
 
 V3=$(cd -P "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 ENV_FILE="$V3/.env"
@@ -113,22 +124,35 @@ else
 fi
 
 # ---------------------------------------------------------------- 2-5. in the smoke container
-echo "== 2-5, 7-10, 12-16. browser login, Trino, PyIceberg, viewer denial, group sync, workspaces, Phase 3 apps and IdP (smoke container on the lab network)"
+echo "== 2-5, 7-10, 12-17. browser login, Trino, PyIceberg, viewer denial, group sync, workspaces, Phase 3 apps and IdP, learning tracks (smoke container on the lab network)"
 out=${LAB_SMOKE_OUT:-$V3/tests/smoke/out}
 mkdir -p "$out"
 rm -f "$out/summary.env" "$out/results.json"
 if LAB_SMOKE_OUT="$out" "${DC[@]}" --profile test run --rm ${build[@]+"${build[@]}"} \
      --user "$(id -u):$(id -g)" -e HOME=/tmp/smoke-home -e LAB_PROFILE="$PROFILE" \
-     -e LAB_SMOKE_ONLY="${LAB_SMOKE_ONLY:-}" -e LAB_SMOKE_LONG="$LAB_SMOKE_LONG" smoke; then
+     -e LAB_SMOKE_ONLY="${LAB_SMOKE_ONLY:-}" -e LAB_SMOKE_LONG="$LAB_SMOKE_LONG" \
+     -e LAB_SMOKE_TRACKS="$LAB_SMOKE_TRACKS" \
+     -v "$V3/tracks:/opt/tracks:ro" -v "$V3/tests/tracks:/opt/tracks-tests:ro" smoke; then
   :
 else
   FAILED+=("in-container checks (see [FAIL] lines above, $out/results.json)")
 fi
 
-# ---------------------------------------------------------------- 11. Docker proxy scope
-echo "== 11. Docker socket proxy refuses out-of-scope requests (from inside jupyterhub)"
+# ---------------------------------------------------------------- 11. Docker access scope
+# proxy_probe.py (in jupyterhub, through docker-guard and the socket proxy): every refused case
+# gets 403, every allowed case reaches Docker (400, below its memory minimum: nothing is
+# created). For its last allowed case, sent with escaped/shuffled keys, the guard must have
+# logged forwarding exactly the canonical JSON the probe computed (sha256).
+echo "== 11. Docker access refuses out-of-scope requests (from inside jupyterhub, via docker-guard)"
 if probe=$("${DC[@]}" exec -T jupyterhub python3 - <"$V3/tests/smoke/proxy_probe.py" 2>&1); then
-  pass "11.docker_proxy_scope" "$(printf '%s' "$probe" | tail -n 1)"
+  last=$(printf '%s' "$probe" | tail -n 1)
+  sha=$(printf '%s' "$last" | sed -n 's/.*"canonical_sha256": "\([0-9a-f]\{64\}\)".*/\1/p')
+  guard_log=$("${DC[@]}" logs --no-color docker-guard 2>/dev/null)   # not piped: pipefail + grep -q
+  if [ -n "$sha" ] && grep -qF "forwarded canonical body sha256=$sha " <<<"$guard_log"; then
+    pass "11.docker_proxy_scope" "$last; guard forwarded the canonical body"
+  else
+    fail "11.docker_proxy_scope" "$last; no 'forwarded canonical body sha256=${sha:-?}' in the docker-guard log"
+  fi
 else
   fail "11.docker_proxy_scope" "$(printf '%s' "$probe" | tail -n 3 | tr '\n' ' ')"
 fi

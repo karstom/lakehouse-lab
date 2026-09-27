@@ -149,6 +149,8 @@
 **Priority:** MEDIUM
 **Label:** V3: Spark Connect client hung once after a Forbidden refusal (not reproduced)
 **Summary:** On one full smoke run, victor's workspace probe hung for 300 s after Lakekeeper and Spark had refused his table create (ForbiddenException logged within about 1 s; the client then went silent with no further RPCs). It did not recur in an isolated run, two more full runs, or a standalone client (refusal plus stop() in 2 s). If learners' notebooks can freeze this way it matters, so the smoke probe now dumps all thread stacks to ~/.smoke-stack.txt before the harness times out, and the harness attaches the dump to the evidence. On recurrence, read that dump first.
+
+ UPDATE 2026-09-26 (Phase 4 root-cause work): 240 loop iterations (60 of them victor's Spark refusal path) never hung inside the Spark client. Every kernel 'hang' measured was REG_V3_WORKSPACE_KERNEL_FIRST_MESSAGE_STALL: the kernel stayed idle and ran the probe only at teardown, which also explains a refusal logged 'about 1 s' into a run that then went silent. Keep this watch open until a full smoke round on ipykernel 6.31.0 shows no recurrence; the probe now also writes ~/.smoke-progress.txt, and the harness reads both files with the XSRF header.
 **Tags:** v3, spark-connect, flaky, workspace
 **Edges:** _(none)_
 **Files:** `v3/tests/smoke/kernel_probe.py`, `v3/tests/smoke/workspace.py`, `v3/images/workspace/lakehouse/clients.py`
@@ -171,3 +173,67 @@
 **LastVerified:** 2026-09-26
 **Commit:** 3b5516e
 **LastUpdated:** 2026-09-26
+
+---
+
+## NODE: WATCH_V3_SHARED_DEV_HOST_OUTAGE_DURING_PARALLEL_TESTS
+**Type:** Watchlist
+**Priority:** LOW
+**Label:** OPEN: shared dev host (also production) went down during parallel Phase 4 agent testing
+**Summary:** RESOLVED 2026-09-26, cause external: a power event (the owner saw the UPS beeping and network switches down until power returned). The previous boot's journal stops abruptly at 13:28:44 UTC mid Docker activity with no shutdown sequence, which means power loss, not our load; the host rebooted at 13:36 UTC. Production V2 containers and the host's other services came back on their own. Lesson: agent test stacks with restart policies also come back after a reboot, so reset stray v3-p*-* projects after an interruption.
+**Tags:** v3, dev-host, outage, production, testing
+**Edges:** _(none)_
+**Files:** `v3/CONTRACT.md`
+**Evidence:**  Second outage 2026-09-26 17:54:31 UTC during the Phase 4 integration kernel loop: journal 'System is powering down (hypervisor initiated shutdown)', clean poweroff, host back 18:02 (owner: UPS beeping, switches down until power restored). The loop's only non-ok iterations (5, from 17:54:30) fall inside the shutdown; loop re-run after recovery. v3-p1 containers restarted on their own (unless-stopped).
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-26
+
+---
+
+## NODE: WATCH_V3_WORKSPACE_IMAGE_TAG_SHARED_ACROSS_PROJECTS
+**Type:** Watchlist
+**Priority:** MEDIUM
+**Label:** OPEN: workspace image tag lakehouse-lab/v3-workspace:<JUPYTERHUB_VERSION> is shared by every v3 project on one daemon
+**Summary:** compose/workspace.yaml tags the built image without the project name, so any install or build of any v3-* project on the shared dev host (parallel agent test stacks, v3-p1) overwrites the image every other project's hub spawns. In Phase 4 the image carries the learning tracks, so a workstream's tests can run another workstream's lesson/checkpoint copies. Engineer-track testing used a test-copy-only tag suffix (-p4eng). Consider a project-scoped tag or a test override variable.
+**Tags:** v3, dev-host, images, workspace, parallel-testing
+**Edges:** _(none)_
+**Files:** `v3/compose/workspace.yaml`
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-26
+**Author:** engineer-track
+
+---
+
+## NODE: WATCH_V3_CADDY_UPSTREAM_KEEPALIVE_502
+**Type:** Watchlist
+**Priority:** MEDIUM
+**Label:** FIXED in Phase 4 integration (Caddy keepalive 4s on jupyter.); watch other short keep-alive upstreams (Superset gunicorn 2 s)
+**Summary:** Phase 4 kernel loop, 1 in 120 iterations: DELETE /hub/api/users/victor/server returned 502; Caddy logged 'EOF' and the hub never saw the request, so the server was not stopped. configurable-http-proxy 5.1.0 on node 18 closes idle keep-alive connections after 5 s; Caddy keeps idle upstream connections for 2 min and does not retry non-idempotent methods, so a request sent 5-7 s after the previous one can hit a closing connection. Learners would see a failed 'Stop server' or a POST error. Proven fix on the p4-tooling test copy: in the jupyter. site, reverse_proxy jupyterhub:8000 { transport http { keepalive 4s } } (then 0 failures in 120 iterations). Needs the Caddyfile owner/integrator to apply it; other node or gunicorn upstreams with short keep-alive (Superset's gunicorn default is 2 s) may have the same race.
+**Tags:** v3, caddy, jupyterhub, flaky, 502, keepalive
+**Edges:** _(none)_
+**Files:** `v3/config/caddy/Caddyfile`
+**Evidence:** ~/lakehouse-v3/p4-tooling-runs/fix1 (dev host): iteration 6 victor stop_failed, caddy log 15:18:52 'EOF' on DELETE /hub/api/users/victor/server, hub log has no DELETE; fix2 run with keepalive 4s: 120/120 ok.
+ Integrated: v3/config/caddy/Caddyfile jupyter. site now has transport http { keepalive 4s }; applied on v3-p1 (upgrade) and v3-p4 (clean), full smoke PASS 17/17 on both; 30-iteration loop on v3-p4 in PHASE4_RESULTS.md.
+**LastVerified:** 2026-09-26
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-26
+**Author:** tooling-ci
+
+---
+
+## NODE: WATCH_V3_OPENFGA_WRITE_DEADLINE_UNDER_IO_LOAD
+**Type:** Watchlist
+**Priority:** LOW
+**Label:** OPEN: under heavy host IO, Lakekeeper's OpenFGA writes hit 'Request Deadline Exceeded' and table creates fail (503)
+**Summary:** Phase 4 integration, dev host right after a power-outage reboot (load 10-50, iowait ~24% from other workloads): the A3 reference solution's dbt build failed twice with Trino ICEBERG_CATALOG_ERROR 'Failed to create transaction'. Lakekeeper logged 'Failed to write to OpenFGA: Request Deadline Exceeded' and returned 503 AuthorizationBackendError on POST .../namespaces/dbt_anna/tables. A rerun two minutes later passed. A learner on a slow or busy machine would see a dbt model fail with that message. Not fixed: consider a longer OpenFGA write deadline in Lakekeeper, or retries in Lakekeeper's authorizer, if it shows up outside an overloaded host.
+
+ REPAIR ROUND (2026-09-26 22:14 UTC, v3-p4r full, host load ~6, no outage): again, one OpenFGA Write (3 tuples for a new table) hit the 3 s server deadline (query_duration_ms 3001, grpc 4004); Lakekeeper returned 'Service unavailable: Authorization service is unavailable' to Spark, and the E2 reference notebook failed; the E2 rerun passed. Mitigation: OPENFGA_REQUEST_TIMEOUT default 10s in compose/catalog.yaml (a slow write is still a correct write). Postgres showed no slow sync at that time; why a single write exceeds 3 s is still open.
+**Tags:** v3, lakekeeper, openfga, flaky, load, dbt
+**Edges:**
+- RELATED_TO → WATCH_V3_SHARED_DEV_HOST_OUTAGE_DURING_PARALLEL_TESTS: seen right after the reboot
+**Files:** `v3/compose/catalog.yaml`
+**Evidence:** dev host ~/lakehouse-v3/p4-integ-p4-a34.log (A3 solve rc=1, 20:07 UTC) and v3-p4-lakekeeper-1 log 20:07:08 OpenFGA deadline errors; ~/lakehouse-v3/p4-integ-p4-a3b.log rerun PASS
+**LastVerified:** 2026-09-26
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-26
+**Author:** integrator

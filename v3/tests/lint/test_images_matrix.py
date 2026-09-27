@@ -116,7 +116,8 @@ class Matrix(unittest.TestCase):
             "superset": {"build": {"context": str(real_v3 / "images" / "superset"),
                                    "additional_contexts": {"config": "../../config/superset"}}},
             "workspace-image": {"build": {"context": str(real_v3 / "images" / "workspace"),
-                                          "additional_contexts": {"starter": "../../starter"}}}}}
+                                          "additional_contexts": {"starter": "../../starter",
+                                                                  "tracks": "../../tracks"}}}}}
         cj = self.repo / "full.json"
         cj.write_text(json.dumps(data))
         extra = im.compose_extra_contexts(cj)

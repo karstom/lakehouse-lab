@@ -21,7 +21,7 @@ beartype==0.22.9
 beautifulsoup4==4.15.0
 bleach==6.4.0
 cachetools==7.2.0
-caio==0.12.5
+caio==0.12.9
 certifi==2026.7.22
 certipy==0.2.3
 cffi==2.1.1
@@ -64,7 +64,6 @@ httpx==0.28.1
 httpx-sse==0.4.3
 idna==3.20
 importlib_metadata==9.0.1
-ipykernel==7.3.0
 ipython==9.17.1
 ipython-genutils==0.2.0
 ipython_pygments_lexers==1.1.1
@@ -128,7 +127,7 @@ nbclient==0.11.0
 nbconvert==7.17.1
 nbdime==4.0.4
 nbformat==5.11.1
-nest-asyncio2==1.7.3
+nest-asyncio==1.6.0
 networkx==3.7
 notebook_shim==0.2.4
 numpy==2.5.3
@@ -146,7 +145,7 @@ parso==0.8.7
 pathable==0.6.0
 pathspec==1.0.4
 pexpect==4.9.0
-platformdirs==4.11.14
+platformdirs==4.11.15
 ploomber-core==0.2.27
 posthog==7.60.1
 prettytable==3.18.0

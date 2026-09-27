@@ -1,0 +1,27 @@
+# Tests and documentation for segment_revenue (steps 5 and 6 of the lesson).
+# Copy this file into models/marts/ next to segment_revenue.sql, then replace the ___ parts.
+version: 2
+
+models:
+  - name: segment_revenue
+    description: ___ one sentence that says what ONE row of this table is ___
+    config:
+      # Also write the descriptions into Trino as table and column comments, so people who
+      # find the table in Trino or Superset see them too.
+      persist_docs:
+        relation: true
+        columns: true
+    columns:
+      - name: market_segment
+        description: The customer's market segment, from lakehouse.samples.customer.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [___]
+      - name: order_year
+        description: The year the order was placed.
+        data_tests:
+          - not_null
+      - name: net_revenue
+        description: Sum of the orders' net revenue (price minus discount), rounded to cents.

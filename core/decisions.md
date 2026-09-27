@@ -373,13 +373,15 @@
 **Priority:** HIGH
 **Label:** V3 DockerSpawner reaches Docker only via a name-prefix HAProxy allowlist (docker-socket-proxy)
 **Summary:** The dev/prod host shares one Docker daemon, so JupyterHub never mounts the socket. A pinned tecnativa/docker-socket-proxy on the internal hub-docker network runs a custom HAProxy allowlist (config/jupyterhub/docker-proxy.cfg): container calls only by name and only for <project>-ws-*; no listing, pull, exec or volume/network delete; creation refused with host binds, privileged, cap_add, devices or host namespaces. DockerSpawner is subclassed to address containers by name, because Docker also accepts full IDs and unique ID prefixes, which are enumerable and would reach any container. Anti-pattern: never allow container IDs through a Docker socket proxy on a shared daemon.
+
+⚠ CORRECTED 2026-09-27: Since the Phase 4 follow-up the proxy's HAProxy file checks METHOD and PATH only (container names by prefix, no ids, no listing). The create-body refusals (host binds, privileged, cap_add, devices, host namespaces, foreign volumes/mounts/networks) moved to docker-guard (bootstrap/docker_guard.py), which parses, validates and re-serializes bodies; the proxy's body regexes were bypassable and are removed (DEC_V3_DOCKER_GUARD_PARSE_VALIDATE_RESERIALIZE, REG_V3_DOCKER_PROXY_BODY_REGEX_BYPASS). The proxy is reachable only from the guard (network docker-api).
 **Tags:** v3, docker, security, jupyterhub, dockerspawner, socket-proxy
 **Edges:** _(none)_
 **Files:** `v3/config/jupyterhub/docker-proxy.cfg`, `v3/config/jupyterhub/jupyterhub_config.py`, `v3/compose/workspace.yaml`
 **Evidence:** WORKSPACE proxy probe: 19 disallowed calls -> HTTP 403 (listing, pull, exec, create outside prefix / with host bind / privileged, inspect of non-workspace container by name, full ID or ID prefix). Integration: before/after docker ps -a / volume ls / network ls of non-v3 objects identical on the dev host.
 **LastVerified:** 2026-09-26
-**Commit:** 6202fd0
-**LastUpdated:** 2026-09-26
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-27
 
 ---
 
@@ -518,3 +520,95 @@
 **LastVerified:** 2026-09-26
 **Commit:** 3b5516e
 **LastUpdated:** 2026-09-26
+
+---
+
+## NODE: DEC_V3_USER_DAGS_SHARED_VOLUME
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3 Phase 4: user DAGs via one shared volume, group-based rw mount, Airflow cluster policy
+**Summary:** Engineer track E3/E4 needs learners to author Airflow DAGs. One compose volume <project>_dags-user holds one folder per user and is mounted ro into dag-processor/scheduler/triggerer at dags/user/. REPAIR ROUND (verifier: eddie could plant ~/airflow-dags/alice/x.py, accepted as alice's DAG, because every workspace is uid 1000 and the whole volume was mounted rw): an engineer/lab-admin workspace now mounts ONLY its own folder, a volume Mount with VolumeOptions.Subpath=<username> at ~/airflow-dags/<username> (LabSpawner._workspace_volumes sets self.mounts per start). Docker needs the subpath to exist, so JupyterHub (root in its container) mounts the volume at /srv/dags-user and creates <username>/ owned 1000:100 (ensure_user_dag_folder: one-segment name, refuses symlinks/non-dirs). The one-shot airflow-dags-user makes the volume root root:root 0755 and writes the marker .lab-user-dags; the hub gives DAG folders only when the marker exists (profile core: the volume exists for the hub mount but no Airflow). docker-proxy.cfg: no Binds of dags-user; exactly one Mounts entry (docker-py field order, Source <project>_dags-user, Subpath = target's last segment via a NAMED PCRE group — HAProxy compiles without auto-capture, \1 fails), a second Mounts key refused. The policy (airflow_local_settings.py) also refuses a dag_id carrying a longer existing user's prefix (u_eddie_x_ in eddie/). Smoke: check 11 30 cases; check 17 dags_isolation (only own mount under ~/airflow-dags, own write ok, neighbour mkdir EACCES). User DAGs still run as lab-batch (trusted engineers).
+**Tags:** v3, phase4, airflow, user-dags, docker-proxy, jupyterhub, tracks
+**Edges:**
+- RELATES_TO → INV_V3_DOCKER_PROXY_PROJECT_SCOPE: the allowlist gains one named volume, still project-scoped
+- RELATES_TO → DEC_V3_LONG_SPARK_JOBS_VIA_AIRFLOW: user DAGs act as lab-batch
+**Files:** `v3/config/airflow/policy/airflow_local_settings.py`, `v3/config/airflow/dags-user-init.sh`, `v3/compose/airflow.yaml`, `v3/compose/workspace.yaml`, `v3/config/jupyterhub/jupyterhub_config.py`, `v3/config/jupyterhub/docker-proxy.cfg`, `v3/tests/smoke/proxy_probe.py`, `v3/tests/smoke/tracks.py`, `v3/tests/lint/test_user_dags.py`, `v3/tracks/engineer/_shared/trackcheck.py`
+**Symbols:** `LabSpawner._workspace_volumes`, `dag_policy`, `check`
+**Evidence:** dev host v3-p4-engineer: proxy_probe {"cases": 19, "unexpected": []}; docker inspect ws-eddie/ws-alice show v3-p4-engineer_dags-user:/home/jovyan/airflow-dags rw, ws-victor/ws-anna have no such mount; airflow dags list-import-errors shows the policy messages for user/stray_dag.py and user/eddie/orders_summary_dag.py
+**LastVerified:** 2026-09-26
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-26
+**Author:** engineer-track
+
+---
+
+## NODE: DEC_V3_ANALYST_OWN_SCHEMA_GENERATED_TRINO_RULES
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3 Phase 4: analysts own lakehouse.dbt_<user>; Trino rules generated from Keycloak groups
+**Summary:** Analyst track A1-A3 writes lakehouse.dbt_<user>, but analysts were read-only in config/trino/rules.json. Trino file rules cannot substitute the user into a schema pattern (no ${USER}; the file then fails to load on Trino 483), so bootstrap and identity-sync generate the rules Trino reads (trino-groups/rules.json = static config/trino/rules.json + one user-and-schema rule pair per analyst member, java-regex-escaped). access-control.properties points at the generated file; bootstrap/identity-sync mount ./config/trino read-only as a directory. Access still comes only from the Keycloak group; removal takes effect on the next sync tick (measured 25 s).
+**Tags:** v3, trino, authorization, analyst, phase4, identity-sync
+**Edges:**
+- RELATED_TO → DEC_V3_IDENTITY_SYNC_SERVICE: same sync loop writes the rules
+- RELATED_TO → REG_V3_STALE_BIND_MOUNT_CONFIG_ON_UPGRADE: Trino no longer bind-mounts rules.json; config hash still covers config/trino
+**Files:** `v3/bootstrap/trino_groups.py`, `v3/bootstrap/__main__.py`, `v3/config/trino/access-control.properties`, `v3/config/trino/rules.json`, `v3/compose/bootstrap.yaml`, `v3/compose/engines.yaml`, `v3/tests/bootstrap/test_trino_user_schemas.py`
+**Symbols:** `trino_groups.write_rules`, `trino_groups.render_rules`, `trino_groups.user_schema_rules`, `sync_trino_groups`
+**Evidence:** python3 -m unittest discover -s v3/tests/bootstrap -> 46 OK (6 in test_trino_user_schemas); v3-p1 upgrade: bootstrap log '[trino] /var/lib/lab/trino-groups/rules.json: written'; smoke check 17 A1-A4 as anna PASS; analyst workstream: anna denied in analytics/dbt_eddie, victor denied creating dbt_victor
+**LastVerified:** 2026-09-26
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-26
+**Author:** integrator
+
+---
+
+## NODE: DEC_V3_SUPERSET_API_BEARER_KEYCLOAK
+**Type:** Decision
+**Priority:** MEDIUM
+**Label:** V3 Phase 4: Superset API accepts the user's own Keycloak token (azp jupyterhub); role lab_author
+**Summary:** The A4 checkpoint must read and reset Superset objects as the learner, from the workspace, where the only credential is lab_token(). LabSecurityManager.request_loader (config/superset/lab_bearer.py) accepts a Bearer access token verified against the realm JWKS, issuer from LAB_AUTH_URL, typ Bearer, azp in LAB_SUPERSET_BEARER_CLIENTS (default jupyterhub), for an existing active Superset user only; roles are recomputed from the token groups via AUTH_ROLES_MAPPING. Writes still need Superset's CSRF token. New role lab_author (can_write Dataset) for analyst and engineer, since Gamma cannot create datasets (HTTP 403).
+**Tags:** v3, superset, auth, analyst, phase4
+**Edges:**
+- RELATED_TO → DEC_V3_SUPERSET_TRINO_IMPERSONATION: queries still run in Trino as the user
+- RELATED_TO → INV_V3_PUBLIC_ORIGIN_SINGLE_SOURCE: issuer derived from LAB_AUTH_URL
+**Files:** `v3/config/superset/lab_bearer.py`, `v3/config/superset/superset_config.py`, `v3/config/superset/lab_init.py`, `v3/images/superset/Dockerfile`, `v3/tracks/analyst/_shared/superset_api.py`
+**Symbols:** `lab_bearer.load_user`, `lab_bearer.verify`, `LabSecurityManager.request_loader`, `ensure_role_permissions`
+**Evidence:** smoke check 17 A4 as anna: solve, check PASS, reset, check not-yet (v3-p1 upgrade and v3-p4 clean runs, PHASE4_RESULTS.md)
+**LastVerified:** 2026-09-26
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-26
+**Author:** integrator
+
+---
+
+## NODE: DEC_V3_TRACK_USER_PRODUCTION_TABLES
+**Type:** Decision
+**Priority:** MEDIUM
+**Label:** V3 Phase 4: engineer DAG output goes to lakehouse.analytics.u_<user>_*, and counts as the learner's own
+**Summary:** E3/E4 DAGs run as lab-batch, which can write analytics but not eng_<user>. Lead decision at Phase 4 integration: their output tables are lakehouse.analytics.u_<user>_* ({prod} in module.json), treated as the learner's own objects, so lab-tracks reset may drop them (trackcheck only drops analytics tables with the user's prefix). check_tracks.py accepts analytics.{prod}* and still warns for any other shared-schema reset. Documented in v3/tracks/README.md and CONTRACT.md (Phase 4 integration conventions).
+**Tags:** v3, tracks, airflow, phase4, reset
+**Edges:**
+- RELATED_TO → DEC_V3_USER_DAGS_SHARED_VOLUME: the DAGs that write these tables
+- RELATED_TO → DEC_V3_LONG_SPARK_JOBS_VIA_AIRFLOW: lab-batch identity
+**Files:** `v3/tools/check_tracks.py`, `v3/tests/lint/test_check_tracks.py`, `v3/tracks/README.md`, `v3/tracks/engineer/_shared/trackcheck.py`, `v3/CONTRACT.md`
+**Evidence:** python3 v3/tools/check_tracks.py -> 0 error(s), 0 warning(s); test_check_tracks OK
+**LastVerified:** 2026-09-26
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-26
+**Author:** integrator
+
+---
+
+## NODE: DEC_V3_DOCKER_GUARD_PARSE_VALIDATE_RESERIALIZE
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3: request bodies to Docker are checked by a stdlib docker-guard that parses, validates and re-serializes (no body regexes)
+**Summary:** Topology jupyterhub -> docker-guard (hub-docker) -> docker-socket-proxy (docker-api, only guard+proxy) -> socket. The guard (bootstrap/docker_guard.py, python -m bootstrap.docker_guard on the pinned bootstrap image) is the single source of the request-body policy: it allows only DockerSpawner's calls (derived from real traffic: version, image/volume/container inspect by name, container create/start/stop/delete, volume create), decodes strictly, allows only exact canonical keys, validates values, and forwards only its json.dumps output with a new Content-Length and a query rebuilt from validated values; failures are 403 + one log line (never the body). The socket proxy keeps a method/path allowlist, no body ACLs. Chosen over more HAProxy regexes because the policy must read the same object Docker reads. Changing what DockerSpawner sends requires changing validate_create and its unit tests together.
+**Tags:** v3, docker, security, jupyterhub, socket-proxy, docker-guard
+**Edges:**
+- IMPLEMENTS → INV_V3_DOCKER_PROXY_PROJECT_SCOPE: the guard enforces the project scope on decoded bodies
+- FIXES → REG_V3_DOCKER_PROXY_BODY_REGEX_BYPASS: parser differential removed
+- AMENDS → DEC_V3_DOCKER_PROXY_NAME_ALLOWLIST: bodies moved out of the proxy
+**Files:** `v3/bootstrap/docker_guard.py`, `v3/compose/workspace.yaml`, `v3/compose.yaml`, `v3/config/jupyterhub/docker-proxy.cfg`, `v3/tests/bootstrap/test_docker_guard.py`, `v3/CONTRACT.md`
+**LastVerified:** 2026-09-26
+**Commit:** 3e6f45c
+**LastUpdated:** 2026-09-27
