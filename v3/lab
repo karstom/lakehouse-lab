@@ -252,18 +252,24 @@ cmd_ai() {
         info "Gateway: not running (start the lab with '$V3_DIR/lab up')."
       fi ;;
     set-local)
-      [ $# -ge 1 ] || die "usage: lab ai set-local URL|none [--model NAME] [--no-probe]"
+      local keyarg=""
+      [ $# -ge 1 ] || die "usage: lab ai set-local URL|none [--model NAME] [--api-key-file FILE|--no-api-key] [--no-probe]"
       url=$1; shift
       while [ $# -gt 0 ]; do
         case "$1" in
           --model) [ $# -ge 2 ] || die "--model needs a value"; model=$2; shift ;;
           --model=*) model=${1#*=} ;;
+          --api-key-file) [ $# -ge 2 ] || die "--api-key-file needs a file"; keyarg=$2; shift ;;
+          --api-key-file=*) keyarg=${1#*=} ;;
+          --no-api-key) keyarg=none ;;
           --no-probe) probe=0 ;;
-          *) die "usage: lab ai set-local URL|none [--model NAME] [--no-probe]" ;;
+          *) die "usage: lab ai set-local URL|none [--model NAME] [--api-key-file FILE|--no-api-key] [--no-probe]" ;;
         esac
         shift
       done
       ai_set_local "$url" "$model" "$probe"
+      if [ "$url" = none ]; then ai_set_local_key none
+      elif [ -n "$keyarg" ]; then ai_set_local_key "$keyarg"; fi
       ai_apply ;;
     enable-hosted)
       while [ $# -gt 0 ]; do

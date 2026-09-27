@@ -716,3 +716,19 @@ Repair round (2026-09-27): tests/ai/gateway-e2e.sh never configures the `local` 
 **LastVerified:** 2026-09-27
 **Commit:** 0dc8f05
 **LastUpdated:** 2026-09-27
+
+---
+
+## NODE: DEC_V3_LOCAL_MODEL_API_KEY_GATEWAY_ONLY
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3: the local model server's API key is held only by the ai-gateway
+**Summary:** Owner chose option 1 for the host-LAN gap (2026-09-27): protect the local model server (llama.cpp llama-server) with an API key that only the ai-gateway knows. `./lab ai set-local URL --api-key-file FILE` stores it as LAB_AI_LOCAL_API_KEY in .secrets.env (mode 600, never printed; status shows only 'set'). `--no-api-key` and `set-local none` remove it, and render_config passes it to the local deployment. This only closes the gap once the model server enforces the key (llama-server --api-key-file). Note that llama.cpp leaves /health and /v1/models public even with a key; check enforcement with a protected endpoint such as /props.
+**Tags:** v3, ai, llama.cpp, security, gateway
+**Edges:**
+- MITIGATES → WATCH_V3_WORKSPACE_LAN_EGRESS_BYPASSES_GATEWAY: a keyed model server refuses direct calls from workspaces
+**Files:** `v3/lab`, `v3/installer/ai.sh`, `v3/config/ai/render_config.py`, `v3/tests/installer/test_unit.sh`
+**Symbols:** `ai_set_local_key`, `cmd_ai`
+**Evidence:** bash v3/tests/installer/run.sh -> 338 passed (key in .secrets.env only, never printed, removed by --no-api-key and set-local none); dev host: gateway env LAB_AI_LOCAL_API_KEY length 64
+**Commit:** c885a8a
+**LastUpdated:** 2026-09-27

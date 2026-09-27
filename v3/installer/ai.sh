@@ -110,6 +110,25 @@ ai_set_local() {
   if [ -n "$model" ]; then ok "Local AI model: $norm (model \"$model\")"; else ok "Local AI model: $norm"; fi
 }
 
+# ai_set_local_key FILE|none -> LAB_AI_LOCAL_API_KEY in .secrets.env (mode 600), or removed.
+# The local model server's key (e.g. llama-server --api-key-file): only the ai-gateway gets
+# it, so workspaces cannot call the model server around the gateway (Phase 5 known gap).
+ai_set_local_key() {
+  local f=$1 key
+  [ -f "$LAB_SECRETS_FILE" ] || die "no $LAB_SECRETS_FILE; run install.sh first"
+  if [ "$f" = none ]; then
+    if env_has "$LAB_SECRETS_FILE" LAB_AI_LOCAL_API_KEY; then
+      env_unset "$LAB_SECRETS_FILE" LAB_AI_LOCAL_API_KEY
+      ok "Local model API key removed from $LAB_SECRETS_FILE"
+    fi
+    return 0
+  fi
+  key=$(ai_read_key_file "$f")
+  env_set "$LAB_SECRETS_FILE" LAB_AI_LOCAL_API_KEY "$key"
+  chmod 600 "$LAB_SECRETS_FILE"
+  ok "Local model API key stored in $LAB_SECRETS_FILE (only the ai-gateway receives it)"
+}
+
 # ai_read_key_file FILE -> the API key in FILE (one line, no spaces). Never printed.
 ai_read_key_file() {
   local f=$1 key
@@ -174,6 +193,7 @@ ai_print_config() {
   if env_has "$LAB_ENV_FILE" LAB_AI_LOCAL_URL; then
     m=$(env_get "$LAB_ENV_FILE" LAB_AI_LOCAL_MODEL)
     printf '  %-10s %s%s\n' local "$(env_get "$LAB_ENV_FILE" LAB_AI_LOCAL_URL)" "${m:+ (model $m)}"
+    if env_has "$LAB_SECRETS_FILE" LAB_AI_LOCAL_API_KEY; then printf '  %-10s %s\n' "" "API key: set (in .secrets.env)"; fi
   else
     printf '  %-10s %s\n' local off
   fi
