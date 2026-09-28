@@ -6,6 +6,9 @@
 #   .env          LAB_AI_LOCAL_URL, LAB_AI_LOCAL_MODEL   local OpenAI-compatible server
 #                 LAB_AI_ANTHROPIC_MODEL, LAB_AI_OPENAI_MODEL (optional model overrides)
 #                 LAB_AI_MOCK=true                        test installs only (mock model)
+#                 LAB_AI_QUIET_HOURS, LAB_AI_QUIET_TZ     local model's quiet hours (Phase 6;
+#                 `lab ai quiet-hours`): the gateway refuses requests that would reach the
+#                 local provider in that window, before routing; empty = off (the default)
 #   .secrets.env  LAB_AI_ANTHROPIC_API_KEY, LAB_AI_OPENAI_API_KEY   hosted providers
 #                 (present = enabled; `lab ai enable-hosted`/`disable-hosted`; the gateway is
 #                 the only service that receives them)
@@ -173,6 +176,107 @@ ai_disable_hosted() {
   done
 }
 
+# ---------------------------------------------------------------- quiet hours (Phase 6)
+# ai_valid_quiet_window SPEC -> HH:MM-HH:MM (24-hour clock), start != end. The gateway checks
+# the same rule (config/ai/render_config.py parse_quiet_hours).
+ai_valid_quiet_window() {
+  [[ "$1" =~ ^([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$ ]] && [ "${1%%-*}" != "${1#*-}" ]
+}
+
+# ai_valid_tz NAME -> an IANA time zone this host knows (Area/City, e.g. America/New_York).
+ai_valid_tz() {
+  local z=$1
+  [[ "$z" =~ ^[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+){0,2}$ ]] || return 1
+  if command -v python3 >/dev/null 2>&1; then
+    python3 -c 'import sys, zoneinfo; zoneinfo.ZoneInfo(sys.argv[1])' "$z" 2>/dev/null
+    return
+  fi
+  [ -f "/usr/share/zoneinfo/$z" ]
+}
+
+# _ai_minutes HH:MM -> minutes since midnight
+_ai_minutes() { local h=${1%%:*} m=${1#*:}; echo $((10#$h * 60 + 10#$m)); }
+
+# ai_quiet_end_now SPEC TZ [NOW_HHMM] -> prints the window's end (HH:MM) and returns 0 when the
+# wall clock in TZ (or NOW_HHMM, for tests) is inside the window; returns 1 otherwise.
+# Start inclusive, end exclusive; start > end crosses midnight. Display only: the gateway
+# decides for itself (render_config.quiet_until).
+ai_quiet_end_now() {
+  local spec=$1 tz=$2 now=${3:-} s e n
+  [ -n "$now" ] || now=$(TZ="$tz" date +%H:%M)
+  s=$(_ai_minutes "${spec%%-*}") e=$(_ai_minutes "${spec#*-}") n=$(_ai_minutes "$now")
+  if { [ "$s" -lt "$e" ] && [ "$n" -ge "$s" ] && [ "$n" -lt "$e" ]; } ||
+     { [ "$s" -gt "$e" ] && { [ "$n" -ge "$s" ] || [ "$n" -lt "$e" ]; }; }; then
+    printf '%s\n' "${spec#*-}"
+    return 0
+  fi
+  return 1
+}
+
+# ai_set_quiet_hours SPEC|off [TZ] -> LAB_AI_QUIET_HOURS / LAB_AI_QUIET_TZ in .env. "off" stores
+# empty values (not a removal), so a stray variable in the caller's shell can never win.
+ai_set_quiet_hours() {
+  local spec=$1 tz=${2:-}
+  if [ "$spec" = off ]; then
+    env_set "$LAB_ENV_FILE" LAB_AI_QUIET_HOURS ""
+    env_set "$LAB_ENV_FILE" LAB_AI_QUIET_TZ ""
+    ok "Local AI model quiet hours: off"
+    return 0
+  fi
+  ai_valid_quiet_window "$spec" || die "invalid quiet hours '$spec' (expected HH:MM-HH:MM on a 24-hour clock, e.g. 22:00-07:00; start and end must differ)"
+  [ -n "$tz" ] || die "a time zone is needed: --tz Area/City (e.g. America/New_York)"
+  ai_valid_tz "$tz" || die "unknown time zone '$tz' (expected an IANA name such as America/New_York or Europe/Berlin)"
+  env_set "$LAB_ENV_FILE" LAB_AI_QUIET_HOURS "$spec"
+  env_set "$LAB_ENV_FILE" LAB_AI_QUIET_TZ "$tz"
+  ok "Local AI model quiet hours: $spec $tz (requests to the local model are refused then; hosted models are not affected)"
+  env_has "$LAB_ENV_FILE" LAB_AI_LOCAL_URL ||
+    info "  No local model is set yet; this applies once one is ('lab ai set-local')."
+}
+
+# ai_quiet_hours_status -> one line for 'lab ai status' / 'lab ai quiet-hours'
+ai_quiet_hours_status() {
+  local spec tz end
+  spec=$(env_get "$LAB_ENV_FILE" LAB_AI_QUIET_HOURS)
+  tz=$(env_get "$LAB_ENV_FILE" LAB_AI_QUIET_TZ)
+  if [ -z "$spec" ]; then
+    printf '  %-10s %s\n' quiet off
+  elif end=$(ai_quiet_end_now "$spec" "${tz:-UTC}"); then
+    printf '  %-10s %s\n' quiet "$spec ${tz:-UTC}, local model only (now: resting until $end)"
+  else
+    printf '  %-10s %s\n' quiet "$spec ${tz:-UTC}, local model only (now: outside the window)"
+  fi
+}
+
+# ai_ask_quiet_hours -> installer question (interactive installs only), asked once when a local
+# model URL is set; the answer (empty = off) is stored, so a re-run does not ask again.
+ai_ask_quiet_hours() {
+  local spec tz def tries=0
+  env_has "$LAB_ENV_FILE" LAB_AI_LOCAL_URL || return 0
+  grep -q '^LAB_AI_QUIET_HOURS=' "$LAB_ENV_FILE" 2>/dev/null && return 0
+  info "Quiet hours: times when the lab sends nothing to the local model server (e.g. at night,"
+  info "when its fans would wake someone). Hosted providers are not affected. Change it later"
+  info "with './lab ai quiet-hours HH:MM-HH:MM --tz Area/City' or '... off'."
+  while :; do
+    read -r -p "Local model quiet hours, e.g. 22:00-07:00 [none]: " spec || spec=""
+    spec=${spec// /}
+    case "$spec" in ""|none|off) ai_set_quiet_hours off; return 0 ;; esac
+    ai_valid_quiet_window "$spec" && break
+    warn "expected HH:MM-HH:MM on a 24-hour clock (start and end different), or empty for none"
+    tries=$((tries + 1)); [ "$tries" -lt 3 ] || { ai_set_quiet_hours off; return 0; }
+  done
+  def=$(env_get "$LAB_ENV_FILE" LAB_TZ)
+  ai_valid_tz "$def" || def=UTC
+  tries=0
+  while :; do
+    read -r -p "Time zone of those hours [$def]: " tz || tz=""
+    tz=${tz:-$def}
+    ai_valid_tz "$tz" && break
+    warn "unknown time zone '$tz' (an IANA name such as America/New_York)"
+    tries=$((tries + 1)); [ "$tries" -lt 3 ] || { ai_set_quiet_hours off; return 0; }
+  done
+  ai_set_quiet_hours "$spec" "$tz"
+}
+
 # ai_enabled_providers -> space-separated enabled providers (mock local anthropic openai)
 ai_enabled_providers() {
   local out="" p
@@ -208,6 +312,7 @@ ai_print_config() {
   if [ "$(env_get "$LAB_ENV_FILE" LAB_AI_MOCK)" = true ]; then
     printf '  %-10s %s\n' mock "on (test model; tests/ai/mock_llm)"
   fi
+  ai_quiet_hours_status
   printf '  %-10s %s USD per user per %s, %s requests/min (LAB_AI_USER_BUDGET_USD, LAB_AI_BUDGET_DURATION, LAB_AI_USER_RPM in .env)\n' \
     budget "$(env_get "$LAB_ENV_FILE" LAB_AI_USER_BUDGET_USD | grep . || echo 5)" \
     "$(env_get "$LAB_ENV_FILE" LAB_AI_BUDGET_DURATION | grep . || echo 30d)" \

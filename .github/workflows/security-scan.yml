@@ -1,18 +1,12 @@
 # .github/workflows/security-scan.yml
+# Trivy (filesystem) and TruffleHog (secrets) over the whole repository, V3 and legacy/v2,
+# plus a check that no per-install file (settings, secrets, the lab CA) is committed.
 name: Security Scan
 on:
   push:
-    paths-ignore:
-      - "v3/**"
-      - "spikes/**"
-      - "docs/v3/**"
-      - "core/**"
   pull_request:
-    paths-ignore:
-      - "v3/**"
-      - "spikes/**"
-      - "docs/v3/**"
-      - "core/**"
+permissions:
+  contents: read
 jobs:
   security:
     runs-on: ubuntu-latest
@@ -35,53 +29,14 @@ jobs:
         with:
           path: ./
 
-      - name: Validate secure credential handling
+      - name: No per-install files committed (settings, secrets, lab CA)
         run: |
-          echo "Checking for secure credential handling..."
-
-          # Check that default .env files don't contain actual passwords
-          if grep -q "password123\|admin123\|secret123" .env.default .env.fat-server 2>/dev/null; then
-            echo "❌ Default passwords found in config files"
+          # v3/.env, v3/.secrets.env and v3/state/ are written by the installer and are
+          # git-ignored; the repo is public, so fail if any of them was force-added.
+          bad=$(git ls-files -- 'v3/.env' 'v3/.secrets.env' 'v3/state/*' '*.secrets.env' '.env' | grep -v '^legacy/' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::per-install files are committed:"
+            echo "$bad"
             exit 1
           fi
-
-          # Check that backup scripts don't expose credentials
-          if grep -i "password.*echo\|password.*printf" scripts/backup-lakehouse.sh scripts/restore-lakehouse.sh 2>/dev/null; then
-            echo "❌ Backup scripts may expose credentials in output"
-            exit 1
-          fi
-
-          # Check that credential generation creates secure passwords
-          if [ -f scripts/generate-credentials.sh ]; then
-            # Test credential generation (without executing potentially harmful commands)
-            if grep -q "openssl\|/dev/urandom" scripts/generate-credentials.sh; then
-              echo "✅ Credential generation uses secure methods"
-            else
-              echo "❌ Credential generation may not be secure"
-              exit 1
-            fi
-          fi
-
-          echo "✅ Secure credential handling validated"
-
-      - name: Check backup security
-        run: |
-          echo "Checking backup system security..."
-
-          # Check that backup scripts have proper permissions
-          if [ -f scripts/backup-lakehouse.sh ]; then
-            if [ "$(stat -c '%a' scripts/backup-lakehouse.sh)" != "755" ]; then
-              echo "❌ Backup script has incorrect permissions"
-              exit 1
-            fi
-          fi
-
-          # Check that restore script has confirmation prompts
-          if [ -f scripts/restore-lakehouse.sh ]; then
-            if ! grep -q "confirm_restore\|RESTORE" scripts/restore-lakehouse.sh; then
-              echo "❌ Restore script missing safety confirmations"
-              exit 1
-            fi
-          fi
-
-          echo "✅ Backup security validated"
+          echo "No per-install files committed."

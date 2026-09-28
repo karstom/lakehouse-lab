@@ -23,17 +23,30 @@ Loaded by the gateway through `litellm_settings.callbacks: [lab_hooks.proxy_hand
    structured parts, and flattens all-text content to a plain string, which every
    OpenAI-compatible server accepts.
 
-The state (configured or not) comes from state.json, written next to this file by
-render_config.py at container start.
+5. Quiet hours for the local model (Phase 6): during the admin's window
+   (`./lab ai quiet-hours`), a request for a model that reaches the `local` provider
+   (`local`, or `lab-default` when it resolves to local) is refused BEFORE routing with
+   "The lab's local AI model is resting until 07:00 America/New_York ..." (HTTP 503, type
+   `ai_quiet_hours`, Retry-After). Hosted models and the mock are not affected. The decision is
+   render_config.quiet_refusal (pure, unit-tested with an injected clock).
+
+The state (configured, local models, quiet hours) comes from state.json, written next to this
+file by render_config.py at container start (start.sh copies render_config.py here too).
 """
+import datetime
 import json
 import os
 import re
+import sys
 
 from fastapi import HTTPException
 from litellm.integrations.custom_logger import CustomLogger
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+from render_config import QUIET_TYPE, quiet_refusal  # noqa: E402  (stdlib; next to this file)
+
 NOT_CONFIGURED = "AI isn't configured; ask your lab admin."
 _SPEND = re.compile(r"(?:Spend=|Current cost:\s*)([0-9.eE+-]+)")
 _BUDGET = re.compile(r"(?:Budget=|Max budget:\s*)([0-9.eE+-]+)")
@@ -131,7 +144,13 @@ def normalize_content(data):
     return dropped
 
 
+def utc_now():
+    return datetime.datetime.now(datetime.timezone.utc)
+
+
 class LabHooks(CustomLogger):
+    clock = staticmethod(utc_now)      # injected in tests
+
     def __init__(self):
         super().__init__()
         self.state = _load_state()
@@ -140,6 +159,11 @@ class LabHooks(CustomLogger):
         if not self.state.get("configured"):
             raise HTTPException(status_code=503, detail={
                 "error": {"message": NOT_CONFIGURED, "type": "ai_not_configured", "code": 503}})
+        refusal = quiet_refusal(self.state, str(data.get("model") or ""), self.clock())
+        if refusal:
+            message, seconds = refusal
+            raise HTTPException(status_code=503, headers={"Retry-After": str(seconds)}, detail={
+                "error": {"message": message, "type": QUIET_TYPE, "code": 503}})
         if call_type in _CHAT_CALLS:
             normalize_content(data)
         return attribute_to_key_owner(data, user_api_key_dict)

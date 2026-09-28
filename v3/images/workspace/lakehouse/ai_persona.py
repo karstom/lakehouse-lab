@@ -11,18 +11,27 @@ MCP tools) with the lab's wiring:
 * Tools: in tutor mode only READ tools (read the learner's notebook, which notebook is open)
   and the lab's MCP servers (read-only, acting as the user); no editing or running of cells,
   no shell. Outside tutor mode: Jupyternaut's tools plus every configured MCP server.
-* Errors from the gateway (budget exceeded, key refused, no model) get a clear message.
+* Errors from the gateway (budget exceeded, key refused, no model, local model quiet hours)
+  get a clear message.
+* Replies (Phase 6): the stock loop streams every assistant message of a turn (reasoning,
+  "The user is asking... Let me look that up." before each tool call, then the answer) into
+  one chat message. `process_message` streams the agent's events through
+  lakehouse/ai.py `ReplyShaper` instead: the answer is shown as is, and the steps (narration,
+  reasoning, which tools ran) go into a collapsed section under it.
 
 Registered through the entry point `jupyter_ai.personas` (lakehouse_lab_ai.dist-info in
 /opt/lakehouse/python) and made the default persona in /etc/jupyter/jupyter_server_config.py.
 """
 import asyncio
 import os
+from time import monotonic, time
 
 from jupyter_ai_jupyternaut.jupyternaut.jupyternaut import JupyternautPersona
 from jupyter_ai_jupyternaut.jupyternaut.toolkits import notebook as _nb
 from jupyter_ai_persona_manager import (McpServerHttp, McpServerStdio, ModelConfiguration,
                                         ModelOption, PersonaDefaults)
+from jupyterlab_chat.models import Message, NewMessage
+from jupyterlab_chat.utils import find_mentions
 from langchain.agents import create_agent
 from langchain_litellm import ChatLiteLLM
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -33,6 +42,7 @@ from . import ai
 READ_ONLY_NOTEBOOK_TOOLS = (_nb.read_notebook_cells, _nb.get_active_notebook,
                             _nb.get_active_cell_id, _nb.get_open_documents)
 AVATAR_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ai_avatar.svg")
+PUSH_INTERVAL = 0.2          # seconds between chat updates while a reply streams
 
 
 class LabAssistant(JupyternautPersona):
@@ -92,7 +102,62 @@ class LabAssistant(JupyternautPersona):
                 _nb.get_active_notebook(message.sender), timeout=2)
         except Exception:  # noqa: BLE001 - awareness unavailable: decide from the folders
             pass
-        await super().process_message(message)
+        # Jupyternaut's process_message, with the reply streamed through ReplyShaper.
+        model_id, model_args = self._resolve_model()
+        try:
+            system_prompt = self.get_system_prompt(model_id=model_id, message=message)
+            agent = await self.get_agent(model_id=model_id, model_args=model_args,
+                                         system_prompt=system_prompt)
+            stream = await agent.astream_events(
+                {"messages": [{"role": "user", "content": message.body}]},
+                {"configurable": {"thread_id": self.chat.get_id(), "username": message.sender}},
+                version="v3")
+            await self._stream_shaped(stream)
+        except Exception as e:  # noqa: BLE001 - shown to the user, as Jupyternaut does
+            self.log.exception("Lab Assistant: error while processing the message")
+            self.send_message(f"Error: {e}")
+
+    async def _stream_shaped(self, stream):
+        """One chat message for the reply, re-rendered from ReplyShaper as events arrive
+        (at most every PUSH_INTERVAL s), and once more, final, at the end."""
+        shaper = ai.ReplyShaper()
+        state = {"id": None, "shown": None, "at": 0.0}
+
+        def push(body, final=False):
+            if not body or (body == state["shown"] and not final):
+                return
+            if state["id"] is None:
+                state["id"] = self.chat.add_message(NewMessage(body=body, sender=self.id))
+                if not final:
+                    state["shown"], state["at"] = body, monotonic()
+                    return
+            self.chat.update_message(
+                Message(id=state["id"], body=body, time=time(), sender=self.id, raw_time=False),
+                append=False, trigger_actions=[find_mentions] if final else [])
+            state["shown"], state["at"] = body, monotonic()
+
+        status = "is typing..."
+        self.set_status(status)
+        try:
+            async for event in stream:
+                if event.get("method") != "messages":
+                    continue
+                data = (event.get("params") or {}).get("data")
+                if isinstance(data, (list, tuple)):
+                    data = data[0] if data else None
+                if data is None:
+                    continue
+                shaper.feed(data)
+                want = ("is running tools..." if shaper.working_on_tools()
+                        else "is thinking..." if shaper.thinking() else "is typing...")
+                if want != status:
+                    status = want
+                    self.set_status(status)
+                if monotonic() - state["at"] >= PUSH_INTERVAL:
+                    push(shaper.render())
+            push(shaper.render(final=True), final=True)
+        finally:
+            self.clear_status()
 
     def send_message(self, body):
         if isinstance(body, str) and body.startswith("Error:"):

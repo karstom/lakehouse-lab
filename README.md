@@ -1,357 +1,185 @@
 # Lakehouse Lab
 
-[![GitHub release](https://img.shields.io/github/release/karstom/lakehouse-lab.svg)](https://github.com/karstom/lakehouse-lab/releases)
-[![Docker Compose](https://img.shields.io/badge/docker--compose-ready-blue)](https://docs.docker.com/compose/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](docs/CONTRIBUTING.md)
-[![Last Commit](https://img.shields.io/github/last-commit/karstom/lakehouse-lab)](https://github.com/karstom/lakehouse-lab/commits/main)
+[![v3-ci](https://github.com/karstom/lakehouse-lab/actions/workflows/v3-ci.yml/badge.svg)](https://github.com/karstom/lakehouse-lab/actions/workflows/v3-ci.yml)
+[![GitHub release](https://img.shields.io/github/v/release/karstom/lakehouse-lab?include_prereleases)](https://github.com/karstom/lakehouse-lab/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+**A complete open-source lakehouse on one machine, with one login, for learning to work as a
+data engineer or data analyst.**
 
----
+> **Status: V3 beta (`v3.0.0-beta.1`).** V3 is a new stack, not an upgrade of V2. It is
+> tested end to end in CI on every change, but it is new: expect rough edges, and please
+> [report them](#reporting-problems). Known gaps are listed in the
+> [release notes](v3/RELEASE_NOTES_v3.0.0-beta.1.md). Coming from V2? See
+> [below](#coming-from-v2).
 
-## Table of Contents
-- [Quick Start](#quick-start)
-- [Feature Table](#feature-table)
-- [User Provisioning & Roles](#user-provisioning--roles)
-- [Documentation](#documentation)
-- [Troubleshooting & FAQ](#troubleshooting--faq)
-- [Credential Management & Security](#credential-management--security)
-- [How to Contribute](#how-to-contribute)
-- [Support & Community](#support--community)
+## What it is, and who it's for
 
----
+Lakehouse Lab connects mature open-source tools into one working lakehouse: an Iceberg
+catalog, object storage, SQL and Spark engines, notebooks, dbt, Airflow and Superset. You
+sign in once, and every tool knows who you are and what you may see.
 
-## Quick Start
+- **Learners** get two guided tracks (data engineer, data analyst) with a checkpoint at the
+  end of every module, on a real platform rather than a toy.
+- **Instructors and lab admins** run one lab for a class or team: add people to a group in
+  Keycloak and they get the right access everywhere.
+- **Practitioners** get a reproducible single-server lakehouse for real analysis, with the
+  engines and formats used in production.
 
-**One-Command Install (Recommended):**
+It is not a Databricks clone: it does not build its own notebook, SQL editor or catalog UI.
+The "why" behind the design is in [docs/README.md](docs/README.md).
+
+## Quick start
+
+**You need:** Linux or Windows with WSL2, Docker 24+ with Compose 2.20+, git, and at least
+8 GB of RAM for Docker (16 GB recommended; see [profiles](#profiles-and-memory)).
+
 ```bash
-curl -sSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
+git clone https://github.com/karstom/lakehouse-lab.git
+cd lakehouse-lab
+v3/install.sh
 ```
-- For advanced options, see [Installation Guide](docs/INSTALLATION.md).
 
----
+Or as one line (the same thing: it clones into `./lakehouse-lab`, shows what it will do,
+then runs `v3/install.sh`):
 
-## Feature Table
-
-| Feature         | Included | Docs Link                |
-|-----------------|:--------:|--------------------------|
-| PostgreSQL      |   ✅     | [Configuration](docs/CONFIGURATION.md) |
-| MinIO (S3)      |   ✅     | [Configuration](docs/CONFIGURATION.md) |
-| Spark           |   ✅     | [Configuration](docs/CONFIGURATION.md) |
-| JupyterLab      |   ✅     | [Notebooks](docs/NOTEBOOK_PACKAGE_MANAGER.md) |
-| Superset        |   ✅     | [Superset](docs/SUPERSET_DATABASE_SETUP.md) |
-| Airflow         |   ✅     | [Workflows](docs/INSTALLATION.md) |
-| LanceDB         |   ✅     | [Vector Search](docs/LAKEHOUSE_LLM_GUIDE.md) |
-| Vizro           |   ✅     | [Dashboards](docs/SERVICE_INTEGRATION_GUIDE.md) |
-| Portainer       |   ✅     | [Management](docs/INSTALLATION.md) |
-
----
-
-> **Modern Data Engineering Platform in 15 Minutes**  
-> **One-Click Install • Vector Search • Interactive Dashboards**
-
-**Version 2.1.1** - A comprehensive lakehouse environment for learning, development, and experimentation with modern data engineering technologies. Features interactive dashboards, vector search, multi-user collaboration, and comprehensive tooling for data engineering workflows.
-
-## User Provisioning & Roles
-
-See [User Provisioning Examples](docs/USER_PROVISIONING_EXAMPLES.md) for how to add users with different roles.
-
-**Example:**
 ```bash
-./scripts/provision-user.sh alice alice@company.com StrongAdminPass123 admin
-./scripts/provision-user.sh bob bob@company.com AnalystPass456 analyst
-./scripts/provision-user.sh carol carol@company.com ViewerPass789 viewer
+curl -fsSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
 ```
-- Roles: `admin`, `analyst`, `viewer`
-- Sample `.env` entries for each role are provided in the linked doc.
 
----
+Options go after `bash -s --`, e.g. `... | bash -s -- --profile engineer`. The bootstrap's
+own options are `--ref` (branch or tag, default `main`), `--dir` (default
+`./lakehouse-lab`) and `--yes`; everything else goes to `v3/install.sh` (`v3/install.sh
+--help` lists them). It never overwrites a directory that is not a Lakehouse Lab V3
+checkout.
+
+The installer:
+
+1. checks Docker, memory, disk and ports;
+2. asks for the lab's **domain** once: `lab.localhost` for this machine only (the default),
+   `sslip` for other machines on your LAN (`<your-ip>.sslip.io`, no DNS setup), or your own
+   domain;
+3. writes `v3/.env` (settings) and `v3/.secrets.env` (generated passwords and keys, mode 600),
+   and creates the lab's own certificate authority in `v3/state/ca/`;
+4. starts the lab and prints the URLs and the first admin's login.
+
+Then **trust the lab CA** in your browser once (`v3/lab ca` prints how; on WSL2, trust it in
+Windows) and open `https://console.<your domain>/`.
+
+Re-running `v3/install.sh` is safe: it keeps your settings, secrets and CA, and upgrades the
+running lab in place. Day to day, use the `v3/lab` CLI:
+
+```bash
+v3/lab status      # health of every service
+v3/lab urls        # where everything is
+v3/lab down        # stop (data is kept);  v3/lab up  to start again
+v3/lab logs trino  # a service's logs
+v3/lab test        # the end-to-end smoke test
+```
+
+## Profiles and memory
+
+Pick one with `v3/install.sh --profile NAME` (you can change it later the same way; data is
+kept).
+
+| Profile | Adds | Machine |
+|---|---|---|
+| `core` (default) | Keycloak login, SeaweedFS storage, Lakekeeper catalog, Trino, per-user JupyterLab + code-server workspaces with DuckDB and dbt, Lab Console | 8 GB minimum, 16 GB recommended; about 2 GiB in use at idle |
+| `engineer` | Spark 4 (Spark Connect from notebooks), Airflow 3 | 16 GB; about 5 GiB in use at idle |
+| `full` | Superset 6 dashboards, AI assist gateway | 16 GB minimum, 24 GB recommended; about 6 GiB in use at idle |
+
+Memory limits are per-service ceilings; real use is much lower than their sum. The measured
+numbers are in the `v3/PHASE*_RESULTS.md` files.
+
+## Services and URLs
+
+Every service is a subdomain of your lab domain behind one HTTPS port (443 by default,
+`--https-port` to change it). `v3/lab urls` prints the exact addresses.
+
+| URL | What | Profile |
+|---|---|---|
+| `https://console.<domain>/` | Lab Console: your tiles and service health | all |
+| `https://auth.<domain>/` | Keycloak: sign-in, users and groups (admin console at `/admin/`) | all |
+| `https://jupyter.<domain>/` | Your workspace: JupyterLab and code-server, with the learning tracks | all |
+| `https://trino.<domain>/` | Trino (SQL engine) web UI | all |
+| `https://catalog.<domain>/` | Lakekeeper (Iceberg catalog) UI | all |
+| `https://airflow.<domain>/` | Airflow | `engineer`, `full` |
+| `https://spark.<domain>/` | Spark UI | `engineer`, `full` |
+| `https://superset.<domain>/` | Superset: SQL Lab and dashboards | `full` |
+
+**Users and access** are managed in Keycloak: add a user, then add them to one group:
+`lab-admin`, `engineer`, `analyst` or `viewer`. Access follows within about 30 seconds
+everywhere (`v3/lab sync` applies it at once). "Sign in with GitHub" is optional
+(`v3/install.sh --github-client-id … --github-client-secret …`); a new GitHub user gets no
+access until an admin adds them to a group.
+
+## AI assist
+
+Profile `full` includes an AI assistant in JupyterLab that can look up tables, lineage and
+dashboards **as the signed-in user** (read-only, only what that user may see). The policy:
+
+- **Hosted models are off by default.** An admin turns one on explicitly, with its key:
+  `v3/lab ai enable-hosted --provider anthropic|openai --key-file FILE`. Lab data is then
+  sent to that provider.
+- **Local models** work through any OpenAI-compatible server (llama.cpp `llama-server`,
+  Ollama, vLLM): `v3/lab ai set-local http://<host>:<port>/v1`. The installer asks on `full`.
+- **Quiet hours** keep the lab off a local model server at set times, e.g. overnight:
+  `v3/lab ai quiet-hours 22:00-07:00 --tz Europe/Berlin` (`off` to remove). Hosted providers
+  are not affected.
+- **With nothing enabled, the lab makes no outbound AI calls**; AI features say they are
+  not configured.
+
+Keys stay in the gateway: users and workspaces never see a provider key, and each user has a
+budget. Details: [v3/config/ai/README.md](v3/config/ai/README.md).
+
+## Learning tracks
+
+| Track | Modules |
+|---|---|
+| **Data engineer** (`engineer`/`full`) | E1 files → Iceberg with Spark · E2 table maintenance and time travel · E3 your own Airflow DAG · E4 notebook → scheduled Spark job |
+| **Data analyst** (any profile; A4 needs `full`) | A1 SQL over the sample data · A2 exploration with JupySQL + DuckDB · A3 your first dbt model · A4 a Superset dashboard |
+
+Open `https://jupyter.<domain>/`, go to the `tracks` folder, and follow a module's
+`README.md`. `lab-tracks check E1` in a workspace terminal tells you whether you got there.
+More: [v3/tracks/README.md](v3/tracks/README.md); for instructors,
+[v3/tracks/FACILITATOR.md](v3/tracks/FACILITATOR.md).
 
 ## Documentation
 
-- [Quick Start](docs/QUICKSTART.md) — 15-minute setup guide
-- [Installation Guide](docs/INSTALLATION.md) — Complete install & troubleshooting
-- [Configuration Guide](docs/CONFIGURATION.md) — Service configuration & presets
-- [Service Integration Guide](docs/SERVICE_INTEGRATION_GUIDE.md) — Add new services
-- [User Provisioning Examples](docs/USER_PROVISIONING_EXAMPLES.md) — Roles & scripts
-- [Testing Guide](docs/TESTING.md) — Test framework & procedures
-- [Changelog](docs/CHANGELOG.md) — Version history
-- [Contributing](docs/CONTRIBUTING.md) — How to contribute
-
----
-
-## Troubleshooting & FAQ
-
-- See the [Troubleshooting Matrix](docs/INSTALLATION.md#-troubleshooting) for common errors, symptoms, and solutions.
-- **FAQ:**
-  - **How do I reset everything?**
-    Run: `./start-lakehouse.sh reset`
-  - **How do I add a new service?**
-    See: [Service Integration Guide](docs/SERVICE_INTEGRATION_GUIDE.md)
-  - **How do I rotate credentials?**
-    See: [Credential Management & Security](#credential-management--security)
-
----
-
-## Credential Management & Security
-
-- **Credential Rotation:**
-  Automated reminders are sent monthly via GitHub Actions. See `.github/credential-rotation-reminder.yml`.
-- **Secret Scanning:**
-  All code is scanned for secrets in CI using Trivy.
-- **Best Practices:**
-  - Never commit `.env` or secrets to version control.
-  - Use `./scripts/rotate-credentials.sh` to rotate credentials.
-  - Store credentials securely and update them regularly.
-
----
-
-## How to Contribute
-
-We welcome contributions!
-- See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for guidelines.
-- Open issues or pull requests for bugs, features, or documentation.
-- All code is tested and scanned for security in CI.
-
----
-
-## Support & Community
-
-- [GitHub Issues](https://github.com/karstom/lakehouse-lab/issues) — Report bugs, ask questions, request features
-- For urgent help, mention `@karstom` in your issue.
-
----
-
-## What You Get
-
-### Core Components
-- **PostgreSQL** - Analytics database for structured data
-- **MinIO** - S3-compatible object storage for data lake
-- **Apache Spark** - Distributed data processing engine
-- **JupyterLab/Hub** - Interactive notebooks for analysis and development
-- **DuckDB** - Fast analytics with direct S3 querying
-
-### Optional Services
-- **Apache Airflow** - Workflow orchestration and scheduling
-- **Apache Superset** - Business intelligence dashboards
-- **Vizro** - Modern interactive dashboard framework  
-- **LanceDB** - Vector database for AI/ML and semantic search
-- **Portainer** - Container management interface
-
-### Configuration Presets
-- **Minimal** (8GB) - Core services + notebooks
-- **Analytics** (14GB) - BI dashboards + visualizations
-- **ML/AI** (16GB) - Vector search + machine learning
-- **Full** (20GB) - All services enabled
-
-Run `./scripts/show-credentials.sh` to see service URLs and login credentials.
-
-## Multi-User Support
-
-### JupyterHub
-Enable multi-user collaborative notebooks:
-```bash
-docker compose -f docker-compose.yml -f docker-compose.jupyterhub.yml up -d
-```
-
-### User Management
-Provision users across all services:
-```bash
-./scripts/provision-user.sh username email@domain.com password role
-```
-
-Creates accounts in Superset, Airflow, MinIO, and JupyterHub with appropriate permissions.
-
-## Security & Credentials
-
-Lakehouse Lab generates unique, secure credentials for each installation:
-
-```bash
-# View all service URLs and credentials
-./scripts/show-credentials.sh
-
-# Rotate credentials if needed
-./scripts/rotate-credentials.sh
-```
-
-Credentials are stored in the `.env` file - back it up securely and never commit to version control.
-
-## Documentation
-
-**Essential Guides:**
-- [Quick Start](docs/QUICKSTART.md) - 15-minute setup guide
-- [Installation Guide](docs/INSTALLATION.md) - Complete installation options
-- [Configuration Guide](docs/CONFIGURATION.md) - Service configuration and presets
-- [AI/ML Integration](docs/LAKEHOUSE_LLM_GUIDE.md) - Vector search and LLM development
-- [Cloud Deployment](docs/CLOUD_DEPLOYMENT.md) - AWS, GCP, Azure deployment guides
-
-**Additional Resources:**
-- [Contributing](docs/CONTRIBUTING.md) - How to contribute
-- [Changelog](docs/CHANGELOG.md) - Version history
-- [MCP Integration](docs/MCP.md) - Model Context Protocol servers
-
-## Backup & Data Protection
-
-Basic backup and restore functionality:
-
-```bash
-# Manual backup
-./scripts/backup-lakehouse.sh --compress --verify
-
-# Automated backup setup
-./examples/cron-backup-setup.sh
-
-# Restore from backup
-./scripts/restore-lakehouse.sh backup-name
-```
-
-For detailed backup and data management options, see the [Configuration Guide](docs/CONFIGURATION.md).
-
-## Architecture Overview
-
-Modern lakehouse architecture with three analytics layers:
-
-### Data Flow
-1. **Ingest** → Load data to MinIO object storage  
-2. **Process** → Transform with Spark (orchestrated by Airflow)
-3. **Store** → Data lake (MinIO) + warehouse (PostgreSQL) + vectors (LanceDB)
-4. **Analyze** → Query with DuckDB, PostgreSQL, or vector search
-5. **Visualize** → Build dashboards in Superset/Vizro or analyze in Jupyter
-
-### Key Benefits
-- **S3-native analytics** - Query files directly without data movement
-- **Multiple query engines** - DuckDB for data lake, PostgreSQL for structured data, LanceDB for AI/ML
-- **Modern dashboards** - Interactive Vizro + traditional Superset BI
-- **Scalable processing** - Spark scales from laptops to clusters
-- **Container-based** - Consistent deployment with Docker Compose
-
-## Getting Started
-
-### 1. Access Your Services
-After installation, run `./scripts/show-credentials.sh` to see all service URLs and login credentials.
-
-### 2. Explore Sample Data
-Sample notebooks and datasets are automatically created:
-- Check `/notebooks/` for Jupyter examples
-- MinIO contains sample CSV files in `lakehouse/raw-data/`
-
-### 3. Query Data with DuckDB
-In Superset, setup persistent S3 access once:
-```sql
-CREATE PERSISTENT SECRET minio_secret (
-    TYPE S3,
-    KEY_ID 'admin',
-    SECRET 'YOUR_MINIO_PASSWORD',  -- Get from ./scripts/show-credentials.sh
-    ENDPOINT 'minio:9000',
-    USE_SSL false,
-    URL_STYLE 'path',
-    SCOPE 's3://lakehouse'
-);
-```
-
-Then query your data lake:
-```sql
-SELECT * FROM read_csv_auto('s3://lakehouse/raw-data/sample_orders.csv') LIMIT 10;
-```
-
-### 4. Build Dashboards
-- **Superset**: Traditional BI dashboards with DuckDB and PostgreSQL connections
-- **Vizro**: Modern interactive dashboards (see notebook examples)
-- **Jupyter**: Interactive analysis and development
-
-### 5. Create Data Pipelines  
-Access Airflow to orchestrate ETL workflows and schedule data processing jobs.
-
-## Advanced Features
-
-### Service Configuration
-Use the interactive configuration wizard:
-```bash
-./scripts/configure-services.sh
-```
-
-### Remote Server Deployment
-The system automatically detects your server's IP address. For manual configuration:
-```bash
-export HOST_IP=192.168.1.100  # Replace with your server's IP
-```
-
-### Apache Iceberg Support
-For advanced analytics with time travel and ACID transactions:
-```bash
-./install.sh --iceberg
-```
-
-For detailed configuration options, see the [Configuration Guide](docs/CONFIGURATION.md).
-
-## Project Structure
-
-```
-lakehouse-lab/
-├── install.sh              # Main installer
-├── docker-compose.yml      # Stack definition  
-├── scripts/                # Management scripts
-├── docs/                   # Documentation
-├── examples/               # Example configurations
-└── lakehouse-data/         # Runtime data (auto-created)
-```
-
-## Troubleshooting
-
-### Common Issues
-
-**Services won't start:**
-```bash
-docker compose ps              # Check service status
-docker compose logs SERVICE   # View specific service logs
-docker compose restart        # Restart all services
-```
-
-**Memory issues:**
-```bash
-docker stats --no-stream      # Check memory usage
-# Edit .env file to reduce memory limits
-```
-
-**Connection issues:**
-```bash
-./scripts/show-credentials.sh  # Get service URLs and credentials
-```
-
-**Reset everything (destroys all data):**
-```bash
-docker compose down -v
-rm -rf lakehouse-data/
-./install.sh
-```
-
-For detailed troubleshooting, see the [Installation Guide](docs/INSTALLATION.md).
-
-## Key Features
-
-- **15-minute setup** - Complete lakehouse environment with one command
-- **S3-native analytics** - Query files directly with DuckDB without data movement  
-- **Modern dashboards** - Interactive Vizro + traditional Superset BI
-- **Vector database** - LanceDB for AI/ML and semantic search
-- **Multi-user support** - JupyterHub with containerized environments
-- **Triple analytics** - Data lake + warehouse + vector database
-- **Scalable deployment** - From laptops to institutional networks
-- **Ready-made examples** - Sample notebooks and datasets included
-
-## Contributing
-
-See [Contributing Guide](docs/CONTRIBUTING.md) for how to contribute to the project.
+| Doc | What |
+|---|---|
+| [docs/README.md](docs/README.md) | Docs index and design overview |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, networking, identity and data access |
+| [docs/DECISIONS.md](docs/DECISIONS.md) | Architecture decision records |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Phases and what each one delivered |
+| [docs/MIGRATION.md](docs/MIGRATION.md) | Moving from V2 |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) | Version history |
+| [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) | Tests, contracts, how to contribute |
+| [v3/RELEASE_NOTES_v3.0.0-beta.1.md](v3/RELEASE_NOTES_v3.0.0-beta.1.md) | This release: highlights and known gaps |
+
+## Coming from V2?
+
+V3 does not upgrade a V2 install in place, and V2 keeps working as it is. In short:
+
+1. **Keep your V2 install on V2.** In your V2 directory, pin it to the last V2 release
+   before you pull anything: `git fetch --tags && git checkout v2.1.1-final`. (Running
+   `git pull` on `main` would replace V2's files with V3.)
+2. **Install V3 next to it** in a new directory (`--dir ~/lakehouse-lab-v3` with the
+   one-liner). Stop V2 first if the machine is short of RAM.
+3. **Copy your data**: mirror the V2 MinIO buckets into V3's storage with `rclone`, then
+   load what you need as Iceberg tables.
+4. Move notebooks, DAGs (Airflow 2 → 3 changes) and dashboards as you need them.
+
+The [migration guide](docs/MIGRATION.md) has the tested commands. V2's code and docs are
+archived in [legacy/v2/](legacy/v2/) ([what that means](legacy/README.md)). V2's MinIO image
+gets no more security fixes, so plan the move.
+
+## Reporting problems
+
+Open a [GitHub issue](https://github.com/karstom/lakehouse-lab/issues) with what you ran,
+what happened, `v3/lab status`, your profile, OS and RAM. Never paste `v3/.secrets.env`, keys
+or passwords. See [CONTRIBUTING](docs/CONTRIBUTING.md#reporting-issues).
 
 ## License
 
-MIT License - see LICENSE file for details.
-
-## Acknowledgments
-
-Built with amazing open source projects including DuckDB, PostgreSQL, Apache Spark, Apache Airflow, Apache Superset, MinIO, and Portainer.
-
----
-
-**Happy Data Engineering!**
-
-For questions and community discussions, please open an issue on GitHub.
+[MIT](LICENSE).

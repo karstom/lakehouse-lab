@@ -1,6 +1,6 @@
 # V3 Open Questions
 
-> Draft · 2026-09-25. Each question names how it gets resolved. When resolved, record the
+> Written 2026-09-25, kept current through the V3 cutover. Each question names how it gets resolved. When resolved, record the
 > answer here and update the relevant ADR.
 
 | ID | Question | Resolved by | Current lean |

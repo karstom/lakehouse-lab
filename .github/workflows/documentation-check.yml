@@ -1,94 +1,63 @@
-# .github/workflows/docs-check.yml
+# Documentation check: every link in every Markdown file (tests/docs/check-links.sh, with
+# mlc_config.json), and the root README's required sections. Run it locally with:
+#   bash tests/docs/check-links.sh            # add --offline to skip web links
 name: Documentation Check
+
 on:
   push:
-    paths-ignore:
-      - "v3/**"
-      - "spikes/**"
-      - "docs/v3/**"
-      - "core/**"
+    branches: [main, v3]
+    paths:
+      - "**.md"
+      - "mlc_config.json"
+      - "tests/docs/**"
+      - ".github/workflows/documentation-check.yml"
   pull_request:
-    paths-ignore:
-      - "v3/**"
-      - "spikes/**"
-      - "docs/v3/**"
-      - "core/**"
+    paths:
+      - "**.md"
+      - "mlc_config.json"
+      - "tests/docs/**"
+      - ".github/workflows/documentation-check.yml"
+  schedule:
+    # Weekly, to catch web links that went dead without a change here.
+    - cron: "23 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   docs:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - name: Check for broken links
-        uses: gaurav-nelson/github-action-markdown-link-check@v1
-      - name: Validate README structure
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Links in all Markdown files (markdown-link-check)
+        run: bash tests/docs/check-links.sh
+
+      - name: Root README has the sections users look for
+        if: ${{ !cancelled() }}
         run: |
-          echo "Validating README.md structure..."
-          grep -q "Quick Start" README.md
-          grep -q "Architecture" README.md
-          grep -q "Troubleshooting" README.md
-          grep -q "Backup & Data Protection" README.md
-
-          # Check for learning-focused messaging
-          if ! grep -q "learning" README.md; then
-            echo "❌ Missing learning-focused messaging in README"
-            exit 1
-          fi
-
-          echo "✅ README structure validated"
-
-      - name: Validate documentation completeness
-        run: |
-          echo "Checking for required documentation files..."
-
-          required_docs=(
-            "docs/QUICKSTART.md"
-            "docs/INSTALLATION.md"
-            "docs/CONFIGURATION.md"
-            "docs/CHANGELOG.md"
-            "docs/TESTING.md"
-            "docs/ICEBERG.md"
-          )
-
-          for doc in "${required_docs[@]}"; do
-            if [ ! -f "$doc" ]; then
-              echo "❌ Missing required documentation: $doc"
-              exit 1
-            fi
-            echo "✅ Found: $doc"
-          done
-
-      - name: Validate backup documentation
-        run: |
-          echo "Validating backup system documentation..."
-
-          # Check README has backup section (flexible matching)
-          if ! grep -qi "backup.*data protection\|data protection.*backup" README.md; then
-            echo "❌ Backup section missing from README"
-            exit 1
-          fi
-
-          # Check for basic backup functionality mentioned
-          if ! grep -qi "backup" README.md; then
-            echo "❌ Backup functionality not mentioned in README"
-            exit 1
-          fi
-
-          echo "✅ Backup documentation complete"
-
-      - name: Validate version consistency
-        run: |
-          echo "Checking version consistency across documentation..."
-
-          # Check that version information exists in key files (flexible check)
-          version_files=("README.md" "docs/QUICKSTART.md" "docs/INSTALLATION.md" "docs/CONFIGURATION.md")
-
-          for file in "${version_files[@]}"; do
-            if [ -f "$file" ]; then
-              echo "✅ Found: $file"
-            else
-              echo "❌ Missing documentation file: $file"
-              exit 1
+          missing=0
+          for heading in "## Quick start" "## Profiles and memory" "## Services and URLs" \
+                         "## AI assist" "## Learning tracks" "## Documentation" "## Coming from V2?"; do
+            if ! grep -qxF "$heading" README.md; then
+              echo "::error file=README.md::missing section '$heading'"
+              missing=1
             fi
           done
+          grep -q "v3/install.sh" README.md || { echo "::error file=README.md::quick start must use v3/install.sh"; missing=1; }
+          exit "$missing"
 
-          echo "✅ Version consistency validated"
+      - name: V3 docs exist
+        if: ${{ !cancelled() }}
+        run: |
+          missing=0
+          for doc in docs/README.md docs/ARCHITECTURE.md docs/DECISIONS.md docs/ROADMAP.md \
+                     docs/CHANGELOG.md docs/CONTRIBUTING.md legacy/README.md; do
+            [ -f "$doc" ] || { echo "::error::missing $doc"; missing=1; }
+          done
+          [ -f docs/MIGRATION.md ] || { echo "::error::missing the migration guide"; missing=1; }
+          exit "$missing"

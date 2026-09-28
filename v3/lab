@@ -47,6 +47,11 @@ Usage: ./lab <command> [args]
                       .secrets.env, given only to the ai-gateway). Lab data is then sent to it.
   ai disable-hosted --provider anthropic|openai|all
                       remove a hosted provider's key
+  ai quiet-hours [HH:MM-HH:MM [--tz Area/City] | off]
+                      quiet hours for the LOCAL model server: requests that would reach it
+                      (model local, or lab-default when it is local) are refused in that
+                      window with a friendly message; hosted models are not affected.
+                      --tz defaults to LAB_TZ. Off by default. No argument: show the setting.
 EOF
 }
 
@@ -308,8 +313,31 @@ cmd_ai() {
       require_stack_files
       ai_disable_hosted "$provider"
       ai_apply ;;
+    quiet-hours)
+      local spec="" tz="" tz_given=0
+      if [ $# -eq 0 ]; then
+        info "Local AI model quiet hours (project $COMPOSE_PROJECT_NAME):"
+        ai_quiet_hours_status
+        return 0
+      fi
+      spec=$1; shift
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --tz) [ $# -ge 2 ] || die "--tz needs a value"; tz=$2; tz_given=1; shift ;;
+          --tz=*) tz=${1#*=}; tz_given=1 ;;
+          *) die "usage: lab ai quiet-hours [HH:MM-HH:MM [--tz Area/City] | off]" ;;
+        esac
+        shift
+      done
+      if [ "$spec" = off ]; then
+        [ "$tz_given" = 0 ] || die "usage: lab ai quiet-hours off (no --tz)"
+      else
+        [ "$tz_given" = 1 ] || tz=$(env_get "$LAB_ENV_FILE" LAB_TZ)
+      fi
+      ai_set_quiet_hours "$spec" "$tz"
+      ai_apply ;;
     -h|--help|help) usage ;;
-    *) die "unknown 'lab ai' command: $sub (status | set-local | enable-hosted | disable-hosted)" ;;
+    *) die "unknown 'lab ai' command: $sub (status | set-local | enable-hosted | disable-hosted | quiet-hours)" ;;
   esac
 }
 

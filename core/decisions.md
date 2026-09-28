@@ -175,12 +175,12 @@
 **Type:** Decision
 **Priority:** HIGH
 **Label:** V3: new stack — SeaweedFS, Lakekeeper, Spark 4.1, Trino, Airflow 3, Superset 6
-**Summary:** Agreed 2026-09-25 to build V3 on a `v3` branch while V2 stays maintained on main. MinIO (unmaintained since Feb 2026) is replaced by SeaweedFS ≥4.40. All tables become Iceberg tables in a Lakekeeper REST catalog. Engines are Spark 4.1 (Iceberg 1.11 runtime; 4.2 waits for Iceberg support), Trino and DuckDB, with Airflow 3.1+ and pinned Superset 6. Full rationale: docs/v3/DECISIONS.md ADR-001/002/003/009/013.
+**Summary:** Agreed 2026-09-25 to build V3 on a `v3` branch while V2 stays maintained on main. MinIO (unmaintained since Feb 2026) is replaced by SeaweedFS ≥4.40. All tables become Iceberg tables in a Lakekeeper REST catalog. Engines are Spark 4.1 (Iceberg 1.11 runtime; 4.2 waits for Iceberg support), Trino and DuckDB, with Airflow 3.1+ and pinned Superset 6. Full rationale: docs/DECISIONS.md ADR-001/002/003/009/013.
 **Tags:** v3, architecture, storage, catalog, spark
 **Edges:**
 - MITIGATES → REG_ICEBERG_JAR_VERSIONS: Iceberg becomes core with a REST catalog instead of an overlay
 - RELATES_TO → DEC_MIGRATE_FROM_BITNAMI_OFFICIAL_APACHE_4B39: V3 keeps official apache/spark images, moving 3.5 → 4.1
-**Files:** `docs/v3/README.md`, `docs/v3/ARCHITECTURE.md`, `docs/v3/DECISIONS.md`, `docs/v3/ROADMAP.md`
+**Files:** `docs/README.md`, `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, `docs/ROADMAP.md`
 **LastVerified:** 2026-09-25
 **Commit:** 4dd6c9a
 **LastUpdated:** 2026-09-25
@@ -196,7 +196,7 @@
 **Edges:**
 - MITIGATES → REG_HOST_IP_DETECTION: single LAB_DOMAIN replaces four detection copies
 - RELATES_TO → DEC_REMOVE_OAUTH_AUTHENTICATION_SYSTEM_ENTIRELY_2B27: revisits SSO without custom auth code
-**Files:** `docs/v3/DECISIONS.md`, `docs/v3/ARCHITECTURE.md`
+**Files:** `docs/DECISIONS.md`, `docs/ARCHITECTURE.md`
 **LastVerified:** 2026-09-25
 **Commit:** 4dd6c9a
 **LastUpdated:** 2026-09-25
@@ -212,7 +212,7 @@
 **Edges:**
 - MITIGATES → REG_CREDENTIAL_PROPAGATION: removes storage credentials from all consumers
 - RELATES_TO → INV_ENV_IS_CREDENTIAL_SOURCE: V3 replaces the .env credential model
-**Files:** `docs/v3/DECISIONS.md`, `docs/v3/OPEN_QUESTIONS.md`, `spikes/s1-catalog-storage/RESULTS.md`, `spikes/s2-duckdb-sts/RESULTS.md`
+**Files:** `docs/DECISIONS.md`, `docs/OPEN_QUESTIONS.md`, `spikes/s1-catalog-storage/RESULTS.md`, `spikes/s2-duckdb-sts/RESULTS.md`
 **Evidence:** `ssh $LAB_SERVER 'cd lakehouse-v3/spikes/s2-duckdb-sts && ./test.sh'` → EXIT=0, C1–C3 PASS (vended ASIA… creds, DuckDB read+insert, table-scoped probe 200/403)
 **LastVerified:** 2026-09-25
 **Commit:** 4dd6c9a
@@ -232,7 +232,7 @@
 - MITIGATES → REG_INIT_CONTAINER_BOOTSTRAP: images replace runtime-installing init container
 - MITIGATES → REG_SUPERSET_SETUP: pinned pre-built Superset image
 - RELATES_TO → WATCH_CI_WORKFLOWS: restores a real startup test
-**Files:** `docs/v3/DECISIONS.md`, `docs/v3/ROADMAP.md`
+**Files:** `docs/DECISIONS.md`, `docs/ROADMAP.md`
 **LastVerified:** 2026-09-25
 **Commit:** 4dd6c9a
 **LastUpdated:** 2026-09-25
@@ -247,7 +247,7 @@
 **Tags:** v3, workspace, jupyterhub, dbt
 **Edges:**
 - RELATES_TO → JUPYTERHUB: replaces the V2 jupyter/jupyterhub dual mode
-**Files:** `docs/v3/DECISIONS.md`, `docs/v3/ARCHITECTURE.md`
+**Files:** `docs/DECISIONS.md`, `docs/ARCHITECTURE.md`
 **Commit:** 6f267e7
 **LastUpdated:** 2026-09-25
 
@@ -261,7 +261,7 @@
 **Tags:** v3, ai, mcp, tutor
 **Edges:**
 - RELATES_TO → DEC_REMOVE_MCP_SERVER_COMPLETELY_FROM_67B4: V2's custom MCP server was removed; V3 composes existing servers
-**Files:** `docs/v3/DECISIONS.md`, `docs/v3/ARCHITECTURE.md`, `docs/v3/OPEN_QUESTIONS.md`
+**Files:** `docs/DECISIONS.md`, `docs/ARCHITECTURE.md`, `docs/OPEN_QUESTIONS.md`
 **Commit:** 6f267e7
 **LastUpdated:** 2026-09-25
 
@@ -275,7 +275,7 @@
 **Tags:** v3, sso, keycloak, github, identity
 **Edges:**
 - DEPENDS_ON → DEC_V3_KEYCLOAK_SSO_SUBDOMAINS: brokering is Keycloak configuration on top of V3 SSO
-**Files:** `docs/v3/DECISIONS.md`, `docs/v3/ARCHITECTURE.md`, `docs/v3/OPEN_QUESTIONS.md`
+**Files:** `docs/DECISIONS.md`, `docs/ARCHITECTURE.md`, `docs/OPEN_QUESTIONS.md`
 **Commit:** 8ae54c6
 **LastUpdated:** 2026-09-25
 
@@ -393,7 +393,7 @@
 **Tags:** v3, spark, airflow, identity, batch
 **Edges:**
 - RELATES_TO → DEC_V3_SPARK_CONNECT_PER_SESSION_TOKEN: interactive sessions keep the user's token and its lifetime limit
-**Files:** `docs/v3/DECISIONS.md`, `v3/images/workspace/lakehouse/clients.py`
+**Files:** `docs/DECISIONS.md`, `v3/images/workspace/lakehouse/clients.py`
 **Commit:** 1afab2f
 **LastUpdated:** 2026-09-26
 
@@ -732,3 +732,55 @@ Repair round (2026-09-27): tests/ai/gateway-e2e.sh never configures the `local` 
 **Evidence:** bash v3/tests/installer/run.sh -> 338 passed (key in .secrets.env only, never printed, removed by --no-api-key and set-local none); dev host: gateway env LAB_AI_LOCAL_API_KEY length 64
 **Commit:** c885a8a
 **LastUpdated:** 2026-09-27
+
+---
+
+## NODE: DEC_V3_LOCAL_MODEL_QUIET_HOURS_IN_GATEWAY
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3 Phase 6: local-model quiet hours are enforced in the gateway pre-call hook, before routing
+**Summary:** Owner decision (2026-09-27): quiet hours for the local model live in the ai-gateway. `./lab ai quiet-hours HH:MM-HH:MM --tz Area/City | off` writes LAB_AI_QUIET_HOURS/LAB_AI_QUIET_TZ to .env (off = empty values, default off; installer asks once when a local URL is set). render_config.py writes the window plus `local_models` (local, and lab-default when it resolves to local) into state.json; lab_hooks' pre-call hook calls the pure render_config.quiet_refusal(state, model, now) and raises 503 type ai_quiet_hours with "The lab's local AI model is resting until HH:MM <tz> ..." and Retry-After. Hosted and mock are unaffected; lab-default is not re-routed to hosted. Wall-clock window in the zone (DST-aware); a bad setting stops the gateway at start. Needs compose/ai.yaml to pass LAB_AI_QUIET_HOURS/LAB_AI_QUIET_TZ to ai-gateway.
+**Tags:** ai, gateway, quiet-hours, local-model, v3, phase6
+**Edges:**
+- RELATES_TO → DEC_V3_AI_GATEWAY_LITELLM_OSS_BUILD: another lab_hooks pre-call rule
+- RELATES_TO → REG_V3_GATEWAY_E2E_CONFIGURES_LOCAL_PROVIDER_BY_DEFAULT: quiet-hours-e2e.sh configures local (pointed at the mock) only with LAB_E2E_LOCAL_VIA_MOCK=1
+**Files:** `v3/config/ai/render_config.py`, `v3/config/ai/lab_hooks.py`, `v3/config/ai/start.sh`, `v3/installer/ai.sh`, `v3/lab`, `v3/tests/ai/test_quiet_hours.py`, `v3/tests/ai/test_lab_quiet_hours.py`, `v3/tests/ai/quiet-hours-e2e.sh`, `v3/tests/ai/quiet_hours_e2e.py`
+**Symbols:** `quiet_refusal`, `quiet_until`, `parse_quiet_hours`, `LabHooks.async_pre_call_hook`, `ai_set_quiet_hours`, `ai_ask_quiet_hours`
+**Evidence:** python3 -m unittest discover -s v3/tests/ai -> OK (quiet hours: injected clock, midnight, DST); LAB_E2E_LOCAL_VIA_MOCK=1 v3/tests/ai/quiet-hours-e2e.sh on a mock-only lab -> QUIET HOURS E2E: PASS (refused requests never reach the mock)
+**LastVerified:** 2026-09-27
+**Commit:** 699c5a1
+**LastUpdated:** 2026-09-27
+**Author:** AI-POLISH workstream
+
+---
+
+## NODE: DEC_V3_MIGRATION_LANDING_BUCKET_READONLY_KEY
+**Type:** Decision
+**Priority:** MEDIUM
+**Label:** V3 Phase 6: V2 -> V3 migration is a tested guide (rclone into bucket `landing`, read-only landing key), not a tool
+**Summary:** Owner decision 2026-09-27: no migration tool. docs/MIGRATION.md copies each V2 MinIO bucket with a digest-pinned rclone container (on V2's and V3's networks at once, Docker >= 25) into SeaweedFS bucket `landing` under v2/<bucket>/ (never `warehouse`, which the catalog owns), `copy` only, verified with size --json + check --one-way (--download for objects without MD5). Admin keys live only in a mode-600 --env-file; notebooks read `landing` with a dynamic `landing-reader` identity (weed shell s3.configure -actions=Read,List -buckets=landing, keys on stdin) deleted after use. Loading follows E1 (Spark) or Trino + PyIceberg (unpartitioned). Proven by v3/tests/migration/run.sh against a throwaway MinIO with synthetic data.
+**Tags:** v3, migration, rclone, seaweedfs, credentials, phase6
+**Edges:** _(none)_
+**Files:** `docs/MIGRATION.md`, `v3/tests/migration/run.sh`, `v3/tests/migration/load_kernel.py`, `v3/versions.env`
+**Evidence:** v3/tests/migration/run.sh all -> ALL_RC=0 (v3/tests/migration/EVIDENCE.md)
+**LastVerified:** 2026-09-27
+**Commit:** 699c5a1
+**LastUpdated:** 2026-09-27
+**Author:** p6-integrator
+
+---
+
+## NODE: DEC_V3_CUTOVER_LEGACY_LAYOUT
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3 cutover: V2 moved to legacy/v2/ (inert), docs/v3 promoted to docs/, root install.sh is a thin V3 bootstrap
+**Summary:** Phase 6 cutover: V2 compose/scripts/templates/utils/jupyterhub/tests/config/services/examples, its .env files, README and install.sh moved with git mv to legacy/v2/ (docs to legacy/v2/docs/, workflows to legacy/v2/workflows/ where GitHub does not run them). V3 stays in v3/; docs/v3/* (incl. MIGRATION.md) promoted to docs/. Root install.sh: everything in main() (partial download runs nothing), --ref/--dir/--repo/--yes, prints the plan, execs v3/install.sh with stdin from /dev/tty; refuses V2 installs, non-checkout dirs, dirty checkouts and refs without v3/, updates fast-forward only, never nests. Why: V2 installs are git clones of main, so a pull/re-run after the merge would swap V3 files under a running V2 (REG_UPGRADE_VOLUME_DATA_LOSS class); V2 is pinned to tag v2.1.1-final. Core nodes anchored to V2 root paths (install.sh, start-lakehouse.sh, docker-compose.yml, scripts/) now refer to legacy/v2/.
+**Tags:** v3, cutover, bootstrap, legacy, install, phase6
+**Edges:**
+- RELATES_TO → REG_UPGRADE_VOLUME_DATA_LOSS: bootstrap refuses V2 installs so a V3 update never lands under a running V2
+**Files:** `install.sh`, `legacy/README.md`, `tests/bootstrap/test_bootstrap.sh`, `README.md`, `docs/README.md`
+**Evidence:** bash tests/bootstrap/test_bootstrap.sh -> 43 passed; clean install via piped root bootstrap on the dev host (v3/PHASE6_RESULTS.md)
+**LastVerified:** 2026-09-27
+**Commit:** 699c5a1
+**LastUpdated:** 2026-09-27
+**Author:** p6-integrator

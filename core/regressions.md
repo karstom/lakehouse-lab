@@ -557,3 +557,41 @@
 **Evidence:** python3 -m unittest discover -s v3/tests/ai -> 72 OK (ContentNormalization: LangChain agent history flattened, tool_calls untouched)
 **Commit:** 251692c
 **LastUpdated:** 2026-09-27
+
+---
+
+## NODE: REG_V3_LAB_ASSISTANT_NARRATION_AND_DATE
+**Type:** Regression
+**Priority:** MEDIUM
+**Label:** Lab Assistant: planning/tool narration and reasoning merged into the answer; no current date in the prompt
+**Summary:** Seen in the lead's real-model check (2026-09-27): the answer began with "The user is asking... Let me..." and the model called today "yesterday". Cause 1: Jupyternaut's process_message streams text-deltas of EVERY assistant message of the agent loop (narration before each tool call) and reasoning-deltas into one chat message. Cause 2: the system prompt had no date/time. Fix: LabAssistant.process_message streams astream_events(v3) through lakehouse/ai.py ReplyShaper (per model-call steps; final answer intact first, steps/reasoning/tools in a collapsed <details>; leading planning paragraphs and <think> blocks moved there too); system_prompt adds clock_block (LAB_TZ, else TZ, else UTC) and an answer-first style rule.
+**Tags:** ai, persona, jupyter-ai, narration, prompt, date, v3, phase6
+**REGRESSED_N_TIMES:** 1
+**Edges:**
+- RELATES_TO → DEC_V3_WORKSPACE_AI_PERSONA_KEY_PER_SPAWN: the persona's reply streaming is now the lab's own
+**Files:** `v3/images/workspace/lakehouse/ai.py`, `v3/images/workspace/lakehouse/ai_persona.py`, `v3/tests/workspace/test_ai_polish.py`, `v3/tests/workspace/fixtures/agent_events_narration.json`
+**Symbols:** `ReplyShaper`, `split_leading_narration`, `clock_block`, `system_prompt`, `LabAssistant.process_message`, `LabAssistant._stream_shaped`
+**Evidence:** tests/workspace/test_ai_polish.py (recorded LangChain 1.4.2 event fixture) OK; dev host v3-p6-aipolish: ai_chat_probe with mock script p6narr -> final answer first and intact, narration/reasoning only in <details>, <lab_clock> in the mock's recorded system prompt
+**LastVerified:** 2026-09-27
+**Commit:** 699c5a1
+**LastUpdated:** 2026-09-27
+**Author:** AI-POLISH workstream
+
+---
+
+## NODE: REG_V3_AI_GATEWAY_FALSE_NO_EGRESS_LOG
+**Type:** Regression
+**Priority:** MEDIUM
+**Label:** V3 Phase 6: ai-gateway logged 'no AI provider enabled' on every configured gateway without quiet hours
+**Summary:** The Phase 6 quiet-hours patch put `if state["quiet_hours"]:` between the `if state["configured"]:` providers print and its `else:`, so the else attached to the quiet-hours check. As a result, every configured gateway without quiet hours also logged the no-egress line. With a hosted provider enabled, that line falsely said the gateway makes no outbound calls. An unconfigured gateway that had quiet hours set lost the notice. Fix: the else goes back under `configured`, and quiet hours are a separate `if`. The new tests in tests/ai/test_render_config.py (MainLog) run main() and check its stdout. Nothing covered main()'s output before.
+**Tags:** v3, ai, gateway, logging, quiet-hours, no-egress
+**REGRESSED_N_TIMES:** 1
+**Edges:**
+- RELATED_TO → DEC_V3_LOCAL_MODEL_QUIET_HOURS_IN_GATEWAY: introduced by the quiet-hours log line
+- RELATED_TO → DEC_V3_AI_GATEWAY_LITELLM_OSS_BUILD: the no-egress statement is part of the providers-off-by-default contract
+**Files:** `v3/config/ai/render_config.py`, `v3/tests/ai/test_render_config.py`
+**Symbols:** `render_config.main`
+**Evidence:** python3 -m unittest discover -s v3/tests/ai → OK (MainLog fails 3/5 on the old code); docker logs v3-p1-ai-gateway-1 | grep ai-gateway → only the 'providers: mock' line
+**LastVerified:** 2026-09-27
+**Commit:** 699c5a1
+**LastUpdated:** 2026-09-27

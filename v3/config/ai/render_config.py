@@ -29,12 +29,27 @@ Costs: hosted models use LiteLLM's bundled price map. `local` costs
 LAB_AI_LOCAL_COST_PER_MTOK USD per million tokens (default 0: free, so only the rate limit
 applies) and `mock` LAB_AI_MOCK_COST_PER_MTOK (default 1000, so budget tests overrun fast).
 
+Quiet hours for the local provider (Phase 6; `./lab ai quiet-hours HH:MM-HH:MM --tz Area/City`):
+  LAB_AI_QUIET_HOURS  "HH:MM-HH:MM" (start inclusive, end exclusive; a start later than the
+                      end crosses midnight, e.g. 22:00-07:00); empty or "off" = no quiet hours
+  LAB_AI_QUIET_TZ     IANA time zone of that window (default: TZ, else UTC)
+The window is written to state.json with the model names that reach the local provider
+(`local`, and `lab-default` when it resolves to local). During the window the lab_hooks
+pre-call hook refuses those models BEFORE routing, with `quiet_hours_message`; hosted models
+and the mock are not affected. Times are wall-clock times in the zone, so the window follows
+DST changes (a start or end that does not exist on a spring-forward day is simply reached at
+the first wall-clock minute past it; on a fall-back day a window over the repeated hour lasts
+an hour longer in real time).
+
 Keys never appear in the rendered file: LiteLLM reads them through `os.environ/NAME`.
 The YAML is written as JSON (JSON is YAML), so no YAML library is needed.
 """
+import datetime
 import json
 import os
+import re
 import sys
+import zoneinfo
 
 DEFAULT_ANTHROPIC_MODEL = "claude-opus-5"
 DEFAULT_OPENAI_MODEL = "gpt-5.5"
@@ -42,6 +57,8 @@ DEFAULT_MOCK_URL = "http://ai-mock:8000/v1"
 PROVIDER_ORDER = ("mock", "local", "anthropic", "openai")
 ALIAS = {"mock": "mock", "local": "local", "anthropic": "claude", "openai": "gpt"}
 NOT_CONFIGURED = "AI isn't configured; ask your lab admin."
+QUIET_RE = re.compile(r"^([01][0-9]|2[0-3]):([0-5][0-9])-([01][0-9]|2[0-3]):([0-5][0-9])$")
+QUIET_TYPE = "ai_quiet_hours"
 
 
 def _truthy(v):
@@ -106,6 +123,100 @@ def default_provider(env, deps):
     return next((p for p in PROVIDER_ORDER if p in deps), None)
 
 
+# ------------------------------------------------------------------ quiet hours (Phase 6)
+def parse_quiet_hours(spec):
+    """"HH:MM-HH:MM" -> (start minute, end minute) of the day; "" / "off" -> None.
+    Raises ValueError for anything else, including an empty window (start == end)."""
+    spec = (spec or "").strip()
+    if spec.lower() in ("", "off", "none"):
+        return None
+    m = QUIET_RE.match(spec)
+    if not m:
+        raise ValueError(f"quiet hours {spec!r}: use HH:MM-HH:MM (24-hour clock), e.g. 22:00-07:00")
+    start = int(m.group(1)) * 60 + int(m.group(2))
+    end = int(m.group(3)) * 60 + int(m.group(4))
+    if start == end:
+        raise ValueError(f"quiet hours {spec!r}: start and end are the same; use 'off' for none")
+    return start, end
+
+
+def quiet_zone(name):
+    """IANA zone name -> ZoneInfo. Raises ValueError for an unknown or malformed name."""
+    name = (name or "").strip()
+    if name.startswith(":"):
+        name = name[1:]
+    if not name or name.startswith("/") or ".." in name:
+        raise ValueError(f"time zone {name!r}: use an IANA name such as America/New_York")
+    try:
+        return zoneinfo.ZoneInfo(name)
+    except (zoneinfo.ZoneInfoNotFoundError, ValueError, OSError):
+        raise ValueError(f"time zone {name!r} is unknown: use an IANA name such as America/New_York")
+
+
+def quiet_until(now, window, tz):
+    """When the quiet window that `now` falls in ends, as an aware datetime in `tz`, or None
+    when `now` is outside the window. `now` is any aware datetime (injected: tests use a fixed
+    clock), `window` is parse_quiet_hours' (start, end) and `tz` a tzinfo. Wall-clock
+    comparison in `tz`: minute granularity, start inclusive, end exclusive."""
+    if window is None:
+        return None
+    if now.tzinfo is None:
+        raise ValueError("now must be timezone-aware")
+    start, end = window
+    local = now.astimezone(tz)
+    minute = local.hour * 60 + local.minute
+    if start < end:
+        if not start <= minute < end:
+            return None
+        day = local.date()
+    else:                              # crosses midnight, e.g. 22:00-07:00
+        if minute >= start:
+            day = local.date() + datetime.timedelta(days=1)
+        elif minute < end:
+            day = local.date()
+        else:
+            return None
+    return datetime.datetime.combine(day, datetime.time(end // 60, end % 60), tzinfo=tz)
+
+
+def quiet_hours_message(until, spec, tz_name):
+    return (f"The lab's local AI model is resting until {until.strftime('%H:%M')} {tz_name} "
+            f"(quiet hours {spec}). Please try again after that; your lab admin can change "
+            "this with './lab ai quiet-hours'.")
+
+
+def quiet_hours_state(env):
+    """-> {"window": "HH:MM-HH:MM", "tz": name} or None. Raises SystemExit on a bad setting
+    (the gateway then does not start, so it cannot route to the local model by mistake)."""
+    spec = (env.get("LAB_AI_QUIET_HOURS") or "").strip()
+    try:
+        window = parse_quiet_hours(spec)
+        if window is None:
+            return None
+        tz_name = ((env.get("LAB_AI_QUIET_TZ") or "").strip() or (env.get("TZ") or "").strip()
+                   or "UTC").lstrip(":")
+        quiet_zone(tz_name)
+    except ValueError as e:
+        raise SystemExit(f"[ai-gateway] LAB_AI_QUIET_HOURS/LAB_AI_QUIET_TZ: {e}")
+    return {"window": spec, "tz": tz_name}
+
+
+def quiet_refusal(state, model, now):
+    """The pre-call decision (lab_hooks): -> (message, seconds until the end) when `model`
+    would reach the local provider during quiet hours, else None. Pure: `now` is injected."""
+    qh = (state or {}).get("quiet_hours")
+    if not qh or model not in ((state or {}).get("local_models") or []):
+        return None
+    tz = quiet_zone(qh["tz"])
+    until = quiet_until(now, parse_quiet_hours(qh["window"]), tz)
+    if until is None:
+        return None
+    # In UTC: subtracting two datetimes that share a tzinfo would ignore a DST change between.
+    utc = datetime.timezone.utc
+    seconds = max(1, int((until.astimezone(utc) - now.astimezone(utc)).total_seconds()))
+    return quiet_hours_message(until, qh["window"], qh["tz"]), seconds
+
+
 def render(env):
     deps = deployments(env)
     default = default_provider(env, deps)
@@ -150,10 +261,15 @@ def render(env):
             "store_prompts_in_spend_logs": False,
         },
     }
+    quiet = quiet_hours_state(env)
     state = {"configured": bool(deps), "default_provider": default,
              "providers": [p for p in PROVIDER_ORDER if p in deps],
              "models": [m["model_name"] for m in model_list],
-             "not_configured_message": NOT_CONFIGURED}
+             "not_configured_message": NOT_CONFIGURED,
+             # Model names that reach the local provider (quiet hours apply to these only).
+             "local_models": [m["model_name"] for m in model_list
+                              if m["model_info"]["lab_provider"] == "local"],
+             "quiet_hours": quiet}
     return config, state
 
 
@@ -173,6 +289,10 @@ def main(argv):
         print("[ai-gateway] no AI provider enabled: the model list is empty and the gateway makes "
               "no outbound AI calls (enable one with ./lab ai set-local or ./lab ai enable-hosted)",
               flush=True)
+    if state["quiet_hours"]:
+        qh = state["quiet_hours"]
+        print(f"[ai-gateway] local model quiet hours: {qh['window']} {qh['tz']} (models refused "
+              f"then: {', '.join(state['local_models']) or 'none now'})", flush=True)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,54 @@
 # Changelog
 
+## [3.0.0-beta.1] - unreleased
+
+The first V3 release: a new stack, not an in-place upgrade of V2. It is a **beta**; see the
+[release notes](../v3/RELEASE_NOTES_v3.0.0-beta.1.md) for known gaps and how to report
+issues. Coming from V2? Read the [migration guide](MIGRATION.md).
+
+### Stack
+- **One login and one catalog.** Keycloak SSO on subdomains behind Caddy (with a local CA
+  created once and kept across upgrades), Lakekeeper as the Iceberg REST catalog with
+  OpenFGA authorization, and SeaweedFS (replacing MinIO) with STS. Engines get short-lived,
+  table-scoped credentials from the catalog: no static S3 keys in Trino, Spark or notebooks.
+- **Engines:** Trino, Spark 4.1 with Spark Connect (the logged-in user's identity per
+  session), DuckDB and dbt in every workspace.
+- **Per-user workspace:** JupyterHub spawns JupyterLab + code-server per user, signed in
+  through Keycloak, with Trino, Spark, DuckDB, PyIceberg and dbt preconfigured as that user.
+- **Orchestration and BI** (profiles `engineer`/`full`): Airflow 3 with the Keycloak auth
+  manager and per-user DAG folders; Superset 6 querying Trino as the logged-in user.
+- **Lab Console** with service tiles and health, and optional "Sign in with GitHub" through
+  Keycloak (new GitHub users get no access until an admin adds them to a group).
+- **Profiles:** `core`, `engineer`, `full`, chosen at install time.
+
+### Learning
+- Two **learning tracks**, data engineer (E1–E4) and data analyst (A1–A4), with a
+  checkpoint (`lab-tracks check`) and a safe reset for every module, using lab data only.
+
+### AI assist (profile `full`)
+- A model gateway (LiteLLM, open-source part only) with per-user keys and budgets, and a
+  Lab Assistant in JupyterLab whose MCP tools (Trino, dbt, Superset, lab context) act as the
+  user, read-only.
+- **Hosted providers are off by default**; an admin turns one on explicitly with its key.
+  Local models work through any OpenAI-compatible server, with optional **quiet hours**.
+  With no provider enabled, the lab makes no outbound AI call.
+
+### Installer and operations
+- `v3/install.sh` (re-runnable; keeps settings, secrets and the CA) and the `v3/lab` CLI
+  (`up`, `down`, `status`, `urls`, `sync`, `logs`, `reset`, `test`, `ca`, `ai …`).
+- Every version is pinned once, in `v3/versions.env`; images are built from pinned bases with
+  no package installs at container start.
+- CI installs each profile for real and runs an end-to-end smoke test as real users
+  (`v3-ci` for `core`/`engineer` on every PR, `v3-nightly` for `full`).
+
+### Repository
+- V2 moved to [`legacy/v2/`](../legacy/v2/) (its docs to `legacy/v2/docs/`, its CI
+  workflows to `legacy/v2/workflows/`, where they no longer run). The V2 code on `main` is
+  tagged `v2.1.1-final`.
+- The root `install.sh` is now a small bootstrap for the one-line install: it fetches the
+  repository at a ref and runs `v3/install.sh`.
+- The V3 design docs moved from `docs/v3/` to `docs/`.
+
 ## [2.1.1] - 2025-09-08
 
 ### 🏗️ Infrastructure Stability & Core Stack Focus

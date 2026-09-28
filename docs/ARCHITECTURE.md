@@ -1,6 +1,8 @@
 # V3 Architecture
 
-> Draft · 2026-09-25 · Decisions referenced as ADR-nnn are in [DECISIONS.md](DECISIONS.md).
+> Written 2026-09-25 as the V3 design; updated at the cutover (`v3.0.0-beta.1`). Decisions
+> referenced as ADR-nnn are in [DECISIONS.md](DECISIONS.md). The build contract and the
+> per-phase results (what was actually built and measured) are in [`v3/`](../v3/).
 
 ## 1. Component map
 
@@ -184,13 +186,16 @@ flowchart LR
 
 ## 8. Profiles and resources
 
-| Profile | Services | Target RAM |
+| Profile | Services | Memory (limits / measured) |
 |---|---|---|
-| `core` | Caddy, Keycloak, Postgres, SeaweedFS, Lakekeeper, Trino, JupyterHub (1–2 users), Console | ~12 GB of limits; idle use measured at ~3 GB (spikes). Load test still needed (OQ-4) |
-| `engineer` | core + Spark master/worker + Airflow | ~20 GB |
-| `full` | engineer + Superset + AI gateway | ~24 GB |
-| `server` | full, with bigger Spark worker and Trino memory for multi-TB work | 64 GB+ |
-| add-ons | Vizro, LanceDB, Portainer, Spark History, local LLM | per module |
+| `core` | Caddy, Keycloak, Postgres, SeaweedFS, Lakekeeper (+ OpenFGA), Trino, JupyterHub + per-user workspaces, Console, identity-sync | 7.7 GiB of limits, 9.2 GiB with one workspace; about 2 GiB in use at idle. Runs on 8 GB, 16 GB recommended |
+| `engineer` | core + Spark (master, worker, Spark Connect) + Airflow 3 | 17.2 GiB of limits with one workspace; about 5 GiB in use at idle. 16 GB machine |
+| `full` | engineer + Superset 6 + AI gateway (off until a provider is set) | 18.2 GiB of limits plus about 1.1 GiB for the AI pieces; about 6 GiB in use at idle, whole-lab peak 6.25 GiB measured in the Phase 3 long smoke run. 16 GB minimum, 24 GB recommended |
+| `server` (not in 3.0) | full, with a bigger Spark worker and Trino memory for multi-TB work | 64 GB+ |
+| add-ons (not in 3.0) | Vizro, LanceDB, Portainer, Spark History | per module |
+
+Limits are per-container ceilings that are never all reached at once; the measured numbers
+come from `v3/PHASE2_RESULTS.md` … `v3/PHASE5_RESULTS.md`.
 
 Profiles are Compose `profiles:`, selected by the installer. They replace V2's generated
 `docker-compose.override.yml`.

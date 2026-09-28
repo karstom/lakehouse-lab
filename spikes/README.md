@@ -1,6 +1,6 @@
 # V3 Phase 0 Spikes
 
-Throwaway stacks that validate V3 decisions before Phase 1 (see `docs/v3/ROADMAP.md`).
+Throwaway stacks that validate V3 decisions before Phase 1 (see `docs/ROADMAP.md`).
 Spike code is kept for reference; Phase 1 rebuilds it properly.
 
 ## Layout

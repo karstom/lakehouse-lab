@@ -1,21 +1,23 @@
 # V3 Roadmap
 
-> Draft · 2026-09-25. Phases are ordered by dependency. Each phase ends with exit criteria
-> that CI checks, not a date.
+> Written 2026-09-25, updated at the V3 cutover (`v3.0.0-beta.1`). Phases are ordered by
+> dependency. Each phase ends with exit criteria that CI checks, not a date.
 
 ## Branching
 
-- `main` stays V2 (2.1.x) until V3.0 ships. It only gets security and bug fixes, e.g. the
-  hardcoded MinIO secret in `data_quality_check.py` and the `$RANDOM` credential generator.
-- V3 is built on a `v3` branch. The new layout lives next to V2 files until the cutover,
-  then V2 files are removed in one commit.
+- V3 was built on a `v3` branch and merged to `main` as **`v3.0.0-beta.1`**. The last V2
+  commit on `main` is tagged **`v2.1.1-final`**.
+- V3 lives in [`v3/`](../v3/). The V2 files were moved in one commit to
+  [`legacy/v2/`](../legacy/v2/) for reference; V2 is no longer developed. To keep running
+  an existing V2 install, pin it to the `v2.1.1-final` tag (see
+  [`legacy/README.md`](../legacy/README.md)).
 - **MinIO note for V2 users:** V2 keeps working on the last MinIO image, but it gets no
-  security fixes. The V2 README should say this and point to the migration path.
+  security fixes. The [migration guide](MIGRATION.md) moves your data to V3.
 
 ## Phase 0: Spikes (de-risk before building)
 
 > **Status (2026-09-25): complete except the S-5 load test.** Every spike was redeployed from
-> scratch and checked by an independent agent. Results: [`spikes/RESULTS.md`](../../spikes/RESULTS.md).
+> scratch and checked by an independent agent. Results: [`spikes/RESULTS.md`](../spikes/RESULTS.md).
 > S-1: partial (Trino has no remote signing, so ADR-006 was amended). S-2, S-3 and S-4: pass.
 > S-5: idle use measured; the load test moves into Phase 1.
 
@@ -41,7 +43,7 @@ minutes, and CI shows it green.
 
 > **Status (2026-09-25): built and independently verified.** Installs in about 1m40s on the
 > dev host (images cached), about 2 minutes on WSL2, and the smoke test passes 6/6 on both.
-> Details: [`v3/PHASE1_RESULTS.md`](../../v3/PHASE1_RESULTS.md). **GitHub `v3-ci` is green:**
+> Details: [`v3/PHASE1_RESULTS.md`](../v3/PHASE1_RESULTS.md). **GitHub `v3-ci` is green:**
 > the e2e install and smoke test take 2m25s on a fresh runner. **Exit criteria met.**
 
 ## Phase 2: Workspace and engines
@@ -55,7 +57,7 @@ minutes, and CI shows it green.
 > **Status (2026-09-26): built, independently verified, and CI green.** GitHub runs
 > `v3-ci`: `core` e2e in 6m10s, `engineer` e2e in 7m42s, on fresh runners. The smoke test
 > has 11 checks, including in-workspace Trino, DuckDB and dbt, and Spark as the real user.
-> Details: [`v3/PHASE2_RESULTS.md`](../../v3/PHASE2_RESULTS.md).
+> Details: [`v3/PHASE2_RESULTS.md`](../v3/PHASE2_RESULTS.md).
 
 ## Phase 3: Orchestration and BI
 
@@ -70,7 +72,7 @@ minutes, and CI shows it green.
 > **Status (2026-09-26): built, independently verified, and CI green.** GitHub `v3-ci`
 > (commit 63b6edf): `core` e2e in 7m06s, `engineer` in 10m56s. `v3-nightly` on `full` with
 > the long ADR-017 check: 20m01s on a standard 16 GB runner. Details:
-> [`v3/PHASE3_RESULTS.md`](../../v3/PHASE3_RESULTS.md).
+> [`v3/PHASE3_RESULTS.md`](../v3/PHASE3_RESULTS.md).
 
 ## Phase 4: Learning tracks
 
@@ -95,7 +97,7 @@ with at least two real beginners).
 >   - JupyterLab terminal PATH.
 > - **Exit criterion 3** (two real beginners finish module 1 without help) is owner-run:
 >   see `v3/tracks/FACILITATOR.md` and `FEEDBACK.md`.
-> - Details: [`v3/PHASE4_RESULTS.md`](../../v3/PHASE4_RESULTS.md).
+> - Details: [`v3/PHASE4_RESULTS.md`](../v3/PHASE4_RESULTS.md).
 
 ## Phase 5: AI assist (ADR-014)
 
@@ -106,11 +108,21 @@ with at least two real beginners).
 **Exit:** in a workspace, asking "which tables feed the orders dashboard and when did they
 last load?" gets a correct answer that uses only data the user is allowed to see.
 
-## Phase 6: Migration and release
+> **Status (2026-09-27): built and independently verified**, including a real-model check
+> against a local OpenAI-compatible server. Details:
+> [`v3/PHASE5_RESULTS.md`](../v3/PHASE5_RESULTS.md).
 
-- V2 → V3 migration tool ([MIGRATION.md](MIGRATION.md)); nightly migration test
-- Docs rewrite; V2 docs archived under `docs/v2/`
-- Release V3.0; V2 enters security-fix-only for 6 months
+## Phase 6: Migration guide, cutover and beta release
+
+- A V2 → V3 **migration guide** ([MIGRATION.md](MIGRATION.md)), not a migration tool:
+  copy the V2 MinIO buckets into V3 storage with `rclone`, then load what
+  you want as Iceberg tables. The commands are tested on synthetic data.
+- AI polish: quiet hours for the local model provider, the current date in the assistant's
+  prompt, and the model's planning text kept out of beginners' answers.
+- Cutover: V2 moves to `legacy/v2/` (its docs to `legacy/v2/docs/`), V3 docs become the
+  main docs, a new root README, and a thin root `install.sh` for the one-line install.
+- Release as **`v3.0.0-beta.1`** by merging `v3` to `main` (release notes:
+  [`v3/RELEASE_NOTES_v3.0.0-beta.1.md`](../v3/RELEASE_NOTES_v3.0.0-beta.1.md)).
 
 ## Deferred (post-3.0)
 

@@ -145,6 +145,59 @@ class Files(unittest.TestCase):
         self.assertEqual(config["general_settings"]["master_key"], "os.environ/LITELLM_MASTER_KEY")
 
 
+class MainLog(unittest.TestCase):
+    """main()'s startup log: the no-egress line must appear exactly when nothing is enabled,
+    independent of quiet hours (a misplaced else once printed it on every configured gateway)."""
+
+    NOTHING = "no AI provider enabled"
+
+    def run_main(self, **env):
+        import contextlib
+        import io
+        buf = io.StringIO()
+        with tempfile.TemporaryDirectory() as d:
+            old = dict(os.environ)
+            try:
+                for k in list(os.environ):
+                    if k.startswith("LAB_AI_") or k == "TZ":
+                        del os.environ[k]
+                os.environ.update(env)
+                with contextlib.redirect_stdout(buf):
+                    render_config.main(["render_config.py", d])
+            finally:
+                os.environ.clear()
+                os.environ.update(old)
+        return buf.getvalue()
+
+    def test_mock_without_quiet_hours_lists_providers_only(self):
+        out = self.run_main(LAB_AI_MOCK="true")
+        self.assertIn("providers: mock", out)
+        self.assertNotIn(self.NOTHING, out)
+        self.assertNotIn("quiet hours", out)
+
+    def test_hosted_enabled_never_claims_no_egress(self):
+        out = self.run_main(LAB_AI_ANTHROPIC_API_KEY=SECRET_A)
+        self.assertIn("providers: anthropic", out)
+        self.assertNotIn(self.NOTHING, out)
+        self.assertNotIn(SECRET_A, out)
+
+    def test_empty_env_says_nothing_enabled(self):
+        out = self.run_main()
+        self.assertIn(self.NOTHING, out)
+        self.assertNotIn("providers:", out)
+
+    def test_empty_env_with_quiet_hours_prints_both(self):
+        out = self.run_main(LAB_AI_QUIET_HOURS="22:00-07:00")
+        self.assertIn(self.NOTHING, out)
+        self.assertIn("quiet hours", out)
+
+    def test_configured_with_quiet_hours_prints_both_but_not_nothing(self):
+        out = self.run_main(LAB_AI_MOCK="true", LAB_AI_QUIET_HOURS="22:00-07:00")
+        self.assertIn("providers: mock", out)
+        self.assertIn("quiet hours", out)
+        self.assertNotIn(self.NOTHING, out)
+
+
 class Hooks(unittest.TestCase):
     """lab_hooks.py with stand-ins for fastapi/litellm (not installed in CI's lint job)."""
 
@@ -153,9 +206,9 @@ class Hooks(unittest.TestCase):
         fastapi = types.ModuleType("fastapi")
 
         class HTTPException(Exception):
-            def __init__(self, status_code, detail=None):
+            def __init__(self, status_code, detail=None, headers=None):
                 super().__init__(detail)
-                self.status_code, self.detail = status_code, detail
+                self.status_code, self.detail, self.headers = status_code, detail, headers
 
         fastapi.HTTPException = HTTPException
         custom = types.ModuleType("litellm.integrations.custom_logger")

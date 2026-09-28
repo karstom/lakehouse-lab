@@ -29,6 +29,11 @@ Behaviour, all deterministic (same request -> same response):
     {"tool_calls": [{"name": "tool", "arguments": {...}}, ...]}
     {"tool_calls_foreach": {"source": "tool:NAME", "path": "a.b[*].c",
                             "name": "tool", "arguments": {"x": "{{item}}"}}}
+  A tool step may also carry "content": the model's narration sent WITH the tool calls
+  (OpenAI: `content` next to `tool_calls`; Anthropic: a text block before the tool_use
+  blocks), as real models do ("The user is asking... Let me look that up."). Any step may
+  carry "reasoning": sent as `reasoning_content` (OpenAI shape, as llama.cpp llama-server
+  and other local servers send a model's thinking); the Anthropic route ignores it.
   Strings in content/arguments may use placeholders:
     {{tool:NAME}}      the content of the LAST tool result for a call to NAME
     {{tool:NAME|path}} a value selected from that result (parsed as JSON) by `path`
@@ -203,12 +208,31 @@ def load_scripts(directory):
 
 def plan(msgs, system):
     """-> ("text", str) or ("tools", [{"name", "arguments"}])."""
+    kind, out, _extra = plan_full(msgs, system)
+    return kind, out
+
+
+def plan_full(msgs, system):
+    """plan() plus the step's extras: {"content": narration sent with tool calls,
+    "reasoning": thinking text}; both "" when the step has none."""
+    extra = {"content": "", "reasoning": ""}
+    kind, out, step = _plan_step(msgs, system)
+    if step is not None:
+        if kind == "tools" and isinstance(step.get("content"), str):
+            extra["content"] = fill(step["content"], msgs)
+        if isinstance(step.get("reasoning"), str):
+            extra["reasoning"] = fill(step["reasoning"], msgs)
+    return kind, out, extra
+
+
+def _plan_step(msgs, system):
+    """-> (kind, out, the scripted step or None)."""
     everything = "\n".join([system] + [m["text"] for m in msgs])
     marker = MARKER.search(everything)
     if marker:
         script = SCRIPTS.get(marker.group(1))
         if script is None:
-            return "text", f"mock: unknown script {marker.group(1)!r}"
+            return "text", f"mock: unknown script {marker.group(1)!r}", None
         steps = script.get("steps") or [{"content": ""}]
         turn = sum(1 for m in msgs if m["role"] == "assistant")
         step = steps[min(turn, len(steps) - 1)]
@@ -224,15 +248,15 @@ def plan(msgs, system):
             items = select(spec.get("path", ""), data) if data is not None else []
             calls = [{"name": spec["name"], "arguments": fill(spec.get("arguments", {}), msgs, it)} for it in items]
             if calls:
-                return "tools", calls
-            return "text", fill(step.get("empty_content", "mock: nothing to call"), msgs)
+                return "tools", calls, step
+            return "text", fill(step.get("empty_content", "mock: nothing to call"), msgs), step
         if "tool_calls" in step:
             return "tools", [{"name": c["name"], "arguments": fill(c.get("arguments", {}), msgs)}
-                             for c in step["tool_calls"]]
-        return "text", fill(step.get("content", ""), msgs)
+                             for c in step["tool_calls"]], step
+        return "text", fill(step.get("content", ""), msgs), step
     last_user = next((m["text"] for m in reversed(msgs) if m["role"] == "user"), "")
     digest = hashlib.sha256(last_user.encode()).hexdigest()[:8]
-    return "text", f"mock reply {digest}: {last_user[:80]}"
+    return "text", f"mock reply {digest}: {last_user[:80]}", None
 
 
 def call_id(i, name, turn):
@@ -323,21 +347,25 @@ class Handler(BaseHTTPRequestHandler):
     # ---------------------------------------------------------------- OpenAI chat
     def chat(self, body):
         msgs, system = normalize(body, "openai")
-        kind, out = plan(msgs, system)
+        kind, out, extra = plan_full(msgs, system)
         turn = sum(1 for m in msgs if m["role"] == "assistant")
         prompt_t = count_tokens(system + "".join(m["text"] for m in msgs))
         rid = "chatcmpl-" + hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()[:20]
+        narration, reasoning = extra["content"], extra["reasoning"]
         if kind == "tools":
             calls = [{"id": call_id(i, c["name"], turn), "type": "function",
                       "function": {"name": c["name"], "arguments": json.dumps(c["arguments"], sort_keys=True)}}
                      for i, c in enumerate(out)]
-            message = {"role": "assistant", "content": None, "tool_calls": calls}
+            message = {"role": "assistant", "content": narration or None, "tool_calls": calls}
             finish = "tool_calls"
-            comp_t = count_tokens("".join(c["function"]["arguments"] for c in calls))
+            comp_t = count_tokens(narration + "".join(c["function"]["arguments"] for c in calls))
         else:
             message = {"role": "assistant", "content": out}
             finish = "stop"
             comp_t = count_tokens(out)
+        if reasoning:
+            message["reasoning_content"] = reasoning
+            comp_t += count_tokens(reasoning)
         usage = {"prompt_tokens": prompt_t, "completion_tokens": comp_t, "total_tokens": prompt_t + comp_t}
         base = {"id": rid, "created": 0, "model": body.get("model") or MODEL}
         if not body.get("stream"):
@@ -345,14 +373,22 @@ class Handler(BaseHTTPRequestHandler):
                 {"index": 0, "message": message, "finish_reason": finish}]))
         self._sse_start()
         chunk = dict(base, object="chat.completion.chunk")
+
+        def pieces(text):
+            return [text[i:i + 40] for i in range(0, len(text), 40)]
+
         self._sse(dict(chunk, choices=[{"index": 0, "delta": {"role": "assistant", "content": ""}, "finish_reason": None}]))
+        for piece in pieces(reasoning):
+            self._sse(dict(chunk, choices=[{"index": 0, "delta": {"reasoning_content": piece}, "finish_reason": None}]))
         if kind == "tools":
+            for piece in pieces(narration):
+                self._sse(dict(chunk, choices=[{"index": 0, "delta": {"content": piece}, "finish_reason": None}]))
             for i, c in enumerate(message["tool_calls"]):
                 self._sse(dict(chunk, choices=[{"index": 0, "finish_reason": None, "delta": {"tool_calls": [
                     {"index": i, "id": c["id"], "type": "function",
                      "function": {"name": c["function"]["name"], "arguments": c["function"]["arguments"]}}]}}]))
         else:
-            for piece in [out[i:i + 40] for i in range(0, len(out), 40)] or [""]:
+            for piece in pieces(out) or [""]:
                 self._sse(dict(chunk, choices=[{"index": 0, "delta": {"content": piece}, "finish_reason": None}]))
         self._sse(dict(chunk, choices=[{"index": 0, "delta": {}, "finish_reason": finish}]))
         if (body.get("stream_options") or {}).get("include_usage"):
@@ -362,14 +398,16 @@ class Handler(BaseHTTPRequestHandler):
     # ---------------------------------------------------------------- Anthropic messages
     def messages(self, body):
         msgs, system = normalize(body, "anthropic")
-        kind, out = plan(msgs, system)
+        kind, out, extra = plan_full(msgs, system)
         turn = sum(1 for m in msgs if m["role"] == "assistant")
         in_t = count_tokens(system + "".join(m["text"] for m in msgs))
         if kind == "tools":
             content = [{"type": "tool_use", "id": "toolu_" + call_id(i, c["name"], turn)[5:], "name": c["name"],
                         "input": c["arguments"]} for i, c in enumerate(out)]
             stop = "tool_use"
-            out_t = count_tokens("".join(json.dumps(c["input"]) for c in content))
+            out_t = count_tokens(extra["content"] + "".join(json.dumps(c["input"]) for c in content))
+            if extra["content"]:
+                content.insert(0, {"type": "text", "text": extra["content"]})
         else:
             content = [{"type": "text", "text": out}]
             stop = "end_turn"

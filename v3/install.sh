@@ -270,6 +270,11 @@ elif [ "$NON_INTERACTIVE" != 1 ] && profile_includes "$LAB_PROFILE" ai &&
   read -r -p "Local model server URL, e.g. http://<host>:8080/v1 [none]: " ai_url || ai_url=""
   ai_set_local "${ai_url:-none}"
 fi
+# Quiet hours for the local model (Phase 6): asked once, interactively, when a local URL is set
+# (default none); './lab ai quiet-hours' changes it.
+if [ "$NON_INTERACTIVE" != 1 ] && profile_includes "$LAB_PROFILE" ai; then
+  ai_ask_quiet_hours
+fi
 
 hdr "Lab certificate authority"
 mkdir -p "$(state_dir_abs)"

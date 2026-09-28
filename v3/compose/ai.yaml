@@ -23,6 +23,8 @@
 #   anthropic  LAB_AI_ANTHROPIC_API_KEY in .secrets.env              (./lab ai enable-hosted)
 #   openai     LAB_AI_OPENAI_API_KEY in .secrets.env                 (./lab ai enable-hosted)
 #   mock       LAB_AI_MOCK=true in .env                              (install.sh --ai-mock)
+# Quiet hours for the local provider: LAB_AI_QUIET_HOURS + LAB_AI_QUIET_TZ in .env
+# (./lab ai quiet-hours); the gateway refuses local requests in that window before routing.
 # With none, config/ai/render_config.py writes an empty model list: every AI request gets
 # "AI isn't configured; ask your lab admin." and the gateway makes no outbound AI call.
 # Changing one recreates ai-gateway (its environment changes); `./lab ai ...` does that.
@@ -78,6 +80,9 @@ services:
       LAB_AI_MOCK_COST_PER_MTOK: ${LAB_AI_MOCK_COST_PER_MTOK:-}
       LAB_AI_DEFAULT_PROVIDER: ${LAB_AI_DEFAULT_PROVIDER:-}
       LAB_AI_REQUEST_TIMEOUT: ${LAB_AI_REQUEST_TIMEOUT:-600}
+      # Local model quiet hours (Phase 6; `./lab ai quiet-hours`): empty = off.
+      LAB_AI_QUIET_HOURS: ${LAB_AI_QUIET_HOURS:-}
+      LAB_AI_QUIET_TZ: ${LAB_AI_QUIET_TZ:-}
       TZ: ${LAB_TZ:-UTC}
     # A local model server on the Docker host itself: ./lab ai set-local rewrites
     # http://localhost:<port> to http://host.docker.internal:<port>.

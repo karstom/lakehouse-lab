@@ -14,7 +14,7 @@ LAB_SECRETS_FILE="${V3_DIR}/.secrets.env"
 LAB_VERSIONS_FILE="${V3_DIR}/versions.env"
 LAB_COMPOSE_FILE="${V3_DIR}/compose.yaml"
 
-# Profiles from docs/v3/ARCHITECTURE.md section 8. Only these are selectable today.
+# Profiles from docs/ARCHITECTURE.md section 8. Only these are selectable today.
 # `engineer` = core + Spark master, worker and Spark Connect (Phase 2) + Airflow and the
 # Spark UI (Phase 3). `full` = engineer + Superset (Phase 3).
 LAB_KNOWN_PROFILES="core engineer full server"
@@ -148,7 +148,8 @@ lab_settings() {
   # The AI provider switches too (Phase 5): a stray LAB_AI_* in the shell must never turn a
   # provider on (compose would prefer it over .env/.secrets.env); only the lab's files do.
   for k in COMPOSE_PROJECT_NAME LAB_DOMAIN LAB_HTTPS_PORT LAB_HTTP_PORT LAB_PROFILE LAB_STATE_DIR \
-           LAB_AI_MOCK LAB_AI_LOCAL_URL LAB_AI_LOCAL_API_KEY LAB_AI_ANTHROPIC_API_KEY LAB_AI_OPENAI_API_KEY; do
+           LAB_AI_MOCK LAB_AI_LOCAL_URL LAB_AI_LOCAL_API_KEY LAB_AI_ANTHROPIC_API_KEY LAB_AI_OPENAI_API_KEY \
+           LAB_AI_QUIET_HOURS LAB_AI_QUIET_TZ; do
     unset "$k"
   done
   load_env "$LAB_ENV_FILE"

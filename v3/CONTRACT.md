@@ -1,7 +1,7 @@
 # V3 Phase 1: Build Contract
 
 > Written by the lead before the Phase 1 fan-out. The workstreams build against it.
-> Changing anything here requires the lead. Design: `docs/v3/`. Phase 0 evidence:
+> Changing anything here requires the lead. Design: `docs/`. Phase 0 evidence:
 > `spikes/*/RESULTS.md` (reuse what works there, and productionize it).
 
 ## Scope: Phase 1 (`core` profile)
@@ -69,6 +69,7 @@ export it; compose fails loudly without it.
 | `LAB_PROFILE` | Selected profile | `core` |
 | `LAB_STATE_DIR` | Host dir for state that must survive `down -v` (CA root, etc.) | `./state` |
 | `LAB_TZ` | Timezone | host TZ |
+| `LAB_AI_QUIET_HOURS`, `LAB_AI_QUIET_TZ` | Local-model quiet hours `HH:MM-HH:MM` and their IANA zone (Phase 6; `./lab ai quiet-hours`); empty = off | empty (off) |
 
 `v3/.secrets.env` (mode 600) holds secrets, generated with a CSPRNG (`openssl rand` or
 `/dev/urandom`, **never `$RANDOM`**, per ISSUE_WEAK_CREDENTIAL_RNG). Database passwords are
@@ -889,3 +890,26 @@ No inference on the owner's llama-server (:9999) by agents at any time. Use the 
 
 The integrator owns `compose.yaml`, `versions.env`, `bootstrap/__main__.py` and this
 contract.
+
+## Conventions added at Phase 6 integration
+
+- **Layout after the cutover:** V3 stays in `v3/`. V2 lives in `legacy/v2/` (inert; its
+  workflows in `legacy/v2/workflows/` do not run). The design docs and the migration guide
+  are in `docs/` (`docs/MIGRATION.md`; `docs/v3/` is gone). The root `install.sh` is only a
+  bootstrap (clone/update at `--ref`, then `exec v3/install.sh`); root-level checks are
+  `tests/bootstrap/`, `tests/shellcheck.sh`, `tests/docs/check-links.sh` and
+  `.github/workflows/repo-checks.yml`. `check_versions.py` still scans only `v3/`.
+- **Pins:** `RCLONE_IMAGE_*` (the guide and `tests/migration`) and
+  `MIGRATION_TEST_MINIO_IMAGE_*` (the throwaway V2 in `tests/migration` only) are in
+  `versions.env`. `v3/.pins/` is gone again.
+- **Quiet hours:** `.env` `LAB_AI_QUIET_HOURS` / `LAB_AI_QUIET_TZ` (empty = off) reach only
+  `ai-gateway` (`compose/ai.yaml`); `lab_settings` unsets both from the caller's shell like the
+  other `LAB_AI_*` switches. The gateway refuses `local` (and `lab-default` when it resolves to
+  local) before routing with HTTP 503 `ai_quiet_hours` + `Retry-After`. `install.sh` asks once,
+  interactively on `full`, only when a local URL is set.
+- **`tests/ai/quiet-hours-e2e.sh`** is opt-in exactly like `gateway-e2e.sh` step 3
+  (`LAB_E2E_LOCAL_VIA_MOCK=1`, providers exactly `[mock]`). The nightly (a CI runner, no real
+  model server) sets the switch for both scripts; on the dev host it is set only on a
+  throwaway `v3-p6*` project, never on `v3-p1`.
+- **Mock model:** a scripted tool step may carry `content` (narration sent with the tool
+  calls) and any step `reasoning` (sent as `reasoning_content`); `plan()` is unchanged.

@@ -252,3 +252,18 @@
 **LastVerified:** 2026-09-27
 **Commit:** 0dc8f05
 **LastUpdated:** 2026-09-27
+
+---
+
+## NODE: WATCH_V3_PYICEBERG_NO_TRANSFORM_PARTITION_WRITES
+**Type:** Watchlist
+**Priority:** LOW
+**Label:** V3 workspace: PyIceberg cannot write to transform-partitioned tables (pyiceberg-core not in the image)
+**Summary:** Found by the Phase 6 MIGRATION proof: PyIceberg in the workspace image fails with NotInstalledError when appending to a table partitioned by a transform (day/month/bucket), because pyiceberg-core is not installed. Spark and Trino are unaffected. The migration guide's core-profile path therefore creates unpartitioned tables. Adding pyiceberg-core is a workspace-image pin change (versions.env + relock), not done in Phase 6.
+**Tags:** v3, pyiceberg, workspace, partitioning, phase6
+**Edges:** _(none)_
+**Files:** `v3/images/workspace/requirements.in`, `docs/MIGRATION.md`
+**LastVerified:** 2026-09-27
+**Commit:** 699c5a1
+**LastUpdated:** 2026-09-27
+**Author:** p6-integrator

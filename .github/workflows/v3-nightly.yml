@@ -11,16 +11,15 @@
 # It also MEASURES memory (tests/smoke/mem-sample.sh: host used + this lab's containers,
 # every 10 s) and writes the peaks to the job summary, to answer "does full fit a 16 GB
 # runner?" with numbers. Dispatch it for another profile or without the long check to compare.
-# Scheduled runs use the workflow file on the default branch; until v3 is merged there,
-# run it by hand: gh workflow run v3-nightly.yml --ref v3
+# Scheduled runs use the workflow file on the default branch (main, where V3 lives since
+# v3.0.0-beta.1). Run it by hand on any branch: gh workflow run v3-nightly.yml --ref <branch>
 name: v3-nightly
 
 on:
-  # schedule and workflow_dispatch only run from the default branch (main). Until V3 is
-  # merged, a change to this file on v3 runs it once, so the full profile still gets a real
-  # runner result before merge.
+  # The schedule runs from the default branch (main). A change to this file on main or v3
+  # also runs it once, so an edit gets a real runner result right away.
   push:
-    branches: [v3]
+    branches: [main, v3]
     paths: [".github/workflows/v3-nightly.yml"]
   schedule:
     - cron: "17 3 * * *"
@@ -106,9 +105,20 @@ jobs:
       # AI gateway end to end (Phase 5), mock model only: broker mint/rotate/revoke, budgets,
       # no-provider answer with a socket watch for egress, and the local-provider path pointed
       # at the mock. Restores the gateway with the lab's own settings afterwards.
+      # A CI runner has no real model server, so the opt-in local-via-mock steps run here
+      # (CONTRACT Phase 5/6: LAB_E2E_LOCAL_VIA_MOCK=1 only where no real model can be reached).
       - name: AI gateway end to end (full only, mock model)
         if: ${{ env.LAB_PROFILE_UNDER_TEST == 'full' }}
+        env:
+          LAB_E2E_LOCAL_VIA_MOCK: "1"
         run: v3/tests/ai/gateway-e2e.sh
+
+      # Phase 6: local-model quiet hours, with the mock standing in for the local provider.
+      - name: AI quiet hours end to end (full only, mock as local)
+        if: ${{ env.LAB_PROFILE_UNDER_TEST == 'full' }}
+        env:
+          LAB_E2E_LOCAL_VIA_MOCK: "1"
+        run: v3/tests/ai/quiet-hours-e2e.sh
 
       - name: Re-install on the running stack (idempotent upgrade path)
         run: v3/install.sh --non-interactive && v3/lab status

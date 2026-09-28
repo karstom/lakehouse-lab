@@ -378,7 +378,8 @@ runs a smoke lesson end to end:
 3. Query it from Trino and DuckDB
 4. Run `dbt build`
 
-A nightly job does the same for `full` and for a V2 → V3 migration.
+A nightly job does the same for `full`. (A nightly V2 → V3 migration test was dropped with
+the migration tool: V3.0 ships a tested migration guide instead.)
 
 **Why:** V2 replaced its startup test with config validation, so startup, init and upgrade
 regressions only reached users (`WATCH_CI_WORKFLOWS`). Pre-built images keep the V3 test fast.

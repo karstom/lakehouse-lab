@@ -18,16 +18,24 @@ Where things come from
     ~/.lakehouse/ai.json). It applies inside a track module (`current_module`): the chat file
     is in ~/tracks/<track>/<module>/, or the notebook open in JupyterLab is, or else the
     module the learner worked on last (edited files, `lab-tracks check`) and has not passed.
+  * The system prompt carries the current date, time and time zone (`clock_block`: the
+    workspace clock in LAB_TZ, else TZ, which the hub sets from the lab's LAB_TZ; else UTC),
+    so "today" and "yesterday" mean what the user means.
+  * Replies are shaped for beginners (`ReplyShaper`): the model's planning and tool-use
+    narration ("The user is asking... Let me look that up.") and its reasoning go into a
+    collapsed "steps" section under the answer; the final answer itself is kept intact.
   * MCP servers come from a registry file (LAB_MCP_SERVERS_FILE, default
     /opt/lakehouse/mcp/servers.json, images/workspace/mcp/): the common `mcpServers` format
     {"mcpServers": {name: {"command", "args", "env": {...}}}} (Jupyter AI's
     {"mcp_servers": [...]} list is accepted too). They run as the user (stdio children of
     the user's own processes) with the user's own token.
 """
+import datetime
 import json
 import os
 import re
 import tempfile
+import zoneinfo
 
 # The persona Jupyter AI answers with by default (id format of jupyter_ai_persona_manager:
 # jupyter-ai-personas::<top-level package>::<class name>).
@@ -123,11 +131,25 @@ def not_configured_message(gw=None):
     return msg
 
 
+_QUIET = re.compile(r"The lab\\?'s local AI model is resting until (\d\d:\d\d) ([A-Za-z0-9_+/-]+) "
+                    r"\(quiet hours (\d\d:\d\d-\d\d:\d\d)\)")
+
+
 def friendly_error(text):
-    """A clearer message for errors the gateway sends back (budget, key, model)."""
+    """A clearer message for errors the gateway sends back (budget, key, model, quiet hours)."""
     low = (text or "").lower()
     if "ai isn't configured" in low or "ai_not_configured" in low:
         return AI_NOT_CONFIGURED
+    # The gateway's quiet hours for the local model (config/ai/render_config.py
+    # quiet_hours_message): show the sentence alone, without the error wrapping around it.
+    m = _QUIET.search(text or "")
+    if m:
+        return (f"The lab's local AI model is resting until {m.group(1)} {m.group(2)} "
+                f"(quiet hours {m.group(3)}). Please try again after that; your lab admin can "
+                "change this with './lab ai quiet-hours'.")
+    if "ai_quiet_hours" in low:
+        return ("The lab's local AI model is resting (quiet hours). Please try again later.\n\n"
+                f"(gateway: {_short(text)})")
     # LiteLLM says "exceeded"; the lab's gateway hook says "Your AI budget for this period is
     # used up" (config/ai/lab_hooks.py).
     if "budget" in low and ("exceed" in low or "over" in low or "used up" in low):
@@ -285,20 +307,59 @@ Safety rules:
 </lab_context>"""
 
 
+def lab_timezone(env=None):
+    """The lab's time zone -> (tzinfo, IANA name). LAB_TZ, else TZ (JupyterHub gives every
+    workspace TZ = the lab's LAB_TZ), else UTC. An unknown name falls back to UTC."""
+    env = os.environ if env is None else env
+    for var in ("LAB_TZ", "TZ"):
+        name = (env.get(var) or "").strip().lstrip(":")
+        if not name or name.startswith("/") or ".." in name:
+            continue
+        try:
+            return zoneinfo.ZoneInfo(name), name
+        except (zoneinfo.ZoneInfoNotFoundError, ValueError, OSError):
+            continue
+    return datetime.timezone.utc, "UTC"
+
+
+def _utc_offset(delta):
+    minutes = int(delta.total_seconds() // 60)
+    sign = "+" if minutes >= 0 else "-"
+    return f"UTC{sign}{abs(minutes) // 60:02d}:{abs(minutes) % 60:02d}"
+
+
+def clock_block(now=None, env=None):
+    """The current date, time and time zone for the system prompt. `now` (aware) is injected
+    by tests; default: the workspace clock."""
+    tz, name = lab_timezone(env)
+    now = (now or datetime.datetime.now(datetime.timezone.utc)).astimezone(tz)
+    yesterday = now.date() - datetime.timedelta(days=1)
+    stamp = f"{now:%A}, {now.day} {now:%B %Y}, {now:%H:%M}"
+    return f"""<lab_clock>
+Right now it is {stamp} in the lab's time zone, {name} ({_utc_offset(now.utcoffset())}).
+Today is {now:%Y-%m-%d}; yesterday was {yesterday:%Y-%m-%d}. Use this for "today",
+"yesterday" and other relative dates, and to say how long ago something happened (for example
+a table's last load). Tool results often give times in UTC: say which time zone a time is in.
+</lab_clock>"""
+
+
 def system_prompt(chat_dir=None, username=None, context=None, model=None, module=None,
-                  active_path=None):
+                  active_path=None, now=None):
     """The assistant's whole system prompt -> (prompt, module or None). Tutor mode (when on
-    and a module is active, or `module` is given) adds the module's tutor.md."""
+    and a module is active, or `module` is given) adds the module's tutor.md. The prompt is
+    built for every message, so its clock (`clock_block`; `now` injected by tests) is current."""
     if not tutor_enabled():
         module = None
     elif module is None:
         module = current_module(chat_dir, active_path)
-    parts = [lab_block(username)]
+    parts = [lab_block(username), clock_block(now)]
     if module is not None:
         parts.append(tutor_block(module))
     parts.append("""<response_style>
-Answer in chat, concisely, in Markdown. Put code in fenced code blocks. When you use a tool,
-say briefly what you looked up. If you do not know, say so.
+Answer in chat, concisely, in Markdown. Put code in fenced code blocks. If you do not know,
+say so. Begin the final answer with the answer itself, not with a restatement of the question
+or of your plan ("The user is asking...", "Let me..."): the lab shows your intermediate notes
+and tool calls to the user separately, collapsed, and says which tools you used.
 </response_style>""")
     if model:
         parts.append(f"(You are powered by the model `{model}` through the lab's AI gateway.)")
@@ -306,6 +367,235 @@ say briefly what you looked up. If you do not know, say so.
                                                else "The user shared no additional context.")
                  + "\n</user_shared_context>")
     return "\n\n".join(parts), module
+
+
+# ---------------------------------------------------------------------------- reply shaping
+# Beginners should see the answer, not the model's planning. Jupyter AI's stock agent loop
+# streams every assistant message of a turn (reasoning, "The user is asking... Let me look that
+# up." before each tool call, then the answer) into ONE chat message. ReplyShaper takes the
+# agent's streamed events (LangChain's v3 streaming protocol: plain dicts, see `feed`) and
+# renders: the final answer, intact, then a collapsed <details> section with the steps
+# (narration, reasoning, which tools were used). Stdlib only, so it is unit-tested with
+# recorded event sequences.
+NARRATION_START = re.compile(
+    r"^(?:The user(?:'s| is| has| wants| would| asks| asked| needs| seems)\b"
+    r"|Let(?: me|'s| us) (?:first |now |quickly )?(?:look|check|query|call|search|find|get|fetch|use"
+    r"|start|see|try|gather|run|think|figure|verify|compile|summari[sz]e|put|pull|read|begin)\b"
+    r"|I(?:'ll| will| need to| should| must| am going to|'m going to| can now| now)\b"
+    r"|Now,? (?:let me|I(?:'ll| will| need| have| can))\b"
+    r"|(?:First|Next|Then),? (?:let me|I(?:'ll| will| need| should))\b"
+    r"|(?:Okay|OK|Alright|Great|Good),? (?:so |now |let me|the user|I(?:'ll| will| need| have| can)))")
+MAX_NARRATION_PARAGRAPH = 400          # longer leading paragraphs are content, not planning
+MAX_REASONING_SHOWN = 4000             # characters of reasoning kept per step (collapsed)
+_TOOL_NAME = re.compile(r"[^A-Za-z0-9_.:-]")
+_THINK = re.compile(r"^\s*<think>(.*?)(?:</think>|$)", re.S)
+
+
+class _Step:
+    __slots__ = ("text", "reasoning", "tools", "blocks", "mid")
+
+    def __init__(self, mid=None):
+        self.text, self.reasoning, self.tools, self.blocks, self.mid = "", "", {}, {}, mid
+
+    def add_tool(self, key, name):
+        key = key or f"#{len(self.tools)}"
+        if name or key not in self.tools:
+            self.tools[key] = name or self.tools.get(key) or ""
+
+
+def split_leading_narration(text):
+    """Leading planning paragraphs of a final answer -> (narration, answer). Only whole,
+    short paragraphs that start like planning ("The user is asking", "Let me", "I'll", ...)
+    and hold no code, list, table or heading; stops at the first other paragraph. Nothing is
+    split off when that would leave no answer."""
+    paras = re.split(r"(\n\s*\n)", text.lstrip("\n"))
+    lead = []
+    i = 0
+    while i < len(paras):
+        p = paras[i].strip()
+        if (not p or len(p) > MAX_NARRATION_PARAGRAPH or not NARRATION_START.match(p)
+                or "```" in p or re.search(r"^\s*(?:[-*+] |\d+\. |#|\|)", p, re.M)):
+            break
+        lead.append(p)
+        i += 2                                  # the paragraph and its separator
+    rest = "".join(paras[i:]).lstrip("\n")
+    if not lead or not rest.strip():
+        return "", text
+    return "\n\n".join(lead), rest
+
+
+def _fence_safe(text):
+    """Markdown that cannot break out of the <details> block."""
+    text = text.replace("</details", "&lt;/details").replace("<details", "&lt;details")
+    if text.count("```") % 2:
+        text += "\n```"
+    return text
+
+
+class ReplyShaper:
+    """Collects the agent's streamed events for one reply and renders the chat message.
+
+    `feed(data)` takes `event["params"]["data"][0]` of each `messages` event from
+    `agent.astream_events(..., version="v3")`: dicts such as
+      {"event": "message-start", "role": "ai", "id": ...}
+      {"event": "content-block-start"|"content-block-finish", "index": i, "content": {"type":
+          "text"|"reasoning"|"tool_call_chunk"|"tool_call", ...}}
+      {"event": "content-block-delta", "index": i, "delta": {"type": "text-delta"|
+          "reasoning-delta"|"block-delta", ...}}
+      {"event": "message-finish", "metadata": {"finish_reason": ...}}
+    Message objects (older LangChain shapes) are accepted too. Each model call is one step; a
+    step that calls tools is intermediate, the last step without tool calls is the answer.
+    """
+
+    def __init__(self):
+        self.steps = []
+
+    # -------------------------------------------------------------- input
+    def _step(self, new=False, mid=None):
+        if new or not self.steps:
+            self.steps.append(_Step(mid))
+        return self.steps[-1]
+
+    def feed(self, data):
+        if isinstance(data, dict):
+            self._feed_event(data)
+        else:
+            self._feed_message(data)
+
+    def _feed_event(self, d):
+        ev = d.get("event")
+        if ev == "message-start":
+            if d.get("role") in (None, "ai", "assistant"):
+                self._step(new=True, mid=d.get("id"))
+            return
+        step = self._step()
+        idx = d.get("index")
+        if ev == "content-block-start":
+            c = d.get("content") or {}
+            step.blocks[idx] = c.get("type")
+            if c.get("type") in ("tool_call_chunk", "tool_call", "tool_use"):
+                step.add_tool(c.get("id") or f"i{idx}", c.get("name"))
+        elif ev == "content-block-delta":
+            delta = d.get("delta") or {}
+            kind = delta.get("type")
+            if kind == "text-delta":
+                step.text += str(delta.get("text") or "")
+            elif kind == "reasoning-delta":
+                step.reasoning += str(delta.get("reasoning") or "")
+            elif kind == "block-delta":
+                f = delta.get("fields") or {}
+                if f.get("type") in ("tool_call_chunk", "tool_call", "tool_use") \
+                        or step.blocks.get(idx) in ("tool_call_chunk", "tool_call", "tool_use"):
+                    step.add_tool(f.get("id") or f"i{idx}", f.get("name"))
+        elif ev == "content-block-finish":
+            c = d.get("content") or {}
+            kind = c.get("type")
+            if kind in ("tool_call", "tool_call_chunk", "tool_use"):
+                step.add_tool(c.get("id") or f"i{idx}", c.get("name"))
+            elif kind == "text" and not step.text and c.get("text"):
+                step.text = str(c["text"])           # no deltas were streamed
+            elif kind == "reasoning" and not step.reasoning and c.get("reasoning"):
+                step.reasoning = str(c["reasoning"])
+        elif ev == "message-finish":
+            meta = d.get("metadata") or {}
+            calls = (d.get("additional_kwargs") or {}).get("tool_calls") or []
+            for c in calls:
+                if isinstance(c, dict):
+                    step.add_tool(c.get("id"), (c.get("function") or {}).get("name") or c.get("name"))
+            if meta.get("finish_reason") in ("tool_calls", "tool_use") and not step.tools:
+                step.add_tool(None, "")
+
+    def _feed_message(self, msg):
+        if getattr(msg, "type", "") == "tool" or type(msg).__name__.startswith("Tool"):
+            return
+        mid = getattr(msg, "id", None)
+        step = self._step(mid=mid)
+        if step.mid is None:
+            step.mid = mid
+        elif mid is not None and step.mid != mid:
+            step = self._step(new=True, mid=mid)
+        content = getattr(msg, "content", None)
+        text = content if isinstance(content, str) else "".join(
+            b.get("text", "") if isinstance(b, dict) and b.get("type") == "text"
+            else (b if isinstance(b, str) else "") for b in (content or []))
+        if text.startswith(step.text):
+            step.text = text                        # a growing snapshot
+        else:
+            step.text += text                       # a delta
+        for c in list(getattr(msg, "tool_calls", None) or []) + \
+                list(getattr(msg, "tool_call_chunks", None) or []):
+            if isinstance(c, dict):
+                step.add_tool(c.get("id"), c.get("name"))
+
+    # -------------------------------------------------------------- state
+    def working_on_tools(self):
+        """True while the latest step has asked for tools (the tools are running)."""
+        return bool(self.steps and self.steps[-1].tools)
+
+    def thinking(self):
+        return bool(self.steps and self.steps[-1].reasoning and not self.steps[-1].text)
+
+    # -------------------------------------------------------------- output
+    @staticmethod
+    def _split_think(step):
+        """A leading <think>...</think> in the text (models whose server does not separate
+        reasoning, e.g. Qwen without a reasoning parser) is reasoning too."""
+        m = _THINK.match(step.text)
+        if not m:
+            return step.reasoning, step.text
+        return (step.reasoning + ("\n" if step.reasoning else "") + m.group(1)).strip(), \
+            step.text[m.end():].lstrip("\n")
+
+    def parts(self, final=False):
+        """-> (answer, notes): notes = [(kind, text)] with kind "text", "reasoning" or "tool"."""
+        notes, answer = [], ""
+        for i, step in enumerate(self.steps):
+            reasoning, text = self._split_think(step)
+            if reasoning.strip():
+                r = reasoning.strip()
+                if len(r) > MAX_REASONING_SHOWN:
+                    r = r[:MAX_REASONING_SHOWN] + " [...]"
+                notes.append(("reasoning", r))
+            if step.tools or i < len(self.steps) - 1:
+                if text.strip():
+                    notes.append(("text", text.strip()))
+                for name in step.tools.values():
+                    notes.append(("tool", _TOOL_NAME.sub("", name or "") or "a tool"))
+            else:
+                answer = text
+        if final and answer:
+            lead, rest = split_leading_narration(answer)
+            if lead:
+                notes.append(("text", lead))
+                answer = rest
+        return answer, notes
+
+    def render(self, final=False):
+        """The chat message body: the answer, then the steps collapsed. With no steps the body
+        is exactly the answer. With steps but no answer (yet), the steps alone (expanded once
+        the reply is final, so nothing the model said is hidden)."""
+        answer, notes = self.parts(final)
+        if not notes:
+            return answer
+        tools = sum(1 for k, _ in notes if k == "tool")
+        what = f"{tools} tool call{'s' if tools != 1 else ''}" if tools else "notes"
+        blocks = []
+        for kind, text in notes:
+            if kind == "tool":
+                line = f"- used `{text}`"
+                if blocks and blocks[-1].startswith("- used `"):
+                    blocks[-1] += "\n" + line
+                else:
+                    blocks.append(line)
+            elif kind == "reasoning":
+                blocks.append("*Thinking:*\n" + _fence_safe(text))
+            else:
+                blocks.append(_fence_safe(text))
+        body = "\n\n".join(blocks)
+        opened = " open" if final and not answer.strip() else ""
+        details = (f"<details{opened}>\n<summary>How the assistant worked this out ({what})</summary>"
+                   f"\n\n{body}\n\n</details>")
+        return f"{answer.rstrip()}\n\n{details}" if answer.strip() else details
 
 
 # ---------------------------------------------------------------------------- MCP

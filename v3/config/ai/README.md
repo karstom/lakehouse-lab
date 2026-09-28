@@ -48,6 +48,30 @@ in the lab calls a model by itself: no background health checks, no retries, and
 gateway's `/health` endpoint (it would send a request to every model); the container healthcheck
 uses `/health/liveliness`.
 
+## Quiet hours for the local model (Phase 6)
+
+A local model server often runs on someone's own machine, whose fans should stay quiet at night.
+`./lab ai quiet-hours 22:00-07:00 --tz America/New_York` sets a daily window (wall-clock time in
+that zone; `--tz` defaults to `LAB_TZ`), `./lab ai quiet-hours off` removes it, and
+`./lab ai quiet-hours` / `./lab ai status` show it (`quiet  22:00-07:00 America/New_York, local
+model only (now: ...)`). Off by default; `install.sh` asks once, interactively, when a local URL is
+set. The settings are `LAB_AI_QUIET_HOURS` and `LAB_AI_QUIET_TZ` in `.env`.
+
+- During the window the gateway refuses every request for a model that reaches the `local`
+  provider (`local`, and `lab-default` when it resolves to local) **before routing**, in the
+  `lab_hooks` pre-call hook: HTTP 503, type `ai_quiet_hours`, a `Retry-After` header, and "The
+  lab's local AI model is resting until 07:00 America/New_York (quiet hours 22:00-07:00). …". The
+  Lab Assistant shows that sentence as is. Nothing is sent to the model server.
+- Hosted providers (and the test mock) are not affected. `lab-default` is not re-routed to a
+  hosted provider during quiet hours: choosing a hosted model is the user's (`claude`, `gpt`).
+- Start inclusive, end exclusive, minute granularity; a start later than the end crosses midnight.
+  DST: the window follows the wall clock (a spring-forward night is an hour shorter; a start
+  inside the skipped hour begins at the first minute after it; on a fall-back night a window
+  over the repeated hour lasts an hour longer). Tested with an injected clock in
+  `tests/ai/test_quiet_hours.py`; the CLI in `tests/ai/test_lab_quiet_hours.py`.
+- A bad setting stops the gateway at start (render_config exits), so it never routes to the
+  local model by mistake; `./lab ai quiet-hours` validates both values before writing them.
+
 ## Budgets and keys
 
 Each JupyterHub user is a gateway user with role `internal_user_viewer` (inference and their own

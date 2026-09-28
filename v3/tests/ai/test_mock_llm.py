@@ -103,6 +103,39 @@ class MockLLM(unittest.TestCase):
         self.assertEqual(len(log), 1)
         self.assertEqual(log[0]["body"]["messages"][0]["content"], "tutor #mock:runtime-x")
 
+    def test_narration_and_reasoning(self):
+        """Phase 6: a tool step may carry the model's narration ("content") and any step its
+        reasoning ("reasoning", sent as reasoning_content like llama-server)."""
+        self.call("PUT", "/_mock/scripts/narr", {"steps": [
+            {"reasoning": "The user is asking. I should look.", "content": "Let me look that up.",
+             "tool_calls": [{"name": "catalog_list", "arguments": {}}]},
+            {"content": "Answer."}]})
+        first = self.chat([{"role": "user", "content": "q #mock:narr"}])
+        msg = first["choices"][0]["message"]
+        self.assertEqual(msg["content"], "Let me look that up.")
+        self.assertEqual(msg["reasoning_content"], "The user is asking. I should look.")
+        self.assertEqual(msg["tool_calls"][0]["function"]["name"], "catalog_list")
+        self.assertEqual(first["choices"][0]["finish_reason"], "tool_calls")
+        raw = self.call("POST", "/v1/chat/completions", {"model": "mock-model", "stream": True,
+                        "messages": [{"role": "user", "content": "q #mock:narr"}]}, raw=True)
+        deltas = [json.loads(line[6:])["choices"][0]["delta"] for line in raw.splitlines()
+                  if line.startswith("data: {") and json.loads(line[6:])["choices"]]
+        kinds = [next(k for k in ("reasoning_content", "content", "tool_calls") if d.get(k))
+                 for d in deltas if any(d.get(k) for k in ("reasoning_content", "content", "tool_calls"))]
+        self.assertEqual(kinds[0], "reasoning_content")
+        self.assertEqual(kinds[-1], "tool_calls")
+        self.assertEqual("".join(d.get("content") or "" for d in deltas), "Let me look that up.")
+        second = self.chat([{"role": "user", "content": "q #mock:narr"},
+                            dict(msg, role="assistant"),
+                            {"role": "tool", "tool_call_id": msg["tool_calls"][0]["id"], "content": "[]"}])
+        self.assertEqual(second["choices"][0]["message"]["content"], "Answer.")
+        self.assertNotIn("reasoning_content", second["choices"][0]["message"])
+        # Anthropic shape: the narration is a text block before the tool_use block.
+        a = self.call("POST", "/v1/messages", {"model": "mock-model", "max_tokens": 10,
+                      "messages": [{"role": "user", "content": "q #mock:narr"}]})
+        self.assertEqual([b["type"] for b in a["content"]], ["text", "tool_use"])
+        self.assertEqual(a["content"][0]["text"], "Let me look that up.")
+
     def test_select(self):
         self.assertEqual(mock.select("a[*].b", {"a": [{"b": 1}, {"b": 2}]}), [1, 2])
         self.assertEqual(mock.select("a[1]", {"a": [5, 6]}), [6])
