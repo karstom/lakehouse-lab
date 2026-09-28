@@ -10,7 +10,7 @@
 - CONTAINS → REG_ICEBERG_JAR_VERSIONS: init-compute.sh downloads JARs
 - DEPENDS_ON → DEC_INIT_CONTAINER_PYTHON_BASE: assumes python:3.11 tooling
 - RELATES_TO → WATCH_LEGACY_NAMED_INIT_ENTRYPOINT: live entrypoint is in scripts/legacy/
-**Files:** `scripts/legacy/init-all-in-one-modular.sh`, `scripts/lib/init-core.sh`, `scripts/init-infrastructure.sh`, `scripts/init-storage.sh`, `scripts/init-compute.sh`, `scripts/init-workflows.sh`, `scripts/init-analytics.sh`, `scripts/init-dashboards.sh`, `scripts/init-vizro.sh`, `scripts/init-lancedb.sh`
+**Files:** `legacy/v2/scripts/legacy/init-all-in-one-modular.sh`, `legacy/v2/scripts/lib/init-core.sh`, `legacy/v2/scripts/init-infrastructure.sh`, `legacy/v2/scripts/init-storage.sh`, `legacy/v2/scripts/init-compute.sh`, `legacy/v2/scripts/init-workflows.sh`, `legacy/v2/scripts/init-analytics.sh`, `legacy/v2/scripts/init-dashboards.sh`, `legacy/v2/scripts/init-vizro.sh`, `legacy/v2/scripts/init-lancedb.sh`
 **Symbols:** `wait_for_service`, `wait_for_minio_api`, `create_init_marker`, `check_already_initialized`, `handle_error`
-**Paths:** `scripts/lib`, `scripts/legacy`
+**Paths:** `legacy/v2/scripts/lib`, `legacy/v2/scripts/legacy`
 **LastUpdated:** 2026-09-25

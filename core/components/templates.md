@@ -9,6 +9,6 @@
 - CONTAINS → ISSUE_HARDCODED_MINIO_CREDS_IN_DAG: data_quality_check.py
 - DEPENDS_ON → INV_TEMPLATES_ARE_REAL_FILES: templates are the canonical copy
 - RELATES_TO → WATCH_ICEBERG_VERSION_SITES: notebook 03 and utils pin JAR versions
-**Files:** `templates/jupyter/notebooks/03_Iceberg_Tables.ipynb`, `templates/airflow/dags/data_quality_check.py`, `templates/lancedb/service/lancedb_service.py`, `templates/superset/database_setup.py`, `utils/iceberg_jar_manager.py`, `utils/jar_manager_cell.py`
-**Paths:** `templates`, `utils`
+**Files:** `legacy/v2/templates/jupyter/notebooks/03_Iceberg_Tables.ipynb`, `legacy/v2/templates/airflow/dags/data_quality_check.py`, `legacy/v2/templates/lancedb/service/lancedb_service.py`, `legacy/v2/templates/superset/database_setup.py`, `legacy/v2/utils/iceberg_jar_manager.py`, `legacy/v2/utils/jar_manager_cell.py`
+**Paths:** `legacy/v2/templates`, `legacy/v2/utils`
 **LastUpdated:** 2026-09-25

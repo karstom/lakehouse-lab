@@ -7,6 +7,6 @@
 **Edges:**
 - RELATES_TO → WATCH_CI_WORKFLOWS: what CI actually runs
 - RELATES_TO → ISSUE_HARDCODED_MINIO_CREDS_IN_DAG: same hardcoded secret
-**Files:** `tests/conftest.py`, `tests/run_tests.sh`, `tests/run_stack_health_tests.sh`, `tests/test_docker_compose.py`, `tests/test_init_scripts.py`, `tests/test_iceberg_integration.py`
+**Files:** `legacy/v2/tests/conftest.py`, `legacy/v2/tests/run_tests.sh`, `legacy/v2/tests/run_stack_health_tests.sh`, `legacy/v2/tests/test_docker_compose.py`, `legacy/v2/tests/test_init_scripts.py`, `legacy/v2/tests/test_iceberg_integration.py`
 **Paths:** `tests`
 **LastUpdated:** 2026-09-25

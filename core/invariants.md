@@ -12,7 +12,7 @@
 **Tags:** credentials, env
 **Edges:**
 - VIOLATED_BY → REG_CREDENTIAL_PROPAGATION: 16 fix commits removing hardcoded or mirrored copies
-**Files:** `scripts/generate-credentials.sh`, `.env.example`, `templates/airflow/dags/data_quality_check.py`
+**Files:** `legacy/v2/scripts/generate-credentials.sh`, `legacy/v2/.env.example`, `legacy/v2/templates/airflow/dags/data_quality_check.py`
 **Evidence:** `grep -rn "minio123" --exclude-dir=.git --exclude-dir=core .` → no matches (currently fails: 1 template + tests)
 **LastUpdated:** 2026-09-25
 
@@ -26,7 +26,7 @@
 **Tags:** credentials, postgres, airflow
 **Edges:**
 - VIOLATED_BY → REG_AIRFLOW_DB_INIT: URL-unsafe passwords broke DB connections
-**Files:** `scripts/generate-credentials.sh`
+**Files:** `legacy/v2/scripts/generate-credentials.sh`
 **Symbols:** `generate_db_safe_password`
 **LastUpdated:** 2026-09-25
 
@@ -40,7 +40,7 @@
 **Tags:** docker-compose, interpolation, yaml
 **Edges:**
 - VIOLATED_BY → REG_COMPOSE_INLINE_SHELL: unescaped `$` evaluated by Compose at parse time
-**Files:** `docker-compose.yml`, `docker-compose.iceberg.yml`, `docker-compose.jupyterhub.yml`
+**Files:** `legacy/v2/docker-compose.yml`, `legacy/v2/docker-compose.iceberg.yml`, `legacy/v2/docker-compose.jupyterhub.yml`
 **Evidence:** `docker compose -f docker-compose.yml config -q` → exit 0 with no "variable is not set" warnings for container-side vars
 **LastUpdated:** 2026-09-25
 
@@ -55,7 +55,7 @@
 **Edges:**
 - VIOLATED_BY → REG_JUPYTER_PYSPARK_VERSIONS: pip-installed PySpark conflicted with the image
 - VIOLATED_BY → REG_ICEBERG_JAR_VERSIONS: JAR versions drifted from the cluster
-**Files:** `docker-compose.yml`, `docker-compose.iceberg.yml`, `scripts/init-compute.sh`
+**Files:** `legacy/v2/docker-compose.yml`, `legacy/v2/docker-compose.iceberg.yml`, `legacy/v2/scripts/init-compute.sh`
 **LastUpdated:** 2026-09-25
 
 ---
@@ -68,7 +68,7 @@
 **Tags:** volumes, upgrade, data-loss
 **Edges:**
 - VIOLATED_BY → REG_UPGRADE_VOLUME_DATA_LOSS: 5ab9aa2 was exactly this mismatch
-**Files:** `docker-compose.yml`, `docker-compose.iceberg.yml`, `docker-compose.jupyterhub.yml`, `start-lakehouse.sh`, `scripts/install/migrate-to-named-volumes.sh`
+**Files:** `legacy/v2/docker-compose.yml`, `legacy/v2/docker-compose.iceberg.yml`, `legacy/v2/docker-compose.jupyterhub.yml`, `legacy/v2/start-lakehouse.sh`, `legacy/v2/scripts/install/migrate-to-named-volumes.sh`
 **Symbols:** `create_named_volumes`
 **LastUpdated:** 2026-09-25
 
@@ -82,7 +82,7 @@
 **Tags:** templates, heredoc, codegen
 **Edges:**
 - VIOLATED_BY → REG_GENERATED_CODE_SYNTAX: heredoc-emitted code shipped with syntax errors
-**Files:** `scripts/init-lancedb.sh`, `scripts/init-analytics.sh`, `scripts/init-workflows.sh`, `templates/lancedb/service/lancedb_service.py`
+**Files:** `legacy/v2/scripts/init-lancedb.sh`, `legacy/v2/scripts/init-analytics.sh`, `legacy/v2/scripts/init-workflows.sh`, `legacy/v2/templates/lancedb/service/lancedb_service.py`
 **LastUpdated:** 2026-09-25
 
 ---
@@ -95,7 +95,7 @@
 **Tags:** configuration, docker-compose
 **Edges:**
 - RELATES_TO → WATCH_CONFIGURE_SERVICES: high-churn generator script
-**Files:** `scripts/configure-services.sh`, `.lakehouse-services.conf`
+**Files:** `legacy/v2/scripts/configure-services.sh`, `legacy/v2/.lakehouse-services.conf`
 **Symbols:** `generate_compose_override`
 **LastUpdated:** 2026-09-25
 **Provenance:** locations: `scripts/configure-services.sh:321`

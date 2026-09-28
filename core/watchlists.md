@@ -12,7 +12,7 @@
 **Tags:** iceberg, jars, versions
 **Edges:**
 - CONTAINS → REG_ICEBERG_JAR_VERSIONS: the regression this duplication causes
-**Files:** `docker-compose.iceberg.yml`, `scripts/init-compute.sh`, `utils/iceberg_jar_manager.py`, `templates/jupyter/notebooks/03_Iceberg_Tables.ipynb`, `tests/test_iceberg_integration.py`
+**Files:** `legacy/v2/docker-compose.iceberg.yml`, `legacy/v2/scripts/init-compute.sh`, `legacy/v2/utils/iceberg_jar_manager.py`, `legacy/v2/templates/jupyter/notebooks/03_Iceberg_Tables.ipynb`, `legacy/v2/tests/test_iceberg_integration.py`
 **Evidence:** `grep -rln "1\.9\.2" --exclude-dir=.git --exclude-dir=core .` → the 5 files listed
 **LastUpdated:** 2026-09-25
 
@@ -26,7 +26,7 @@
 **Tags:** docker, images, pinning
 **Edges:**
 - RELATES_TO → REG_SUPERSET_SETUP: unpinned base under the fixes
-**Files:** `docker-compose.yml`
+**Files:** `legacy/v2/docker-compose.yml`
 **Evidence:** `grep -n "image:.*:latest" docker-compose.yml` → superset, portainer
 **LastUpdated:** 2026-09-25
 
@@ -40,7 +40,7 @@
 **Tags:** spark, jupyter, versions
 **Edges:**
 - RELATES_TO → INV_SPARK_VERSION_ALIGNMENT: minor-level rule this skew stays inside
-**Files:** `docker-compose.yml`, `jupyterhub/jupyterhub_config.py`
+**Files:** `legacy/v2/docker-compose.yml`, `legacy/v2/jupyterhub/jupyterhub_config.py`
 **LastUpdated:** 2026-09-25
 
 ---
@@ -54,7 +54,7 @@
 **Edges:**
 - CONTAINS → REG_UPGRADE_VOLUME_DATA_LOSS: upgrade path data loss
 - CONTAINS → REG_CREDENTIAL_PROPAGATION: upgrade credential mismatches
-**Files:** `install.sh`, `scripts/install/fix-credentials.sh`, `scripts/install/migrate-to-named-volumes.sh`, `scripts/install/enable-jupyterhub.sh`
+**Files:** `install.sh`, `legacy/v2/scripts/install/fix-credentials.sh`, `legacy/v2/scripts/install/migrate-to-named-volumes.sh`, `legacy/v2/scripts/install/enable-jupyterhub.sh`
 **Symbols:** `perform_upgrade`, `perform_smart_upgrade`, `perform_legacy_upgrade`, `perform_replace`, `configure_environment`
 **LastUpdated:** 2026-09-25
 
@@ -68,7 +68,7 @@
 **Tags:** networking, host-ip, duplication
 **Edges:**
 - CONTAINS → REG_HOST_IP_DETECTION: drift between the copies
-**Files:** `start-lakehouse.sh`, `scripts/generate-credentials.sh`, `scripts/install/fix-credentials.sh`, `scripts/show-credentials.sh`
+**Files:** `legacy/v2/start-lakehouse.sh`, `legacy/v2/scripts/generate-credentials.sh`, `legacy/v2/scripts/install/fix-credentials.sh`, `legacy/v2/scripts/show-credentials.sh`
 **Symbols:** `detect_host_ip`
 **LastUpdated:** 2026-09-25
 
@@ -82,7 +82,7 @@
 **Tags:** init, naming, entrypoint
 **Edges:**
 - RELATES_TO → REG_INIT_CONTAINER_BOOTSTRAP: this script drives the init container
-**Files:** `scripts/legacy/init-all-in-one-modular.sh`, `scripts/legacy/init-all-in-one.sh`, `docker-compose.yml`
+**Files:** `legacy/v2/scripts/legacy/init-all-in-one-modular.sh`, `legacy/v2/scripts/legacy/init-all-in-one.sh`, `legacy/v2/docker-compose.yml`
 **LastUpdated:** 2026-09-25
 
 ---
@@ -95,7 +95,7 @@
 **Tags:** configuration, services, presets
 **Edges:**
 - RELATES_TO → DEC_REMOVE_DASHBOARD_FUNCTIONALITY_FOCUS_ON_8492: removal needed mirroring here
-**Files:** `scripts/configure-services.sh`, `.lakehouse-services.conf`, `docker-compose.override.yml.example`
+**Files:** `legacy/v2/scripts/configure-services.sh`, `legacy/v2/.lakehouse-services.conf`, `legacy/v2/docker-compose.override.yml.example`
 **Symbols:** `generate_compose_override`
 **LastUpdated:** 2026-09-25
 
@@ -124,7 +124,7 @@
 **Edges:**
 - CONTAINS → REG_CREDENTIAL_PROPAGATION: surviving instance of this regression
 - RELATES_TO → INV_ENV_IS_CREDENTIAL_SOURCE: violates this rule
-**Files:** `templates/airflow/dags/data_quality_check.py`, `tests/test_data_pipeline.py`, `tests/test_cross_service_integration.py`, `tests/test_service_health.py`
+**Files:** `legacy/v2/templates/airflow/dags/data_quality_check.py`, `legacy/v2/tests/test_data_pipeline.py`, `legacy/v2/tests/test_cross_service_integration.py`, `legacy/v2/tests/test_service_health.py`
 **Evidence:** `grep -n minio123 templates/airflow/dags/data_quality_check.py` → line 42
 **LastUpdated:** 2026-09-25
 
@@ -138,7 +138,7 @@
 **Tags:** credentials, security, open-issue
 **Edges:**
 - RELATES_TO → INV_DB_PASSWORDS_URL_SAFE: any replacement must keep the safe charset
-**Files:** `scripts/generate-credentials.sh`
+**Files:** `legacy/v2/scripts/generate-credentials.sh`
 **Symbols:** `generate_passphrase`, `generate_strong_password`, `generate_db_safe_password`
 **LastUpdated:** 2026-09-25
 

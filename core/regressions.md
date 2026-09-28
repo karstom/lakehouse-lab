@@ -18,7 +18,7 @@
 **Edges:**
 - VIOLATED_BY → INV_ENV_IS_CREDENTIAL_SOURCE: each fix removed one more hardcoded or mirrored copy
 - RELATES_TO → REG_UPGRADE_VOLUME_DATA_LOSS: upgrades regenerated .env while volumes kept old passwords
-**Files:** `scripts/generate-credentials.sh`, `scripts/install/fix-credentials.sh`, `scripts/show-credentials.sh`, `install.sh`, `templates/airflow/dags/data_quality_check.py`, `docker-compose.yml`
+**Files:** `legacy/v2/scripts/generate-credentials.sh`, `legacy/v2/scripts/install/fix-credentials.sh`, `legacy/v2/scripts/show-credentials.sh`, `install.sh`, `legacy/v2/templates/airflow/dags/data_quality_check.py`, `legacy/v2/docker-compose.yml`
 **Symbols:** `generate_passphrase`, `generate_strong_password`, `generate_db_safe_password`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `61ffcbf`, `6291038`, `1003d38`, `0a470b2`, `1fc1300`, `dba8f9d`, `659ac5f`, `eb6c03e`, `dd10dbf`, `b67b1a4`, `e6d5675`, `24ccbc1`, `5a684f3`, `4b9c2f2`, `3c45c39`, `a9330b7`
@@ -35,7 +35,7 @@
 **Edges:**
 - VIOLATED_BY → INV_COMPOSE_DOLLAR_ESCAPING: unescaped `$` evaluated by Compose, not the container
 - RELATES_TO → REG_AIRFLOW_DB_INIT: several Airflow init failures were command-block syntax bugs
-**Files:** `docker-compose.yml`, `docker-compose.iceberg.yml`, `docker-compose.jupyterhub.yml`
+**Files:** `legacy/v2/docker-compose.yml`, `legacy/v2/docker-compose.iceberg.yml`, `legacy/v2/docker-compose.jupyterhub.yml`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `086d414`, `299a2e5`, `04af791`, `eb05139`, `c2ec6b2`, `25e4dac`, `3ab7b72`, `2801401`, `354089b`, `3819f75`, `fb466e4`, `f6a71b4`, `e9badc8`, `f68964c`, `77c0ea9`
 
@@ -51,7 +51,7 @@
 **Edges:**
 - FIXED_BY → DEC_INIT_CONTAINER_PYTHON_BASE: latest mitigation for the base-image class
 - RELATES_TO → REG_ICEBERG_JAR_VERSIONS: JAR downloads happen inside this container
-**Files:** `scripts/lib/init-core.sh`, `scripts/init-infrastructure.sh`, `scripts/init-storage.sh`, `scripts/init-compute.sh`, `scripts/legacy/init-all-in-one-modular.sh`, `docker-compose.yml`
+**Files:** `legacy/v2/scripts/lib/init-core.sh`, `legacy/v2/scripts/init-infrastructure.sh`, `legacy/v2/scripts/init-storage.sh`, `legacy/v2/scripts/init-compute.sh`, `legacy/v2/scripts/legacy/init-all-in-one-modular.sh`, `legacy/v2/docker-compose.yml`
 **Symbols:** `wait_for_minio_api`, `check_docker_services`, `check_docker_cli_available`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `913cd65`, `87b90fa`, `181d213`, `dbbfb4a`, `43fc4ca`, `4c5a4d5`, `2475ce2`, `680b017`, `237e4d7`, `8b07634`, `4070f9e`, `cf81b23`, `18fc04d`
@@ -68,7 +68,7 @@
 **Edges:**
 - FIXED_BY → DEC_SWITCH_SPARK_3_5_3_A7AE: pinned Spark-matched Jupyter image
 - VIOLATED_BY → INV_SPARK_VERSION_ALIGNMENT: client/cluster/package versions diverged
-**Files:** `docker-compose.yml`, `scripts/init-analytics.sh`
+**Files:** `legacy/v2/docker-compose.yml`, `legacy/v2/scripts/init-analytics.sh`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `054e830`, `5c248d3`, `173ab95`, `68d7424`, `10823ce`, `328739e`, `707a1a9`, `42ee206`, `4ed2cb5`, `d532f0e`, `62ac053`, `044c333`
 
@@ -84,7 +84,7 @@
 **Edges:**
 - VIOLATED_BY → INV_VOLUME_NAMES_SINGLE_SOURCE: volume names disagreed between compose and scripts
 - FIXED_BY → DEC_NAMED_EXTERNAL_VOLUMES: moved data off bind mounts
-**Files:** `install.sh`, `start-lakehouse.sh`, `scripts/install/migrate-to-named-volumes.sh`, `docker-compose.yml`
+**Files:** `install.sh`, `legacy/v2/start-lakehouse.sh`, `legacy/v2/scripts/install/migrate-to-named-volumes.sh`, `legacy/v2/docker-compose.yml`
 **Symbols:** `create_named_volumes`, `perform_smart_upgrade`, `perform_upgrade`, `perform_replace`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `3f06179`, `9ab71ec`, `98da41e`, `a4a8b91`, `3b43c4f`, `5ab9aa2`, `5782f5d`, `09ef0cf`, `5cfafd8`, `42a33c5`, `04a0d20`, `b66f739`
@@ -101,7 +101,7 @@
 **Edges:**
 - RELATES_TO → REG_COMPOSE_INLINE_SHELL: init commands live in compose YAML
 - VIOLATED_BY → INV_DB_PASSWORDS_URL_SAFE: passwords embedded in SQLAlchemy URLs
-**Files:** `docker-compose.yml`, `scripts/init-workflows.sh`
+**Files:** `legacy/v2/docker-compose.yml`, `legacy/v2/scripts/init-workflows.sh`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `04ea8a9`, `2a735b3`, `efa8fc4`, `a0d93b5`, `213a8d7`, `dbac3f7`, `68058a7`
 
@@ -116,7 +116,7 @@
 **REGRESSED_N_TIMES:** 7
 **Edges:**
 - VIOLATED_BY → INV_TEMPLATES_ARE_REAL_FILES: code embedded in heredocs instead of copied from templates/
-**Files:** `scripts/init-lancedb.sh`, `scripts/init-analytics.sh`, `scripts/init-workflows.sh`, `templates/lancedb/service/lancedb_service.py`, `templates/jupyter/notebooks/03_Iceberg_Tables.ipynb`
+**Files:** `legacy/v2/scripts/init-lancedb.sh`, `legacy/v2/scripts/init-analytics.sh`, `legacy/v2/scripts/init-workflows.sh`, `legacy/v2/templates/lancedb/service/lancedb_service.py`, `legacy/v2/templates/jupyter/notebooks/03_Iceberg_Tables.ipynb`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `6ed0e37`, `5f6e905`, `792b7a2`, `a3d7616`, `cce2c99`, `924dc6a`, `1dedb57`
 
@@ -132,7 +132,7 @@
 **Edges:**
 - VIOLATED_BY → INV_SPARK_VERSION_ALIGNMENT: JAR Spark/Scala suffix must match the cluster
 - RELATES_TO → WATCH_ICEBERG_VERSION_SITES: the five places that must change together
-**Files:** `docker-compose.iceberg.yml`, `scripts/init-compute.sh`, `utils/iceberg_jar_manager.py`, `templates/jupyter/notebooks/03_Iceberg_Tables.ipynb`, `tests/test_iceberg_integration.py`
+**Files:** `legacy/v2/docker-compose.iceberg.yml`, `legacy/v2/scripts/init-compute.sh`, `legacy/v2/utils/iceberg_jar_manager.py`, `legacy/v2/templates/jupyter/notebooks/03_Iceberg_Tables.ipynb`, `legacy/v2/tests/test_iceberg_integration.py`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `a0766af`, `959ca82`, `1fd1749`, `42adb94`, `62e8115`, `8a4333e`
 
@@ -147,7 +147,7 @@
 **REGRESSED_N_TIMES:** 6
 **Edges:**
 - RELATES_TO → WATCH_UNPINNED_IMAGES: `superset:latest` can shift underneath the fixes
-**Files:** `docker-compose.yml`, `scripts/init-dashboards.sh`, `templates/superset/database_setup.py`
+**Files:** `legacy/v2/docker-compose.yml`, `legacy/v2/scripts/init-dashboards.sh`, `legacy/v2/templates/superset/database_setup.py`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `b4493db`, `bbba7e0`, `838bdd9`, `56451b5`, `3b8b0b3`, `208b4e4`
 
@@ -162,7 +162,7 @@
 **REGRESSED_N_TIMES:** 3
 **Edges:**
 - RELATES_TO → WATCH_DUPLICATED_HOST_IP_DETECTION: the four copies
-**Files:** `start-lakehouse.sh`, `scripts/generate-credentials.sh`, `scripts/install/fix-credentials.sh`, `scripts/show-credentials.sh`
+**Files:** `legacy/v2/start-lakehouse.sh`, `legacy/v2/scripts/generate-credentials.sh`, `legacy/v2/scripts/install/fix-credentials.sh`, `legacy/v2/scripts/show-credentials.sh`
 **Symbols:** `detect_host_ip`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `8e7ac1d`, `082cfd4`, `556e661`

@@ -9,7 +9,7 @@
 - CONTAINS → REG_HOST_IP_DETECTION: detect_host_ip lives here
 - DEPENDS_ON → DEC_NAMED_EXTERNAL_VOLUMES: creates the external volumes
 - RELATES_TO → WATCH_INSTALL_UPGRADE_PATH: high-risk upgrade code
-**Files:** `install.sh`, `start-lakehouse.sh`, `scripts/backup-lakehouse.sh`, `scripts/restore-lakehouse.sh`, `scripts/setup-wizard.sh`, `scripts/configure-services.sh`, `scripts/health-summary.sh`, `examples/cron-backup-setup.sh`
+**Files:** `install.sh`, `legacy/v2/start-lakehouse.sh`, `legacy/v2/scripts/backup-lakehouse.sh`, `legacy/v2/scripts/restore-lakehouse.sh`, `legacy/v2/scripts/setup-wizard.sh`, `legacy/v2/scripts/configure-services.sh`, `legacy/v2/scripts/health-summary.sh`, `legacy/v2/examples/cron-backup-setup.sh`
 **Symbols:** `detect_host_ip`, `create_named_volumes`, `start_with_dependencies`, `reset_environment`, `perform_smart_upgrade`
-**Paths:** `scripts/install`
+**Paths:** `legacy/v2/scripts/install`
 **LastUpdated:** 2026-09-25

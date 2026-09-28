@@ -9,6 +9,6 @@
 - DEPENDS_ON → INV_ENV_IS_CREDENTIAL_SOURCE: single-source rule
 - DEPENDS_ON → INV_DB_PASSWORDS_URL_SAFE: DB password charset
 - RELATES_TO → ISSUE_WEAK_CREDENTIAL_RNG: $RANDOM-based generation
-**Files:** `scripts/generate-credentials.sh`, `scripts/show-credentials.sh`, `scripts/rotate-credentials.sh`, `scripts/install/fix-credentials.sh`, `scripts/provision-user.sh`, `.github/workflows/credential-rotation-reminder.yml`
+**Files:** `legacy/v2/scripts/generate-credentials.sh`, `legacy/v2/scripts/show-credentials.sh`, `legacy/v2/scripts/rotate-credentials.sh`, `legacy/v2/scripts/install/fix-credentials.sh`, `legacy/v2/scripts/provision-user.sh`, `legacy/v2/workflows/credential-rotation-reminder.yml`
 **Symbols:** `generate_passphrase`, `generate_strong_password`, `generate_db_safe_password`
 **LastUpdated:** 2026-09-25

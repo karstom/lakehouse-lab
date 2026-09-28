@@ -13,7 +13,7 @@
 **Tags:** spark, docker, images
 **Edges:**
 - RELATES_TO → INV_SPARK_VERSION_ALIGNMENT: sets the cluster side of the version triple
-**Files:** `docker-compose.yml`, `docker-compose.iceberg.yml`, `scripts/init-compute.sh`
+**Files:** `legacy/v2/docker-compose.yml`, `legacy/v2/docker-compose.iceberg.yml`, `legacy/v2/scripts/init-compute.sh`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `422b08a`
 
@@ -27,7 +27,7 @@
 **Tags:** jupyter, pyspark, images
 **Edges:**
 - MITIGATES → REG_JUPYTER_PYSPARK_VERSIONS: removed the second PySpark source
-**Files:** `docker-compose.yml`
+**Files:** `legacy/v2/docker-compose.yml`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `8191f56`, `d532f0e`
 
@@ -42,7 +42,7 @@
 **Edges:**
 - MITIGATES → REG_UPGRADE_VOLUME_DATA_LOSS: removed the bind-mount data-loss class
 - DEPENDS_ON → INV_VOLUME_NAMES_SINGLE_SOURCE: external volumes need exact name agreement
-**Files:** `docker-compose.yml`, `start-lakehouse.sh`, `scripts/install/migrate-to-named-volumes.sh`
+**Files:** `legacy/v2/docker-compose.yml`, `legacy/v2/start-lakehouse.sh`, `legacy/v2/scripts/install/migrate-to-named-volumes.sh`
 **Symbols:** `create_named_volumes`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `98da41e`, `9ab71ec`, `3b43c4f`, `5ab9aa2`
@@ -57,7 +57,7 @@
 **Tags:** init, docker, images
 **Edges:**
 - MITIGATES → REG_INIT_CONTAINER_BOOTSTRAP: removed the missing-tooling failures
-**Files:** `docker-compose.yml`, `scripts/lib/init-core.sh`, `scripts/init-infrastructure.sh`, `scripts/init-compute.sh`
+**Files:** `legacy/v2/docker-compose.yml`, `legacy/v2/scripts/lib/init-core.sh`, `legacy/v2/scripts/init-infrastructure.sh`, `legacy/v2/scripts/init-compute.sh`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `237e4d7`, `680b017`, `8b07634`, `4070f9e`
 
@@ -71,7 +71,7 @@
 **Tags:** init, permissions
 **Edges:**
 - RELATES_TO → DEC_INIT_CONTAINER_PYTHON_BASE: base image later changed; rule still holds
-**Files:** `scripts/init-infrastructure.sh`, `scripts/lib/init-core.sh`
+**Files:** `legacy/v2/scripts/init-infrastructure.sh`, `legacy/v2/scripts/lib/init-core.sh`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `07adab4`
 
@@ -85,7 +85,7 @@
 **Tags:** dashboard, scope
 **Edges:**
 - RELATES_TO → WATCH_CONFIGURE_SERVICES: every swap had to be mirrored in presets
-**Files:** `docker-compose.yml`, `scripts/configure-services.sh`, `scripts/init-dashboards.sh`, `scripts/show-credentials.sh`
+**Files:** `legacy/v2/docker-compose.yml`, `legacy/v2/scripts/configure-services.sh`, `legacy/v2/scripts/init-dashboards.sh`, `legacy/v2/scripts/show-credentials.sh`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `397126a`, `d38bcf2`, `193ecd1`, `f251471`
 
@@ -98,7 +98,7 @@
 **Summary:** The auth-service, `docker-compose.auth.yml` overlay and `install-with-auth.sh` were removed as unstable and unnecessary for a learning lab; access control is per-service credentials plus `provision-user.sh` roles. Leftover: `start-lakehouse.sh` still creates `auth_data`/`audit_logs` volumes for the removed overlay.
 **Tags:** auth, scope
 **Edges:** _(none)_
-**Files:** `start-lakehouse.sh`, `scripts/provision-user.sh`
+**Files:** `legacy/v2/start-lakehouse.sh`, `legacy/v2/scripts/provision-user.sh`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `494f04f`
 
@@ -111,7 +111,7 @@
 **Summary:** The incomplete `mcp-server/` service was removed along with all README/architecture references to AI-powered APIs. `config/mcp-server.yaml` and `docs/MCP.md` remain as leftovers. This is unrelated to the simplegraph MCP server configured in `.mcp.json` for development.
 **Tags:** mcp, scope
 **Edges:** _(none)_
-**Files:** `config/mcp-server.yaml`, `docs/MCP.md`, `.lakehouse-services.conf`
+**Files:** `legacy/v2/config/mcp-server.yaml`, `legacy/v2/docs/MCP.md`, `legacy/v2/.lakehouse-services.conf`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `750c37f`
 
@@ -125,7 +125,7 @@
 **Tags:** docker-compose, upgrade
 **Edges:**
 - RELATES_TO → WATCH_INSTALL_UPGRADE_PATH: applied across the upgrade path
-**Files:** `install.sh`, `start-lakehouse.sh`, `scripts/install/fix-credentials.sh`, `scripts/install/migrate-to-named-volumes.sh`
+**Files:** `install.sh`, `legacy/v2/start-lakehouse.sh`, `legacy/v2/scripts/install/fix-credentials.sh`, `legacy/v2/scripts/install/migrate-to-named-volumes.sh`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `a45e861`
 
@@ -139,7 +139,7 @@
 **Tags:** ci, testing
 **Edges:**
 - RELATES_TO → WATCH_CI_WORKFLOWS: leaves runtime regressions uncaught
-**Files:** `.github/workflows/startup-test.yml`, `tests/run_stack_health_tests.sh`
+**Files:** `.github/workflows/startup-test.yml`, `legacy/v2/tests/run_stack_health_tests.sh`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `4dbfda8`
 
@@ -152,7 +152,7 @@
 **Summary:** `.iceberg-enabled` marks an install that uses the Iceberg overlay; it is created locally and gitignored so different installs don't conflict. Scripts decide whether to add `docker-compose.iceberg.yml` based on it.
 **Tags:** iceberg, configuration
 **Edges:** _(none)_
-**Files:** `.gitignore`, `start-lakehouse.sh`
+**Files:** `.gitignore`, `legacy/v2/start-lakehouse.sh`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `c32029b`
 
@@ -165,7 +165,7 @@
 **Summary:** Codecov upload, badge and pytest-cov were removed because CI never produced `coverage.xml`. Don't re-add a coverage badge without also generating coverage.
 **Tags:** ci, testing
 **Edges:** _(none)_
-**Files:** `.github/workflows/ci.yml`, `docs/TESTING.md`
+**Files:** `.github/workflows/ci.yml`, `legacy/v2/docs/TESTING.md`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `e7047ce`
 
@@ -784,3 +784,17 @@ Repair round (2026-09-27): tests/ai/gateway-e2e.sh never configures the `local` 
 **Commit:** 699c5a1
 **LastUpdated:** 2026-09-27
 **Author:** p6-integrator
+
+---
+
+## NODE: DEC_V3_RELEASE_BETA1_CUTOVER
+**Type:** Decision
+**Priority:** HIGH
+**Label:** V3 released as v3.0.0-beta.1 on main; V2 archived in legacy/v2 and tagged v2.1.1-final
+**Summary:** Owner approved on 2026-09-28. The last V2 main (6f267e7) was tagged v2.1.1-final, and PR #29 (v3 to main) was merged with a merge commit, e7966d7, keeping V3 history and the git-mv renames into legacy/v2/. The tag v3.0.0-beta.1 published images via v3-images, and a GitHub pre-release was created ('latest' stays V2 2.1.1). The migration path is a guide only (docs/MIGRATION.md; owner decision: no other V2 users). Gates before merge: v3-ci core+engineer green, v3-nightly full 18/18, a real one-liner install from GitHub 17/17, v3-p1 upgrade 18/18, and private-data and local-config checks on the diff. Graph anchors for V2 files were repointed to legacy/v2/.
+**Tags:** v3, release, cutover, legacy
+**Edges:**
+- RELATES_TO → DEC_V3_STACK_DIRECTION: the stack decided on day 1, now released
+**Files:** `README.md`, `install.sh`, `docs/CHANGELOG.md`, `v3/RELEASE_NOTES_v3.0.0-beta.1.md`, `v3/RELEASE_CHECKLIST.md`, `legacy/README.md`
+**Commit:** e7966d7
+**LastUpdated:** 2026-09-28

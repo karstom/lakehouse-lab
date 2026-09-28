@@ -20,6 +20,6 @@
 **REGRESSED_N_TIMES:** 9
 **Edges:**
 - FIXED_BY → DEC_REMOVE_DASHBOARD_FUNCTIONALITY_FOCUS_ON_8492: service removed
-**Files:** `docker-compose.yml`, `scripts/configure-services.sh`
+**Files:** `legacy/v2/docker-compose.yml`, `legacy/v2/scripts/configure-services.sh`
 **LastUpdated:** 2026-09-25
 **Provenance:** commits: `b6382ff`, `8e7ac1d`, `082cfd4`, `fcc6af7`, `3e0bc64`, `48f973d`, `ba7cf5b`, `92ffb10`, `397126a`

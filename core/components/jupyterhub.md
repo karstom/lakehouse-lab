@@ -8,6 +8,6 @@
 - RELATES_TO → WATCH_SPARK_PATCH_SKEW: third Spark version in the stack
 - RELATES_TO → INV_ENV_IS_CREDENTIAL_SOURCE: literal default API token
 - RELATES_TO → INV_VOLUME_NAMES_SINGLE_SOURCE: same directory-name coupling for the network
-**Files:** `jupyterhub/jupyterhub_config.py`, `jupyterhub/Dockerfile`, `jupyterhub/Dockerfile.simple`, `docker-compose.jupyterhub.yml`, `scripts/install/enable-jupyterhub.sh`
-**Paths:** `jupyterhub`
+**Files:** `legacy/v2/jupyterhub/jupyterhub_config.py`, `legacy/v2/jupyterhub/Dockerfile`, `legacy/v2/jupyterhub/Dockerfile.simple`, `legacy/v2/docker-compose.jupyterhub.yml`, `legacy/v2/scripts/install/enable-jupyterhub.sh`
+**Paths:** `legacy/v2/jupyterhub`
 **LastUpdated:** 2026-09-25

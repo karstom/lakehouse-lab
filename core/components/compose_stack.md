@@ -11,5 +11,5 @@
 - DEPENDS_ON → INV_COMPOSE_DOLLAR_ESCAPING: rule for every command block
 - DEPENDS_ON → INV_VOLUME_NAMES_SINGLE_SOURCE: external volume names
 - RELATES_TO → WATCH_UNPINNED_IMAGES: `:latest` images defined here
-**Files:** `docker-compose.yml`, `docker-compose.iceberg.yml`, `docker-compose.jupyterhub.yml`, `docker-compose.override.yml.example`, `docker-compose.newservice.yml.example`, `.env.example`, `.env.default`, `.env.fat-server`
+**Files:** `legacy/v2/docker-compose.yml`, `legacy/v2/docker-compose.iceberg.yml`, `legacy/v2/docker-compose.jupyterhub.yml`, `legacy/v2/docker-compose.override.yml.example`, `legacy/v2/docker-compose.newservice.yml.example`, `legacy/v2/.env.example`, `legacy/v2/.env.default`, `legacy/v2/.env.fat-server`
 **LastUpdated:** 2026-09-25
