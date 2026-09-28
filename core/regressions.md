@@ -595,3 +595,19 @@
 **LastVerified:** 2026-09-27
 **Commit:** 699c5a1
 **LastUpdated:** 2026-09-27
+
+---
+
+## NODE: REG_V3_SMOKE_KEEPALIVE_IDLE_RACE
+**Type:** Regression
+**Priority:** MEDIUM
+**Label:** Smoke check 18 ConnectionResetError: keep-alive reuse against uvicorn's 5 s idle close
+**Summary:** The nightly full run on PR #29 (2026-09-28) failed check 18 with ConnectionResetError after the AI loop itself had passed. The clean-up (settle_spend) polled the gateway admin API every 5 s over one requests.Session, and uvicorn closes idle keep-alive connections after 5 s, so a poll could be sent on a socket being closed. It passed on the dev host only by timing. Fix: the smoke test's Gateway admin client sends 'Connection: close' (no idle reuse; a handful of calls). This is the same class as the Phase 4 Caddy to JupyterHub keepalive 502: never reuse an idle keep-alive connection whose server idle timeout is at or below the reuse interval.
+**Tags:** v3, smoke, keepalive, flaky, ci
+**REGRESSED_N_TIMES:** 1
+**Edges:** _(none)_
+**Files:** `v3/tests/smoke/ai_check.py`
+**Symbols:** `Gateway.call`, `Gateway.settle_spend`
+**Evidence:** nightly run 36363452795: gateway logged user/info polls at 01:11:00/05/10/15, none at ~01:11:20; the smoke client got ConnectionResetError at 01:11:23; all AI requests through the front door had returned 200
+**Commit:** 8e492ac
+**LastUpdated:** 2026-09-28

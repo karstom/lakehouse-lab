@@ -138,8 +138,13 @@ class Gateway:
         """With `key` (a user key): through the front door, like a workspace. Without: the
         admin API on the gateway itself (the smoke container is on the `ai` network)."""
         base = FRONTDOOR if key else self.base
+        # Connection: close — no idle keep-alive connection to reuse. uvicorn (the gateway)
+        # closes idle connections after 5 s and settle_spend polls every 5 s, so a reused
+        # socket could be closed under the request: ConnectionResetError (nightly 2026-09-28,
+        # REG_V3_SMOKE_KEEPALIVE_IDLE_RACE; same class as the Phase 4 Caddy keepalive 502).
         r = self.s.request(method, base + path, json=body, timeout=120,
-                           headers={"Authorization": f"Bearer {key or self.key}"})
+                           headers={"Authorization": f"Bearer {key or self.key}",
+                                    "Connection": "close"})
         try:
             return r.status_code, r.json()
         except ValueError:

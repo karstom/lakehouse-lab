@@ -18,6 +18,7 @@ name: v3-nightly
 on:
   # The schedule runs from the default branch (main). A change to this file on main or v3
   # also runs it once, so an edit gets a real runner result right away.
+  # Re-run 2026-09-28: check 18 keep-alive fix (REG_V3_SMOKE_KEEPALIVE_IDLE_RACE) before the v3.0.0-beta.1 merge.
   push:
     branches: [main, v3]
     paths: [".github/workflows/v3-nightly.yml"]
