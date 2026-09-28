@@ -1,0 +1,33 @@
+# One site per service under LAB_DOMAIN, all on LAB_PORT (the only published port).
+# Certificates come from Caddy's internal CA (local_certs); its root is exported by trust-init.
+{
+	https_port {$LAB_PORT}
+	http_port 18080
+	local_certs
+	skip_install_trust
+	auto_https disable_redirects
+}
+
+auth.{$LAB_DOMAIN}:{$LAB_PORT} {
+	reverse_proxy keycloak:8080
+}
+
+jupyter.{$LAB_DOMAIN}:{$LAB_PORT} {
+	reverse_proxy jupyterhub:8000
+}
+
+superset.{$LAB_DOMAIN}:{$LAB_PORT} {
+	reverse_proxy superset:8088
+}
+
+airflow.{$LAB_DOMAIN}:{$LAB_PORT} {
+	reverse_proxy airflow-api:8080
+}
+
+trino.{$LAB_DOMAIN}:{$LAB_PORT} {
+	reverse_proxy trino:8080
+}
+
+catalog.{$LAB_DOMAIN}:{$LAB_PORT} {
+	reverse_proxy lakekeeper:8181
+}

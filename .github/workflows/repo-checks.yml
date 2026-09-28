@@ -1,0 +1,49 @@
+# Repository-level checks outside v3/ (v3-ci.yml covers v3/): the root install.sh bootstrap
+# (unit tests against a local file:// repository, no network, no Docker lab), ShellCheck on
+# the root scripts, and actionlint on every workflow. Same commands locally:
+#   bash tests/bootstrap/test_bootstrap.sh && bash tests/shellcheck.sh
+#   v3/tools/actionlint.sh .github/workflows/*.yml
+name: repo-checks
+
+on:
+  push:
+    branches: [main, v3]
+    paths:
+      - "install.sh"
+      - "tests/**"
+      - ".github/workflows/**"
+      - "v3/versions.env"
+      - "v3/tools/lib.sh"
+      - "v3/tools/actionlint.sh"
+  pull_request:
+    paths:
+      - "install.sh"
+      - "tests/**"
+      - ".github/workflows/**"
+      - "v3/versions.env"
+      - "v3/tools/lib.sh"
+      - "v3/tools/actionlint.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Root install.sh bootstrap tests (local repository, fake v3 installer)
+        run: bash tests/bootstrap/test_bootstrap.sh
+
+      - name: ShellCheck (root install.sh, tests/)
+        if: ${{ !cancelled() }}
+        run: bash tests/shellcheck.sh
+
+      - name: actionlint (all workflows)
+        if: ${{ !cancelled() }}
+        run: v3/tools/actionlint.sh .github/workflows/*.yml

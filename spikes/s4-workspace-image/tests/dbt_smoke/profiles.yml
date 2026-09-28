@@ -1,0 +1,13 @@
+# Parse-only smoke profile: no connection is opened. Real profiles come in Phase 1.
+s4_smoke:
+  target: dev
+  outputs:
+    dev:
+      type: trino
+      method: none
+      user: "{{ env_var('USER', 'jovyan') }}"
+      host: trino
+      port: 8080
+      database: lakehouse
+      schema: dev
+      threads: 1

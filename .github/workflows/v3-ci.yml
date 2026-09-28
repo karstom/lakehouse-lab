@@ -1,0 +1,171 @@
+# V3 CI: lint (versions, compatibility, shell, compose, workflows, unit tests), then a real
+# install plus the end-to-end smoke test (ADR-015) for each profile (core, engineer). The
+# `full` profile and the slow ADR-017 long-run check run nightly (v3-nightly.yml), not on
+# every PR. Every step calls a script in v3/tools/ or the v3 CLI, so the same checks run locally:
+#   python3 v3/tools/check_versions.py && python3 v3/tools/check_compat.py
+#   v3/tools/shellcheck.sh && v3/tools/compose-check.sh && v3/tools/actionlint.sh
+# Actions are pinned by commit SHA; tool images by tag + digest (v3/versions.env).
+name: v3-ci
+
+on:
+  # main is where V3 lives after the cutover (v3.0.0-beta.1); v3 stays for work in flight.
+  push:
+    branches: [main, v3]
+    paths:
+      - "v3/**"
+      - ".github/workflows/v3-*.yml"
+  pull_request:
+    paths:
+      - "v3/**"
+      - ".github/workflows/v3-*.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v3-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Unit tests for the lint tools
+        run: python3 -m unittest discover -s v3/tests/lint -v
+
+      # Each check runs even if an earlier one failed, so one run reports everything.
+      - name: Installer unit tests (fake docker, no daemon)
+        if: ${{ !cancelled() }}
+        run: bash v3/tests/installer/test_unit.sh
+
+      - name: Bootstrap unit tests (test users, jupyterhub client, GitHub IdP flow; fake Keycloak)
+        if: ${{ !cancelled() }}
+        run: python3 -m unittest discover -s v3/tests/bootstrap -v
+
+      - name: Smoke test unit tests (workspace probe, Phase 3 gating and mock IdP, check 17 plan; no lab)
+        if: ${{ !cancelled() }}
+        run: python3 -m unittest discover -s v3/tests/smoke -p 'test_*.py' -v
+
+      - name: AI gateway unit tests (provider config, key broker, mock model, egress probe; no lab)
+        if: ${{ !cancelled() }}
+        run: python3 -m unittest discover -s v3/tests/ai -v
+
+      - name: Workspace unit tests (lab-tracks, lab-ai, tutor prompt; no lab)
+        if: ${{ !cancelled() }}
+        run: python3 -m unittest discover -s v3/tests/workspace -v
+
+      - name: Learning tracks lint (module interface, solutions, no PURGE, no downloads)
+        if: ${{ !cancelled() }}
+        run: python3 v3/tools/check_tracks.py --format github
+
+      - name: Version literals outside versions.env (ADR-012)
+        if: ${{ !cancelled() }}
+        run: python3 v3/tools/check_versions.py --format github
+
+      - name: Spark / Iceberg / Scala / PySpark compatibility
+        if: ${{ !cancelled() }}
+        run: python3 v3/tools/check_compat.py
+
+      - name: ShellCheck (v3 scripts)
+        if: ${{ !cancelled() }}
+        run: v3/tools/shellcheck.sh
+
+      - name: docker compose config (contract command, generated .env/.secrets.env)
+        if: ${{ !cancelled() }}
+        run: v3/tools/compose-check.sh
+
+      - name: docker compose config (profile engineer)
+        if: ${{ !cancelled() }}
+        run: v3/tools/compose-check.sh --profile engineer
+
+      - name: docker compose config (profile full)
+        if: ${{ !cancelled() }}
+        run: v3/tools/compose-check.sh --profile full
+
+      - name: actionlint (v3 workflows)
+        if: ${{ !cancelled() }}
+        run: v3/tools/actionlint.sh
+
+  # Real install + smoke test once per profile. Both jobs run in parallel on separate
+  # runners. Profile-gated checks print a [SKIP] line: 10 and 12 (Spark, Airflow) run on
+  # engineer only, 14 (Superset) only on full (nightly), 13 (ADR-017 long run) only with
+  # LAB_SMOKE_LONG=1 (nightly). 15 (Console) and 16 (mock external IdP) run on both.
+  # 17 (learning tracks) runs module 1 of each track that the profile includes: A1 on core,
+  # A1 and E1 on engineer (all modules run nightly).
+  e2e:
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [core, engineer]
+    env:
+      PYTHONDONTWRITEBYTECODE: "1"
+      # CI-sized limits (CONTRACT Phase 2 "Hostnames and resources"): the runner has 16 GB
+      # and 4 CPUs. The compose defaults stay as they are; these shell variables win over
+      # the defaults at interpolation time because .env does not set them. Services with a
+      # fixed JVM heap (Trino, Keycloak) keep their defaults. The Spark ones only apply to
+      # the engineer profile.
+      WORKSPACE_MEM: 1536M
+      WORKSPACE_CPUS: "1.5"
+      SMOKE_MEM: 1536m
+      SPARK_WORKER_MEMORY: 1g
+      SPARK_WORKER_MEM: 2g
+      SPARK_EXECUTOR_MEMORY: 768m
+      SPARK_CONNECT_DRIVER_MEMORY: 768m
+      SPARK_CONNECT_MEM: 1280m
+      # Airflow (engineer/full). Measured idle: api ~0.3, scheduler ~0.35-0.53 (during a Spark
+      # job), dag-processor ~0.17, triggerer ~0.3 GiB.
+      AIRFLOW_API_MEM: 768m
+      AIRFLOW_SCHEDULER_MEM: 1g
+      AIRFLOW_DAG_PROCESSOR_MEM: 384m
+      AIRFLOW_TRIGGERER_MEM: 384m
+      # Keep PR runs reasonable: the >= 5 min ADR-017 check is nightly only, and check 17
+      # runs only the first module of each track (CONTRACT Phase 4 exit 1).
+      LAB_SMOKE_LONG: "0"
+      LAB_SMOKE_TRACKS: first
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Start memory sampling (peaks go to the job summary)
+        run: v3/tests/smoke/mem-sample.sh start "$RUNNER_TEMP/mem"
+
+      - name: Install (${{ matrix.profile }} profile, test users)
+        run: v3/install.sh --non-interactive --seed-test-users --domain lab.localhost --profile "${{ matrix.profile }}"
+
+      - name: Smoke test
+        run: v3/lab test
+
+      - name: Memory peaks
+        if: ${{ always() }}
+        env:
+          LAB_PROFILE: ${{ matrix.profile }}
+        run: v3/tests/smoke/mem-sample.sh stop "$RUNNER_TEMP/mem"
+
+      - name: Re-install on the running stack (idempotent upgrade path)
+        run: v3/install.sh --non-interactive && v3/lab status
+
+      - name: lab reset removes this project's containers and volumes, per-user homes included
+        run: v3/tests/smoke/check-reset.sh
+
+      - name: Collect diagnostics
+        if: ${{ failure() }}
+        run: v3/tools/ci-collect-logs.sh "$RUNNER_TEMP/v3-diagnostics"
+
+      - name: Upload diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: v3-e2e-diagnostics-${{ matrix.profile }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/v3-diagnostics
+          retention-days: 7
+          if-no-files-found: warn

@@ -1,0 +1,16 @@
+{
+  "id": "A1",
+  "track": "analyst",
+  "title": "SQL basics over the sample data",
+  "minutes": 45,
+  "profile": "core",
+  "groups": ["analyst", "engineer", "lab-admin"],
+  "test_user": "anna",
+  "requires": [],
+  "lesson": "README.md",
+  "tutor": "tutor.md",
+  "start": "a1_sql_basics.ipynb",
+  "checkpoint": "checkpoint.py",
+  "reset": {"tables": ["lakehouse.dbt_{user}.a1_segment_revenue_1996"]},
+  "solution": {"timeout_s": 300, "browser_logins": []}
+}

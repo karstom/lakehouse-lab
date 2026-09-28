@@ -1,0 +1,121 @@
+# One-shot, idempotent bootstrap (re-running it changes nothing). Everything it does is in
+# bootstrap/ (Python stdlib only, baked into images/bootstrap). It:
+#   1. Keycloak: ensures the first lab admin (LAB_ADMIN_*, group lab-admin) and, only when
+#      LAB_SEED_TEST_USERS=true, the test users and the password grant on the trino client.
+#   2. Trino: writes the file group provider from Keycloak group membership (OQ-17).
+#   3. SeaweedFS: creates the warehouse bucket.
+#   1b. Keycloak clients created after the realm import: lab-sync (identity-sync),
+#      jupyterhub (Phase 2), airflow (+ its UMA model), lab-batch, superset, console and the
+#      first-broker-login flow / optional GitHub IdP (Phase 3); with LAB_SEED_TEST_USERS=false
+#      it deletes seeded test users.
+#   4. Lakekeeper: bootstraps the server, creates the warehouse (STS vending + remote signing)
+#      and, with LAB_CATALOG_AUTHZ=openfga, grants catalog permissions from Keycloak groups;
+#      namespace `analytics` and lab-batch's grants on it (Phase 3, ADR-017).
+# Trino starts only after it succeeded. `samples` (below) runs after Trino is healthy.
+
+services:
+  bootstrap:
+    build:
+      context: ./bootstrap
+      dockerfile: ../images/bootstrap/Dockerfile
+      args:
+        PYTHON_IMAGE_TAG: ${PYTHON_IMAGE_TAG}
+        PYTHON_IMAGE_DIGEST: ${PYTHON_IMAGE_DIGEST}
+    image: lakehouse-lab/v3-bootstrap:${PYTHON_IMAGE_TAG}
+    command: ["python3", "-m", "bootstrap"]
+    environment:
+      LAB_DOMAIN: ${LAB_DOMAIN:-lab.localhost}
+      LAB_HTTPS_PORT: ${LAB_HTTPS_PORT:-443}
+      LAB_CATALOG_AUTHZ: ${LAB_CATALOG_AUTHZ:-openfga}
+      LAB_SEED_TEST_USERS: ${LAB_SEED_TEST_USERS:-false}
+      KC_ADMIN_USER: ${KC_ADMIN_USER:?}
+      KC_ADMIN_PASSWORD: ${KC_ADMIN_PASSWORD:?}
+      LAB_ADMIN_USER: ${LAB_ADMIN_USER:?}
+      LAB_ADMIN_PASSWORD: ${LAB_ADMIN_PASSWORD:?}
+      LAB_TEST_USER_PASSWORD: ${LAB_TEST_USER_PASSWORD:-}
+      SEAWEEDFS_ADMIN_ACCESS_KEY: ${SEAWEEDFS_ADMIN_ACCESS_KEY:?}
+      SEAWEEDFS_ADMIN_SECRET_KEY: ${SEAWEEDFS_ADMIN_SECRET_KEY:?}
+      OIDC_CLIENT_SECRET_LAKEKEEPER: ${OIDC_CLIENT_SECRET_LAKEKEEPER:?}
+      OIDC_CLIENT_SECRET_SYNC: ${OIDC_CLIENT_SECRET_SYNC:?}
+      OIDC_CLIENT_SECRET_JUPYTERHUB: ${OIDC_CLIENT_SECRET_JUPYTERHUB:?}
+      # Phase 3 clients (created/repaired in every profile, so switching profile needs no rerun).
+      OIDC_CLIENT_SECRET_AIRFLOW: ${OIDC_CLIENT_SECRET_AIRFLOW:?}
+      OIDC_CLIENT_SECRET_BATCH: ${OIDC_CLIENT_SECRET_BATCH:?}
+      OIDC_CLIENT_SECRET_SUPERSET: ${OIDC_CLIENT_SECRET_SUPERSET:?}
+      OIDC_CLIENT_SECRET_CONSOLE: ${OIDC_CLIENT_SECRET_CONSOLE:?}
+      # Access-token lifespan of lab-batch in seconds (bootstrap/batch_client.py, ADR-017).
+      LAB_BATCH_TOKEN_LIFESPAN: ${LAB_BATCH_TOKEN_LIFESPAN:-300}
+      # Optional GitHub login (ADR-016): both set = IdP `github` on; neither = IdP removed.
+      OIDC_CLIENT_ID_GITHUB: ${OIDC_CLIENT_ID_GITHUB:-}
+      OIDC_CLIENT_SECRET_GITHUB: ${OIDC_CLIENT_SECRET_GITHUB:-}
+      SSL_CERT_FILE: /trust/ca-bundle.crt
+      TZ: ${LAB_TZ:-UTC}
+    volumes:
+      - trust:/trust:ro
+      - trino-groups:/var/lib/lab/trino-groups
+      # Static Trino rules; trino_groups.write_rules adds the per-analyst schema rules. A
+      # directory mount, so an edited rules.json is seen without recreating the container.
+      - ./config/trino:/etc/lab/trino:ro
+    networks: [lab]
+    depends_on:
+      keycloak: {condition: service_healthy}
+      seaweedfs: {condition: service_healthy}
+      lakekeeper: {condition: service_healthy}
+    restart: "no"
+    mem_limit: ${BOOTSTRAP_MEM:-256m}
+    cpus: ${BOOTSTRAP_CPUS:-1}
+
+  # Keeps Trino's group file and Lakekeeper's roles in step with Keycloak groups, so an
+  # admin can change access in the Keycloak UI without a shell (OQ-20). It uses the
+  # read-only `lab-sync` account that bootstrap creates, never the master admin. `lab sync`
+  # triggers an immediate run.
+  identity-sync:
+    image: lakehouse-lab/v3-bootstrap:${PYTHON_IMAGE_TAG}
+    command: ["python3", "-m", "bootstrap", "sync"]
+    environment:
+      LAB_CATALOG_AUTHZ: ${LAB_CATALOG_AUTHZ:-openfga}
+      LAB_SYNC_INTERVAL: ${LAB_SYNC_INTERVAL:-30}
+      OIDC_CLIENT_SECRET_SYNC: ${OIDC_CLIENT_SECRET_SYNC:?}
+      OIDC_CLIENT_SECRET_LAKEKEEPER: ${OIDC_CLIENT_SECRET_LAKEKEEPER:?}
+      SSL_CERT_FILE: /trust/ca-bundle.crt
+      TZ: ${LAB_TZ:-UTC}
+    volumes:
+      - trust:/trust:ro
+      - trino-groups:/var/lib/lab/trino-groups
+      # Static Trino rules; trino_groups.write_rules adds the per-analyst schema rules. A
+      # directory mount, so an edited rules.json is seen without recreating the container.
+      - ./config/trino:/etc/lab/trino:ro
+    networks: [lab]
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}
+    healthcheck:
+      # Healthy while the last successful sync is younger than three intervals.
+      test: ["CMD", "python3", "-c", "import os,sys,time; i=int(os.environ.get('LAB_SYNC_INTERVAL','30')); sys.exit(0 if time.time()-os.path.getmtime('/tmp/identity-sync.ok') < 3*i+10 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    mem_limit: ${IDENTITY_SYNC_MEM:-128m}
+    cpus: ${IDENTITY_SYNC_CPUS:-0.25}
+
+  # One-shot, idempotent: lakehouse.samples.* from Trino's built-in tpch connector (tiny) via
+  # CREATE TABLE AS, as the `trino` client's service account (bootstrap/samples.py). It needs
+  # Trino, which starts only after bootstrap, so it cannot be a bootstrap step. JupyterHub
+  # depends on it, so a failure here fails `up --wait`.
+  samples:
+    image: lakehouse-lab/v3-bootstrap:${PYTHON_IMAGE_TAG}
+    command: ["python3", "-m", "bootstrap.samples"]
+    environment:
+      LAB_AUTH_URL: ${LAB_AUTH_URL:?LAB_AUTH_URL is derived from LAB_DOMAIN/LAB_HTTPS_PORT by installer/lib.sh; start the lab with ./lab or ./install.sh}
+      OIDC_CLIENT_SECRET_TRINO: ${OIDC_CLIENT_SECRET_TRINO:?}
+      SSL_CERT_FILE: /trust/ca-bundle.crt
+      TZ: ${LAB_TZ:-UTC}
+    volumes:
+      - trust:/trust:ro
+    networks: [lab]
+    depends_on:
+      trino: {condition: service_healthy}
+    restart: "no"
+    mem_limit: ${SAMPLES_MEM:-128m}
+    cpus: ${SAMPLES_CPUS:-0.5}

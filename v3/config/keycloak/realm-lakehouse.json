@@ -1,0 +1,210 @@
+{
+  "realm": "lakehouse",
+  "enabled": true,
+  "displayName": "Lakehouse Lab",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "failureFactor": 10,
+  "groups": [
+    {
+      "name": "lab-admin"
+    },
+    {
+      "name": "engineer"
+    },
+    {
+      "name": "analyst"
+    },
+    {
+      "name": "viewer"
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "trino",
+      "name": "Trino",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${OIDC_CLIENT_SECRET_TRINO}",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "redirectUris": [
+        "https://trino.${LAB_DOMAIN}:${LAB_HTTPS_PORT}/oauth2/callback",
+        "https://trino.${LAB_DOMAIN}/oauth2/callback"
+      ],
+      "webOrigins": [
+        "https://trino.${LAB_DOMAIN}:${LAB_HTTPS_PORT}",
+        "https://trino.${LAB_DOMAIN}"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "https://trino.${LAB_DOMAIN}:${LAB_HTTPS_PORT}/ui/logout/logout.html##https://trino.${LAB_DOMAIN}/ui/logout/logout.html"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true",
+            "claim.name": "groups"
+          }
+        },
+        {
+          "name": "aud-trino",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "trino",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "aud-lakekeeper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "lakekeeper",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "lakekeeper",
+      "name": "Lakekeeper (service)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${OIDC_CLIENT_SECRET_LAKEKEEPER}",
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "protocolMappers": [
+        {
+          "name": "aud-lakekeeper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "lakekeeper",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "lakekeeper-ui",
+      "name": "Lakekeeper UI",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "https://catalog.${LAB_DOMAIN}:${LAB_HTTPS_PORT}/ui/callback",
+        "https://catalog.${LAB_DOMAIN}/ui/callback"
+      ],
+      "webOrigins": [
+        "https://catalog.${LAB_DOMAIN}:${LAB_HTTPS_PORT}",
+        "https://catalog.${LAB_DOMAIN}"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "https://catalog.${LAB_DOMAIN}:${LAB_HTTPS_PORT}/ui/*##https://catalog.${LAB_DOMAIN}/ui/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true",
+            "claim.name": "groups"
+          }
+        },
+        {
+          "name": "aud-lakekeeper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "lakekeeper",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "console",
+      "name": "Lab Console",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${OIDC_CLIENT_SECRET_CONSOLE}",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "https://console.${LAB_DOMAIN}:${LAB_HTTPS_PORT}/oauth2/callback",
+        "https://console.${LAB_DOMAIN}/oauth2/callback"
+      ],
+      "webOrigins": [
+        "https://console.${LAB_DOMAIN}:${LAB_HTTPS_PORT}",
+        "https://console.${LAB_DOMAIN}"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "https://console.${LAB_DOMAIN}:${LAB_HTTPS_PORT}/##https://console.${LAB_DOMAIN}/"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true",
+            "claim.name": "groups"
+          }
+        },
+        {
+          "name": "aud-console",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "console",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ]
+}

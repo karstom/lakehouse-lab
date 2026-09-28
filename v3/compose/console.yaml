@@ -1,0 +1,85 @@
+# Lab Console v1 (CONTRACT Phase 3; ADR-010), every profile.
+#
+# * oauth2-proxy: the forward-auth behind Caddy's `forward_auth` for console. and spark., as
+#   the Keycloak client `console` (bootstrap/superset_client.py repairs it). Its session cookie
+#   is scoped to .<LAB_DOMAIN>, so one sign-in (always through console./oauth2/callback)
+#   covers both sites. Caddy asks /oauth2/auth (optionally ?allowed_groups=...) on every
+#   request: 202 = go on, 401 = sign in, 403 = not in an allowed group.
+# * console-health: a tiny stdlib HTTP service (config/console/health/health.py) that probes
+#   the lab's services and serves /health.json to the Console page (behind the forward-auth).
+# The page itself is static (config/console/index.html), served by Caddy.
+
+services:
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:${OAUTH2_PROXY_IMAGE_TAG:?}@${OAUTH2_PROXY_IMAGE_DIGEST:?}
+    environment:
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_PROVIDER: keycloak-oidc
+      OAUTH2_PROXY_PROVIDER_DISPLAY_NAME: Lakehouse Lab
+      OAUTH2_PROXY_OIDC_ISSUER_URL: ${LAB_AUTH_URL:?LAB_AUTH_URL is derived from LAB_DOMAIN/LAB_HTTPS_PORT by installer/lib.sh; start the lab with ./lab or ./install.sh}/realms/lakehouse
+      OAUTH2_PROXY_CLIENT_ID: console
+      OAUTH2_PROXY_CLIENT_SECRET: ${OIDC_CLIENT_SECRET_CONSOLE:?}
+      OAUTH2_PROXY_CODE_CHALLENGE_METHOD: S256
+      # No REDIRECT_URL: it is built from the request (https://console.<domain>[:port]/oauth2/callback),
+      # so no public origin is assembled here (INV_V3_PUBLIC_ORIGIN_SINGLE_SOURCE).
+      OAUTH2_PROXY_UPSTREAMS: static://202
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"
+      # Accounts without a verified e-mail (external/GitHub users, ADR-016) must still sign in.
+      OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL: "true"
+      OAUTH2_PROXY_COOKIE_NAME: _lab_auth
+      OAUTH2_PROXY_COOKIE_SECRET: ${CONSOLE_COOKIE_SECRET:?run install.sh (missing CONSOLE_COOKIE_SECRET in .secrets.env)}
+      OAUTH2_PROXY_COOKIE_DOMAINS: .${LAB_DOMAIN:-lab.localhost}
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_COOKIE_SAMESITE: lax
+      OAUTH2_PROXY_COOKIE_EXPIRE: ${CONSOLE_SESSION_TTL:-12h}
+      # Re-read groups from Keycloak (refresh token) at most this often, so a group change in
+      # Keycloak reaches the tiles and the Spark UI check without a new login.
+      OAUTH2_PROXY_COOKIE_REFRESH: ${CONSOLE_GROUPS_REFRESH:-1m}
+      # After sign-in, only redirect back to hosts of this lab.
+      OAUTH2_PROXY_WHITELIST_DOMAINS: .${LAB_DOMAIN:-lab.localhost}:*,.${LAB_DOMAIN:-lab.localhost}
+      OAUTH2_PROXY_SILENCE_PING_LOGGING: "true"
+      # Go reads the lab CA (issuer discovery, token and JWKS calls) from here.
+      SSL_CERT_FILE: /trust/ca-bundle.crt
+      TZ: ${LAB_TZ:-UTC}
+    volumes:
+      - trust:/trust:ro
+    networks: [lab]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:4180/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    depends_on:
+      keycloak: {condition: service_healthy}
+      caddy: {condition: service_healthy}   # the issuer URL goes through Caddy's alias
+      bootstrap: {condition: service_completed_successfully}   # repairs the `console` client
+    restart: unless-stopped
+    mem_limit: ${OAUTH2_PROXY_MEM:-64m}
+    cpus: ${OAUTH2_PROXY_CPUS:-0.25}
+
+  console-health:
+    image: lakehouse-lab/v3-bootstrap:${PYTHON_IMAGE_TAG}
+    labels:
+      # Recreated by `up` when config/console changes (installer/lib.sh lab_config_hashes).
+      lab.config-hash: ${LAB_CONFIG_HASH_CONSOLE:-}
+    command: ["python3", "/opt/lab/console/health/health.py"]
+    environment:
+      LAB_PROFILE: ${LAB_PROFILE:-core}
+      LAB_HEALTH_TTL: ${LAB_HEALTH_TTL:-10}
+      TZ: ${LAB_TZ:-UTC}
+    volumes:
+      - ./config/console:/opt/lab/console:ro
+    networks: [lab]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8080/ping', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}   # builds the image it runs
+    restart: unless-stopped
+    mem_limit: ${CONSOLE_HEALTH_MEM:-64m}
+    cpus: ${CONSOLE_HEALTH_CPUS:-0.25}

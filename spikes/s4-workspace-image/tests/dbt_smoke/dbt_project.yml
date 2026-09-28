@@ -1,0 +1,4 @@
+name: s4_smoke
+version: "1.0.0"
+profile: s4_smoke
+model-paths: ["models"]

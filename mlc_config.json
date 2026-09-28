@@ -5,11 +5,28 @@
     },
     {
       "pattern": "^https://localhost.*"
+    },
+    {
+      "pattern": "^https?://[^/]*\\.localhost([:/]|$)"
+    },
+    {
+      "pattern": "^https?://[^/]*sslip\\.io([:/]|$)"
+    },
+    {
+      "pattern": "^https?://<"
+    },
+    {
+      "pattern": "^https?://[A-Za-z0-9-]+(:[0-9]+)?([/?#]|$)"
+    },
+    {
+      "pattern": "^https://opensource\\.org/"
     }
   ],
   "httpHeaders": [
     {
-      "urls": ["https://github.com"],
+      "urls": [
+        "https://github.com"
+      ],
       "headers": {
         "Accept": "text/html"
       }

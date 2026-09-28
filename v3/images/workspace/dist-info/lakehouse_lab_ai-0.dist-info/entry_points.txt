@@ -1,0 +1,2 @@
+[jupyter_ai.personas]
+lab-assistant = lakehouse.ai_persona:LabAssistant

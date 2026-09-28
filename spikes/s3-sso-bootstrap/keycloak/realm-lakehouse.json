@@ -1,0 +1,401 @@
+{
+  "realm": "lakehouse",
+  "enabled": true,
+  "displayName": "Lakehouse Lab",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "roles": {
+    "client": {
+      "airflow": [
+        {
+          "name": "Viewer",
+          "clientRole": true
+        },
+        {
+          "name": "User",
+          "clientRole": true
+        },
+        {
+          "name": "Op",
+          "clientRole": true
+        },
+        {
+          "name": "Admin",
+          "clientRole": true
+        },
+        {
+          "name": "SuperAdmin",
+          "clientRole": true
+        }
+      ]
+    }
+  },
+  "groups": [
+    {
+      "name": "lab-admin",
+      "clientRoles": {
+        "airflow": [
+          "Admin"
+        ]
+      }
+    },
+    {
+      "name": "engineer",
+      "clientRoles": {
+        "airflow": [
+          "Op"
+        ]
+      }
+    },
+    {
+      "name": "analyst",
+      "clientRoles": {
+        "airflow": [
+          "Viewer"
+        ]
+      }
+    },
+    {
+      "name": "viewer",
+      "clientRoles": {
+        "airflow": [
+          "Viewer"
+        ]
+      }
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "jupyterhub",
+      "name": "jupyterhub",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "https://jupyter.${LAB_DOMAIN}:${LAB_PORT}/*"
+      ],
+      "webOrigins": [
+        "https://jupyter.${LAB_DOMAIN}:${LAB_PORT}"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "https://jupyter.${LAB_DOMAIN}:${LAB_PORT}/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true",
+            "claim.name": "groups"
+          }
+        },
+        {
+          "name": "aud-jupyterhub",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "jupyterhub",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ],
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${JUPYTERHUB_CLIENT_SECRET}"
+    },
+    {
+      "clientId": "superset",
+      "name": "superset",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "https://superset.${LAB_DOMAIN}:${LAB_PORT}/*"
+      ],
+      "webOrigins": [
+        "https://superset.${LAB_DOMAIN}:${LAB_PORT}"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "https://superset.${LAB_DOMAIN}:${LAB_PORT}/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true",
+            "claim.name": "groups"
+          }
+        },
+        {
+          "name": "aud-superset",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "superset",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ],
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${SUPERSET_CLIENT_SECRET}"
+    },
+    {
+      "clientId": "airflow",
+      "name": "airflow",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "https://airflow.${LAB_DOMAIN}:${LAB_PORT}/*"
+      ],
+      "webOrigins": [
+        "https://airflow.${LAB_DOMAIN}:${LAB_PORT}"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "https://airflow.${LAB_DOMAIN}:${LAB_PORT}/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true",
+            "claim.name": "groups"
+          }
+        },
+        {
+          "name": "aud-airflow",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "airflow",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ],
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${AIRFLOW_CLIENT_SECRET}",
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": true,
+      "authorizationSettings": {
+        "allowRemoteResourceManagement": true,
+        "policyEnforcementMode": "ENFORCING",
+        "decisionStrategy": "AFFIRMATIVE",
+        "resources": [],
+        "policies": [],
+        "scopes": []
+      }
+    },
+    {
+      "clientId": "trino",
+      "name": "trino",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "https://trino.${LAB_DOMAIN}:${LAB_PORT}/*"
+      ],
+      "webOrigins": [
+        "https://trino.${LAB_DOMAIN}:${LAB_PORT}"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "https://trino.${LAB_DOMAIN}:${LAB_PORT}/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true",
+            "claim.name": "groups"
+          }
+        },
+        {
+          "name": "aud-trino",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "trino",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ],
+      "publicClient": false,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "${TRINO_CLIENT_SECRET}"
+    },
+    {
+      "clientId": "lakekeeper",
+      "name": "lakekeeper",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "redirectUris": [
+        "https://catalog.${LAB_DOMAIN}:${LAB_PORT}/*"
+      ],
+      "webOrigins": [
+        "https://catalog.${LAB_DOMAIN}:${LAB_PORT}"
+      ],
+      "attributes": {
+        "post.logout.redirect.uris": "https://catalog.${LAB_DOMAIN}:${LAB_PORT}/*",
+        "pkce.code.challenge.method": "S256"
+      },
+      "protocolMappers": [
+        {
+          "name": "groups",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-group-membership-mapper",
+          "config": {
+            "full.path": "false",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true",
+            "claim.name": "groups"
+          }
+        },
+        {
+          "name": "aud-lakekeeper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.client.audience": "lakekeeper",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ],
+      "publicClient": true
+    }
+  ],
+  "users": [
+    {
+      "username": "alice",
+      "enabled": true,
+      "email": "alice@lab.invalid",
+      "emailVerified": true,
+      "firstName": "Alice",
+      "lastName": "Admin",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${LAB_USER_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "lab-admin"
+      ]
+    },
+    {
+      "username": "eddie",
+      "enabled": true,
+      "email": "eddie@lab.invalid",
+      "emailVerified": true,
+      "firstName": "Eddie",
+      "lastName": "Engineer",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${LAB_USER_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "engineer"
+      ]
+    },
+    {
+      "username": "anna",
+      "enabled": true,
+      "email": "anna@lab.invalid",
+      "emailVerified": true,
+      "firstName": "Anna",
+      "lastName": "Analyst",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${LAB_USER_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "analyst"
+      ]
+    },
+    {
+      "username": "victor",
+      "enabled": true,
+      "email": "victor@lab.invalid",
+      "emailVerified": true,
+      "firstName": "Victor",
+      "lastName": "Viewer",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${LAB_USER_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "viewer"
+      ]
+    },
+    {
+      "username": "sam",
+      "enabled": true,
+      "email": "sam@lab.invalid",
+      "emailVerified": true,
+      "firstName": "Sam",
+      "lastName": "Switcher",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "${LAB_USER_PASSWORD}",
+          "temporary": false
+        }
+      ],
+      "groups": [
+        "viewer"
+      ]
+    }
+  ]
+}

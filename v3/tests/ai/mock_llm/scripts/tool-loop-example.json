@@ -1,0 +1,9 @@
+{
+  "description": "Example scripted agent loop (tests/ai/test_mock_llm.py): list tables, fetch each table's last snapshot, then answer from the tool results. Put '#mock:tool-loop-example' in a message to use it.",
+  "steps": [
+    {"tool_calls": [{"name": "catalog_list", "arguments": {"namespace": "analytics"}}]},
+    {"tool_calls_foreach": {"source": "tool:catalog_list", "path": "tables[*]",
+                            "name": "table_last_snapshot", "arguments": {"table": "{{item}}"}}},
+    {"content": "Tables: {{tool:catalog_list|tables}}. Snapshots: {{tool_results}}"}
+  ]
+}

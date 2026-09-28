@@ -1,0 +1,16 @@
+{
+  "id": "A3",
+  "track": "analyst",
+  "title": "Your first dbt model",
+  "minutes": 55,
+  "profile": "core",
+  "groups": ["analyst", "engineer", "lab-admin"],
+  "test_user": "anna",
+  "requires": ["A1"],
+  "lesson": "README.md",
+  "tutor": "tutor.md",
+  "start": "segment_revenue.sql",
+  "checkpoint": "checkpoint.py",
+  "reset": {"tables": ["lakehouse.dbt_{user}.segment_revenue"], "files": "dbt_project/ (lab-tracks moves it to the backup)"},
+  "solution": {"timeout_s": 900, "browser_logins": []}
+}

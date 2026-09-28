@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+"""lab-ai CLI: see lakehouse/ai_cli.py."""
+import sys
+
+from lakehouse.ai_cli import main
+
+sys.exit(main())

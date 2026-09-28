@@ -1,0 +1,35 @@
+slice_name: Revenue by region and year
+description: null
+certified_by: null
+certification_details: null
+viz_type: pivot_table_v2
+params:
+  groupbyRows:
+  - region_name
+  groupbyColumns:
+  - order_year
+  metrics:
+  - expressionType: SIMPLE
+    column:
+      column_name: net_revenue
+    aggregate: SUM
+    label: Net revenue
+  aggregateFunction: Sum
+  valueFormat: SMART_NUMBER
+  row_limit: 10000
+  adhoc_filters: []
+  viz_type: pivot_table_v2
+  datasource: 0__table
+query_context: '{"datasource": {"id": 0, "type": "table"}, "force": false, "form_data": {"adhoc_filters": [], "aggregateFunction":
+  "Sum", "datasource": "0__table", "groupbyColumns": ["order_year"], "groupbyRows": ["region_name"], "metrics": [{"aggregate":
+  "SUM", "column": {"column_name": "net_revenue"}, "expressionType": "SIMPLE", "label": "Net revenue"}], "row_limit": 10000,
+  "valueFormat": "SMART_NUMBER", "viz_type": "pivot_table_v2"}, "queries": [{"annotation_layers": [], "applied_time_extras":
+  {}, "columns": ["region_name", "order_year"], "custom_form_data": {}, "custom_params": {}, "extras": {"having": "", "where":
+  ""}, "filters": [], "metrics": [{"aggregate": "SUM", "column": {"column_name": "net_revenue"}, "expressionType": "SIMPLE",
+  "label": "Net revenue"}], "order_desc": true, "orderby": [[{"aggregate": "SUM", "column": {"column_name": "net_revenue"},
+  "expressionType": "SIMPLE", "label": "Net revenue"}, false]], "row_limit": 10000, "series_limit": 0, "url_params": {}}],
+  "result_format": "json", "result_type": "full"}'
+cache_timeout: null
+uuid: 6f7ef011-66e2-4960-9906-f2cfa346ce75
+version: 1.0.0
+dataset_uuid: e4df2ebf-aa84-48e1-a7c3-ad324e4b4c3a

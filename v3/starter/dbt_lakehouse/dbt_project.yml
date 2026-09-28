@@ -1,0 +1,17 @@
+# Starter dbt project over the lab's sample data (lakehouse.samples.*, TPC-H "tiny").
+# Run from this directory:  dbt build
+name: lakehouse_starter
+config-version: 2
+profile: lakehouse
+
+model-paths: ["models"]
+test-paths: ["tests"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages", "logs"]
+
+models:
+  lakehouse_starter:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table

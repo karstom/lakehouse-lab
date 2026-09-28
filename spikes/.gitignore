@@ -1,0 +1,7 @@
+# Generated on the server by gen-secrets.sh; never commit
+secrets/
+.secrets.env
+**/out/
+*.pem
+*.crt
+*.key

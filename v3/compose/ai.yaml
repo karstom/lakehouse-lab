@@ -1,0 +1,181 @@
+# Profile `full`: the AI gateway (CONTRACT Phase 5, ADR-014, OQ-7/OQ-8).
+#
+# * ai-gateway   LiteLLM proxy (images/ai-gateway: MIT-licensed LiteLLM only, no enterprise
+#                code). Holds the provider keys and the per-user budgets. Only on the `ai`
+#                network (compose.yaml): workspaces cannot open it. No public hostname.
+# * ai-frontdoor the ONLY way workspaces reach the gateway (bootstrap/ai_frontdoor.py, on the
+#                bootstrap image; `lab` + `ai`). Workspaces call http://ai-frontdoor:4000 with
+#                their own virtual key; it forwards only the routes in its allowlist (chat,
+#                messages, embeddings, model list, own budget) and refuses everything else
+#                (/health, /model/info, /key/*, /user/*, /spend/*, admin routes, ...) with 403.
+# * ai-gateway-db  one-shot: role + database `ai_gateway` in the shared Postgres.
+# * ai-keys      the key broker (bootstrap/ai_gateway.py): the only other holder of the
+#                gateway's master key. JupyterHub mints/rotates/revokes per-user keys through
+#                it with AI_GATEWAY_HUB_TOKEN; it can do nothing else with the gateway. On
+#                `lab` (for the hub) and `ai` (for the gateway's admin API).
+# * ai-mock      profile `ai-mock` (tests only; install.sh --ai-mock sets LAB_AI_MOCK=true and
+#                ./lab then passes --profile ai-mock): the deterministic mock model. On `ai`
+#                (the gateway routes to it) and `lab` (check 18's agent loop, inside a
+#                workspace, drives its script API). Test installs only.
+#
+# Providers are OFF by default (OQ-8). Which ones exist is decided only by the lab's own files:
+#   local      LAB_AI_LOCAL_URL (+ LAB_AI_LOCAL_MODEL) in .env     (./lab ai set-local)
+#   anthropic  LAB_AI_ANTHROPIC_API_KEY in .secrets.env              (./lab ai enable-hosted)
+#   openai     LAB_AI_OPENAI_API_KEY in .secrets.env                 (./lab ai enable-hosted)
+#   mock       LAB_AI_MOCK=true in .env                              (install.sh --ai-mock)
+# Quiet hours for the local provider: LAB_AI_QUIET_HOURS + LAB_AI_QUIET_TZ in .env
+# (./lab ai quiet-hours); the gateway refuses local requests in that window before routing.
+# With none, config/ai/render_config.py writes an empty model list: every AI request gets
+# "AI isn't configured; ask your lab admin." and the gateway makes no outbound AI call.
+# Changing one recreates ai-gateway (its environment changes); `./lab ai ...` does that.
+
+services:
+  ai-gateway-db:
+    image: postgres:${POSTGRES_VERSION}
+    profiles: [full]
+    entrypoint: ["/opt/lab/ai/init-db.sh"]
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      AI_GATEWAY_DB_PASSWORD: ${AI_GATEWAY_DB_PASSWORD:?run install.sh (missing AI_GATEWAY_DB_PASSWORD in .secrets.env)}
+    volumes:
+      # A directory mount (not a single file), so an upgraded script is seen on the next run.
+      - ./config/ai:/opt/lab/ai:ro
+    # The postgres image declares VOLUME /var/lib/postgresql/data; without a mount there, every
+    # run of this client-only container would leave an anonymous volume behind.
+    tmpfs:
+      - /var/lib/postgresql/data
+    networks: [lab]
+    depends_on:
+      postgres: {condition: service_healthy}
+    restart: "no"
+    mem_limit: ${AI_GATEWAY_DB_INIT_MEM:-64m}
+    cpus: ${AI_GATEWAY_DB_INIT_CPUS:-0.25}
+
+  ai-gateway:
+    build:
+      context: ./images/ai-gateway
+      additional_contexts:
+        config: ./config/ai
+      args:
+        PYTHON_IMAGE_TAG: ${PYTHON_IMAGE_TAG}
+        PYTHON_IMAGE_DIGEST: ${PYTHON_IMAGE_DIGEST}
+        LITELLM_VERSION: ${LITELLM_VERSION:?}
+        PRISMA_PYTHON_VERSION: ${PRISMA_PYTHON_VERSION:?}
+    image: lakehouse-lab/v3-ai-gateway:${LITELLM_VERSION}
+    profiles: [full]
+    environment:
+      LITELLM_MASTER_KEY: ${AI_GATEWAY_MASTER_KEY:?run install.sh (missing AI_GATEWAY_MASTER_KEY in .secrets.env)}
+      LITELLM_SALT_KEY: ${AI_GATEWAY_SALT_KEY:?run install.sh (missing AI_GATEWAY_SALT_KEY in .secrets.env)}
+      DATABASE_URL: postgresql://ai_gateway:${AI_GATEWAY_DB_PASSWORD:?}@postgres:5432/ai_gateway
+      # Providers (all empty = none enabled; see the header).
+      LAB_AI_LOCAL_URL: ${LAB_AI_LOCAL_URL:-}
+      LAB_AI_LOCAL_MODEL: ${LAB_AI_LOCAL_MODEL:-}
+      LAB_AI_LOCAL_API_KEY: ${LAB_AI_LOCAL_API_KEY:-}
+      LAB_AI_LOCAL_COST_PER_MTOK: ${LAB_AI_LOCAL_COST_PER_MTOK:-}
+      LAB_AI_ANTHROPIC_API_KEY: ${LAB_AI_ANTHROPIC_API_KEY:-}
+      LAB_AI_ANTHROPIC_MODEL: ${LAB_AI_ANTHROPIC_MODEL:-}
+      LAB_AI_OPENAI_API_KEY: ${LAB_AI_OPENAI_API_KEY:-}
+      LAB_AI_OPENAI_MODEL: ${LAB_AI_OPENAI_MODEL:-}
+      LAB_AI_MOCK: ${LAB_AI_MOCK:-false}
+      LAB_AI_MOCK_COST_PER_MTOK: ${LAB_AI_MOCK_COST_PER_MTOK:-}
+      LAB_AI_DEFAULT_PROVIDER: ${LAB_AI_DEFAULT_PROVIDER:-}
+      LAB_AI_REQUEST_TIMEOUT: ${LAB_AI_REQUEST_TIMEOUT:-600}
+      # Local model quiet hours (Phase 6; `./lab ai quiet-hours`): empty = off.
+      LAB_AI_QUIET_HOURS: ${LAB_AI_QUIET_HOURS:-}
+      LAB_AI_QUIET_TZ: ${LAB_AI_QUIET_TZ:-}
+      TZ: ${LAB_TZ:-UTC}
+    # A local model server on the Docker host itself: ./lab ai set-local rewrites
+    # http://localhost:<port> to http://host.docker.internal:<port>.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Only `ai`: nothing on `lab` (workspaces included) can open the gateway; see ai-frontdoor.
+    networks: [ai]
+    healthcheck:
+      # Liveness only: the gateway's /health endpoint would send a real request to every model.
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4000/health/liveliness', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      # First start applies the gateway's database migrations (about a minute).
+      start_period: 120s
+    depends_on:
+      ai-gateway-db: {condition: service_completed_successfully}
+      postgres: {condition: service_healthy, restart: true}   # see compose/identity.yaml keycloak
+    restart: unless-stopped
+    # Measured: ~610 MiB idle, ~880 MiB peak while migrating a new database (one worker).
+    mem_limit: ${AI_GATEWAY_MEM:-1g}
+    cpus: ${AI_GATEWAY_CPUS:-1}
+
+  ai-keys:
+    image: lakehouse-lab/v3-bootstrap:${PYTHON_IMAGE_TAG}
+    profiles: [full]
+    command: ["python3", "-m", "bootstrap.ai_gateway", "serve"]
+    environment:
+      LITELLM_MASTER_KEY: ${AI_GATEWAY_MASTER_KEY:?}
+      AI_GATEWAY_HUB_TOKEN: ${AI_GATEWAY_HUB_TOKEN:?run install.sh (missing AI_GATEWAY_HUB_TOKEN in .secrets.env)}
+      LAB_AI_USER_BUDGET_USD: ${LAB_AI_USER_BUDGET_USD:-5}
+      LAB_AI_BUDGET_DURATION: ${LAB_AI_BUDGET_DURATION:-30d}
+      LAB_AI_USER_RPM: ${LAB_AI_USER_RPM:-30}
+      LAB_AI_KEY_DURATION: ${LAB_AI_KEY_DURATION:-30d}
+      TZ: ${LAB_TZ:-UTC}
+    networks: [lab, ai]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/healthz', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    depends_on:
+      ai-gateway: {condition: service_healthy, restart: true}
+      bootstrap: {condition: service_completed_successfully}   # same image; built by bootstrap
+    restart: unless-stopped
+    mem_limit: ${AI_KEYS_MEM:-64m}
+    cpus: ${AI_KEYS_CPUS:-0.25}
+
+  ai-frontdoor:
+    image: lakehouse-lab/v3-bootstrap:${PYTHON_IMAGE_TAG}
+    profiles: [full]
+    command: ["python3", "-m", "bootstrap.ai_frontdoor"]
+    environment:
+      LAB_AI_FRONTDOOR_UPSTREAM: ai-gateway:4000
+      # One read from the gateway may wait as long as the gateway waits for a model.
+      LAB_AI_REQUEST_TIMEOUT: ${LAB_AI_REQUEST_TIMEOUT:-600}
+      LAB_AI_FRONTDOOR_MAX_BODY: ${LAB_AI_FRONTDOOR_MAX_BODY:-16777216}
+      TZ: ${LAB_TZ:-UTC}
+    networks: [lab, ai]
+    healthcheck:
+      # The listening socket only: every HTTP route of the front door is either refused or
+      # forwarded to the gateway, and a healthcheck must not send the gateway anything.
+      test: ["CMD", "python3", "-c", "import socket; socket.create_connection(('127.0.0.1', 4000), 3).close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    depends_on:
+      ai-gateway: {condition: service_healthy}
+      bootstrap: {condition: service_completed_successfully}   # same image; built by bootstrap
+    restart: unless-stopped
+    mem_limit: ${AI_FRONTDOOR_MEM:-64m}
+    cpus: ${AI_FRONTDOOR_CPUS:-0.5}
+
+  ai-mock:
+    image: lakehouse-lab/v3-bootstrap:${PYTHON_IMAGE_TAG}
+    profiles: [ai-mock]
+    command: ["python3", "/opt/lab/mock_llm/server.py", "--port", "8000"]
+    labels:
+      # Recreated by `up` when tests/ai/mock_llm changes (installer/lib.sh lab_config_hashes).
+      lab.config-hash: ${LAB_CONFIG_HASH_AI_MOCK:-}
+    volumes:
+      - ./tests/ai/mock_llm:/opt/lab/mock_llm:ro
+    networks: [lab, ai]
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    depends_on:
+      bootstrap: {condition: service_completed_successfully}   # same image; built by bootstrap
+    restart: unless-stopped
+    mem_limit: ${AI_MOCK_MEM:-64m}
+    cpus: ${AI_MOCK_CPUS:-0.25}

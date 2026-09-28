@@ -1,0 +1,16 @@
+{
+  "id": "A2",
+  "track": "analyst",
+  "title": "Exploratory analysis with DuckDB and JupySQL",
+  "minutes": 50,
+  "profile": "core",
+  "groups": ["analyst", "engineer", "lab-admin"],
+  "test_user": "anna",
+  "requires": ["A1"],
+  "lesson": "README.md",
+  "tutor": "tutor.md",
+  "start": "a2_explore.ipynb",
+  "checkpoint": "checkpoint.py",
+  "reset": {"tables": ["lakehouse.dbt_{user}.a2_late_by_shipmode"]},
+  "solution": {"timeout_s": 300, "browser_logins": []}
+}

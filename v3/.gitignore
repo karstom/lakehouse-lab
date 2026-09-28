@@ -1,0 +1,7 @@
+# Per-install, never commit (public repo)
+.env
+.secrets.env
+state/
+**/out/
+__pycache__/
+*.pyc

@@ -1,0 +1,28 @@
+slice_name: Customers by market segment
+description: null
+certified_by: null
+certification_details: null
+viz_type: pie
+params:
+  groupby:
+  - market_segment
+  metric:
+    expressionType: SQL
+    sqlExpression: COUNT(*)
+    label: Customers
+  row_limit: 100
+  show_legend: true
+  adhoc_filters: []
+  viz_type: pie
+  datasource: 0__table
+query_context: '{"datasource": {"id": 0, "type": "table"}, "force": false, "form_data": {"adhoc_filters": [], "datasource":
+  "0__table", "groupby": ["market_segment"], "metric": {"expressionType": "SQL", "label": "Customers", "sqlExpression": "COUNT(*)"},
+  "row_limit": 100, "show_legend": true, "viz_type": "pie"}, "queries": [{"annotation_layers": [], "applied_time_extras":
+  {}, "columns": ["market_segment"], "custom_form_data": {}, "custom_params": {}, "extras": {"having": "", "where": ""}, "filters":
+  [], "metrics": [{"expressionType": "SQL", "label": "Customers", "sqlExpression": "COUNT(*)"}], "order_desc": true, "orderby":
+  [[{"expressionType": "SQL", "label": "Customers", "sqlExpression": "COUNT(*)"}, false]], "row_limit": 100, "series_limit":
+  0, "url_params": {}}], "result_format": "json", "result_type": "full"}'
+cache_timeout: null
+uuid: c15c8f22-191f-4277-8f8a-2f0ecb6c89c5
+version: 1.0.0
+dataset_uuid: 8f0dbd9a-da8a-4dd4-acdb-d53339548c7e

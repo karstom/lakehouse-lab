@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# lab-mcp: start one of the lab's MCP servers over stdio, as the logged-in user.
+# MCP clients (Jupyter AI, Claude Code) run these commands; see /opt/lakehouse/mcp/servers.json.
+#
+#   lab-mcp trino           read-only Trino (<= 200 rows, <= 30 s)
+#   lab-mcp context         lab-context: Superset datasets, snapshots, Airflow runs, catalog, lesson
+#   lab-mcp dbt             dbt-mcp (official) on your project, ~/starter/dbt_lakehouse
+#   lab-mcp dbt-analytics   dbt-mcp on the shared `analytics` project (lineage of production)
+#   lab-mcp list            what is available
+set -euo pipefail
+MCP_HOME=${LAB_MCP_HOME:-/opt/lakehouse/mcp}
+PY="$MCP_HOME/venv/bin/python"
+# lab_mcp and the lab's `lakehouse` package (lab_token) on the path of the MCP venv.
+export PYTHONPATH="$MCP_HOME:/opt/lakehouse/python${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1
+case "${1:-}" in
+  trino)          exec "$PY" -m lab_mcp.trino_server ;;
+  context)        exec "$PY" -m lab_mcp.context_server ;;
+  dbt)            exec "$PY" -m lab_mcp.dbt_launcher user ;;
+  dbt-analytics)  exec "$PY" -m lab_mcp.dbt_launcher analytics ;;
+  list)           cat "$MCP_HOME/servers.json" ;;
+  *)
+    echo "usage: lab-mcp trino|context|dbt|dbt-analytics|list" >&2
+    exit 2 ;;
+esac

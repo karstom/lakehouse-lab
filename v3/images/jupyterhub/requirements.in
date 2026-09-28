@@ -1,0 +1,5 @@
+# Hub add-ons. ${VARS} come from versions.env as build args; jupyterhub is listed so pip
+# can never replace the base image's hub with another version.
+jupyterhub==${JUPYTERHUB_VERSION}
+oauthenticator==${OAUTHENTICATOR_VERSION}
+dockerspawner==${DOCKERSPAWNER_VERSION}

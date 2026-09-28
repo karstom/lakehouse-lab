@@ -50,3 +50,6 @@ node_modules/
 # Backup files
 *.bak
 *.backup
+
+# simplegraph seeding scratch (local; contains local paths)
+core/.seed_draft.json

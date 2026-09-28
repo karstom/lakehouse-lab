@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# dbt shim (first on PATH): hands dbt-trino (profiles.yml `method: jwt`) a fresh token of the
+# logged-in user, then runs the real dbt. DBT_ENV_SECRET_* values are scrubbed from dbt's logs.
+# The token is valid for at least 30 minutes when the run starts.
+set -euo pipefail
+if [ -z "${DBT_ENV_SECRET_LAB_TOKEN:-}" ]; then
+  if tok=$(lab-token --min-ttl 1800 2>/tmp/lab-token.err.$$); then
+    export DBT_ENV_SECRET_LAB_TOKEN="$tok"
+  else
+    # Commands that never connect (dbt --version, deps, parse) still work without a token.
+    echo "dbt: warning: $(cat /tmp/lab-token.err.$$); commands that query Trino will fail" >&2
+    export DBT_ENV_SECRET_LAB_TOKEN="no-token"
+  fi
+  rm -f /tmp/lab-token.err.$$
+fi
+exec /usr/local/bin/dbt "$@"

@@ -1,0 +1,12 @@
+# PyIceberg config for the lab catalog (PYICEBERG_HOME=/etc/lakehouse/pyiceberg).
+# `load_catalog("lakehouse")` acts as the logged-in user: every request carries a current
+# lab_token(). Lakekeeper vends table-scoped storage credentials (ADR-006); no S3 key here.
+# The URI comes from PYICEBERG_CATALOG__LAKEHOUSE__URI, which JupyterHub sets.
+catalog:
+  lakehouse:
+    type: rest
+    warehouse: lakehouse
+    header.X-Iceberg-Access-Delegation: vended-credentials
+    auth:
+      type: custom
+      impl: lakehouse.pyiceberg_auth.LabAuthManager

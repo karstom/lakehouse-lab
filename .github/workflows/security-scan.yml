@@ -1,70 +1,42 @@
 # .github/workflows/security-scan.yml
+# Trivy (filesystem) and TruffleHog (secrets) over the whole repository, V3 and legacy/v2,
+# plus a check that no per-install file (settings, secrets, the lab CA) is committed.
 name: Security Scan
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
 jobs:
   security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      # trivy-action was hijacked on 2026-03-19 (CVE-2026-33634 / GHSA-69fq-xp46-6x23): tags were
+      # repointed to a credential stealer and later deleted, which is why the old 0.33.0 tag no longer
+      # resolves. Actions are pinned by commit SHA (tags can be moved), and the Trivy binary is pinned
+      # too, because malicious Trivy builds v0.69.4-v0.69.6 were published in the same attack.
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.33.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25  # v0.36.0 (verified commit)
         with:
+          version: 'v0.74.0'
           scan-type: 'fs'
           scan-ref: '.'
           format: 'sarif'
           output: 'trivy-results.sarif'
       - name: Check for hardcoded secrets
-        uses: trufflesecurity/trufflehog@v3.88.1
+        uses: trufflesecurity/trufflehog@d73edfb85d79432e3c767c407afdee59c9a34fde  # v3.88.1
         with:
           path: ./
 
-      - name: Validate secure credential handling
+      - name: No per-install files committed (settings, secrets, lab CA)
         run: |
-          echo "Checking for secure credential handling..."
-
-          # Check that default .env files don't contain actual passwords
-          if grep -q "password123\|admin123\|secret123" .env.default .env.fat-server 2>/dev/null; then
-            echo "❌ Default passwords found in config files"
+          # v3/.env, v3/.secrets.env and v3/state/ are written by the installer and are
+          # git-ignored; the repo is public, so fail if any of them was force-added.
+          bad=$(git ls-files -- 'v3/.env' 'v3/.secrets.env' 'v3/state/*' '*.secrets.env' '.env' | grep -v '^legacy/' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::per-install files are committed:"
+            echo "$bad"
             exit 1
           fi
-
-          # Check that backup scripts don't expose credentials
-          if grep -i "password.*echo\|password.*printf" scripts/backup-lakehouse.sh scripts/restore-lakehouse.sh 2>/dev/null; then
-            echo "❌ Backup scripts may expose credentials in output"
-            exit 1
-          fi
-
-          # Check that credential generation creates secure passwords
-          if [ -f scripts/generate-credentials.sh ]; then
-            # Test credential generation (without executing potentially harmful commands)
-            if grep -q "openssl\|/dev/urandom" scripts/generate-credentials.sh; then
-              echo "✅ Credential generation uses secure methods"
-            else
-              echo "❌ Credential generation may not be secure"
-              exit 1
-            fi
-          fi
-
-          echo "✅ Secure credential handling validated"
-
-      - name: Check backup security
-        run: |
-          echo "Checking backup system security..."
-
-          # Check that backup scripts have proper permissions
-          if [ -f scripts/backup-lakehouse.sh ]; then
-            if [ "$(stat -c '%a' scripts/backup-lakehouse.sh)" != "755" ]; then
-              echo "❌ Backup script has incorrect permissions"
-              exit 1
-            fi
-          fi
-
-          # Check that restore script has confirmation prompts
-          if [ -f scripts/restore-lakehouse.sh ]; then
-            if ! grep -q "confirm_restore\|RESTORE" scripts/restore-lakehouse.sh; then
-              echo "❌ Restore script missing safety confirmations"
-              exit 1
-            fi
-          fi
-
-          echo "✅ Backup security validated"
+          echo "No per-install files committed."
