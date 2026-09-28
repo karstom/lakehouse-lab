@@ -1,6 +1,6 @@
 # Changelog
 
-## [3.0.0-beta.1] - unreleased
+## [3.0.0-beta.1] - 2026-09-28
 
 The first V3 release: a new stack, not an in-place upgrade of V2. It is a **beta**; see the
 [release notes](../v3/RELEASE_NOTES_v3.0.0-beta.1.md) for known gaps and how to report
