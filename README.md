@@ -4,7 +4,7 @@
 [![GitHub release](https://img.shields.io/github/v/release/karstom/lakehouse-lab?include_prereleases)](https://github.com/karstom/lakehouse-lab/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-**A complete open-source lakehouse on one machine, with one login, for learning to work as a
+**A complete open-source lakehouse on one machine / one login. Use it for lab-level projects or for learning to work as a
 data engineer or data analyst.**
 
 > **Status: V3 beta (`v3.0.0-beta.1`).** V3 is a new stack, not an upgrade of V2. It is
