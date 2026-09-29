@@ -26,7 +26,6 @@ sign in once, and every tool knows who you are and what you may see.
 - **Practitioners** get a reproducible single-server lakehouse for real analysis, with the
   engines and formats used in production.
 
-It is not a Databricks clone: it does not build its own notebook, SQL editor or catalog UI.
 The "why" behind the design is in [docs/README.md](docs/README.md).
 
 ## Quick start
@@ -46,12 +45,6 @@ then runs `v3/install.sh`):
 ```bash
 curl -fsSL https://raw.githubusercontent.com/karstom/lakehouse-lab/main/install.sh | bash
 ```
-
-Options go after `bash -s --`, e.g. `... | bash -s -- --profile engineer`. The bootstrap's
-own options are `--ref` (branch or tag, default `main`), `--dir` (default
-`./lakehouse-lab`) and `--yes`; everything else goes to `v3/install.sh` (`v3/install.sh
---help` lists them). It never overwrites a directory that is not a Lakehouse Lab V3
-checkout.
 
 The installer:
 
