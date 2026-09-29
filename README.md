@@ -152,20 +152,9 @@ More: [v3/tracks/README.md](v3/tracks/README.md); for instructors,
 
 ## Coming from V2?
 
-V3 does not upgrade a V2 install in place, and V2 keeps working as it is. In short:
-
-1. **Keep your V2 install on V2.** In your V2 directory, pin it to the last V2 release
-   before you pull anything: `git fetch --tags && git checkout v2.1.1-final`. (Running
-   `git pull` on `main` would replace V2's files with V3.)
-2. **Install V3 next to it** in a new directory (`--dir ~/lakehouse-lab-v3` with the
-   one-liner). Stop V2 first if the machine is short of RAM.
-3. **Copy your data**: mirror the V2 MinIO buckets into V3's storage with `rclone`, then
-   load what you need as Iceberg tables.
-4. Move notebooks, DAGs (Airflow 2 → 3 changes) and dashboards as you need them.
-
-The [migration guide](docs/MIGRATION.md) has the tested commands. V2's code and docs are
-archived in [legacy/v2/](legacy/v2/) ([what that means](legacy/README.md)). V2's MinIO image
-gets no more security fixes, so plan the move.
+The [migration guide](docs/MIGRATION.md) has the commands. V2's code and docs are
+archived in [legacy/v2/](legacy/v2/) ([what that means](legacy/README.md)). MinIO OSS
+seems like it will get no more security fixes, so plan the move before a 0-day hits.
 
 ## Reporting problems
 
