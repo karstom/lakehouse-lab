@@ -1,0 +1,16 @@
+{
+  "id": "A5",
+  "track": "analyst",
+  "title": "A result that isn't: testing with permutations",
+  "minutes": 55,
+  "profile": "core",
+  "groups": ["analyst", "engineer", "lab-admin"],
+  "test_user": "anna",
+  "requires": ["A1", "A2"],
+  "lesson": "README.md",
+  "tutor": "tutor.md",
+  "start": "a5_permutation.ipynb",
+  "checkpoint": "checkpoint.py",
+  "reset": {"tables": ["lakehouse.dbt_{user}.a5_spread_test"]},
+  "solution": {"timeout_s": 300, "browser_logins": []}
+}

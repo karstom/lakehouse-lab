@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **NFL sample data** (`lakehouse.samples.nfl_games`, `lakehouse.samples.nfl_q4_flags`):
+  4,498 games and 14,598 fourth-quarter penalty flags, 2010–2026, derived from nflverse data
+  (CC-BY-4.0; attribution and data dictionary in `v3/bootstrap/sample_data/nfl/README.md`).
+  Shipped in the repository (266 KB) and loaded by the `samples` job like the TPC-H tables:
+  nothing is downloaded, existing tables are left alone, and each table is loaded into a
+  staging table and renamed when complete.
+- **Analyst module A5 · A result that isn't: testing with permutations.** On the NFL sample,
+  a post-2018 "officials favor the team that needs to cover" effect looks highly significant
+  with a standard test (p ≈ 0.001), then mostly disappears under a stratified permutation
+  test (p ≈ 0.14): the lesson is that a formula p-value is wrong when the sample definition
+  depends on the variable under test. Profile `core`; checkpoint and reference solution
+  follow the module interface (smoke check 17).
+
 ## [3.0.0-beta.1] - 2026-09-28
 
 The first V3 release: a new stack, not an in-place upgrade of V2. It is a **beta**; see the
