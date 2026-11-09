@@ -6,7 +6,7 @@ takes 30 to 60 minutes and ends with a **checkpoint** that tells you whether you
 | Track | Modules | You need |
 |---|---|---|
 | **Data engineer** | E1 files → Iceberg with Spark · E2 table maintenance (snapshots, time travel, compaction, snapshot expiry) · E3 your own scheduled Airflow DAG · E4 notebook → scheduled job → Spark batch job | profile `engineer` or `full`; Keycloak group `engineer` (or `lab-admin`) |
-| **Data analyst** | A1 SQL over `samples` · A2 exploratory analysis with JupySQL + DuckDB · A3 your first dbt model · A4 a chart and a dashboard in Superset | A1–A3: any profile; A4: profile `full`. Keycloak group `analyst` (or `engineer`, `lab-admin`) |
+| **Data analyst** | A1 SQL over `samples` · A2 exploratory analysis with JupySQL + DuckDB · A3 your first dbt model · A4 a chart and a dashboard in Superset | A1–A3: any profile; A4: profile `full`. Keycloak group `analyst` (or `engineer`, `lab-admin`) · A5 a result that isn't: a permutation test on NFL data |
 
 Everything uses lab data only (`lakehouse.samples` and data the lessons generate). Nothing
 is downloaded from the internet.

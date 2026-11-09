@@ -130,7 +130,7 @@ budget. Details: [v3/config/ai/README.md](v3/config/ai/README.md).
 | Track | Modules |
 |---|---|
 | **Data engineer** (`engineer`/`full`) | E1 files → Iceberg with Spark · E2 table maintenance and time travel · E3 your own Airflow DAG · E4 notebook → scheduled Spark job |
-| **Data analyst** (any profile; A4 needs `full`) | A1 SQL over the sample data · A2 exploration with JupySQL + DuckDB · A3 your first dbt model · A4 a Superset dashboard |
+| **Data analyst** (any profile; A4 needs `full`) | A1 SQL over the sample data · A2 exploration with JupySQL + DuckDB · A3 your first dbt model · A4 a Superset dashboard · A5 a result that isn't: a permutation test on NFL data |
 
 Open `https://jupyter.<domain>/`, go to the `tracks` folder, and follow a module's
 `README.md`. `lab-tracks check E1` in a workspace terminal tells you whether you got there.
