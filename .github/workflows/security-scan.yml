@@ -12,6 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          # Full history: on the first push of a new branch TruffleHog diffs against HEAD~1,
+          # which a shallow (depth 1) checkout does not have ("unknown revision").
+          fetch-depth: 0
       # trivy-action was hijacked on 2026-03-19 (CVE-2026-33634 / GHSA-69fq-xp46-6x23): tags were
       # repointed to a credential stealer and later deleted, which is why the old 0.33.0 tag no longer
       # resolves. Actions are pinned by commit SHA (tags can be moved), and the Trivy binary is pinned
